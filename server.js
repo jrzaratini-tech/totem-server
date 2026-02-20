@@ -3,16 +3,20 @@ const mqtt = require("mqtt");
 
 const app = express();
 
-// 🔹 Conecta no broker MQTT (HiveMQ público para teste)
+// 🔹 Conecta no broker MQTT (mesmo que o ESP usa)
 const client = mqtt.connect("mqtt://broker.hivemq.com:1883");
 
 client.on("connect", () => {
   console.log("Conectado ao MQTT");
 });
 
+client.on("error", (err) => {
+  console.error("Erro MQTT:", err);
+});
+
 // 🔹 Lista de totens (ID → Instagram fixo)
 const clientes = {
-  "1001": "https://www.instagram.com/printpixel_grafica/"
+  "123": "https://www.instagram.com/printpixel_grafica/"
 };
 
 app.get("/totem/:id", (req, res) => {
@@ -24,7 +28,7 @@ app.get("/totem/:id", (req, res) => {
 
   const topic = `totem/${id}`;
 
-  console.log("Publicando em:", topic);
+  console.log("Publicando play em:", topic);
 
   client.publish(topic, "play");
 
