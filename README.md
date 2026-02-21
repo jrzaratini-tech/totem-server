@@ -4,215 +4,200 @@ Sistema de Engajamento com QR Code + ESP32 + MQTT
 
 📌 Visão Geral
 
-O Totem Interativo IoT é um dispositivo baseado em ESP32 que permite interação em eventos através de QR Code.
+O Totem Interativo IoT é uma solução física para eventos que permite gerar engajamento em redes sociais de forma automatizada.
 
-Quando um usuário escaneia o QR Code do Instagram:
+Quando um usuário escaneia um QR Code:
 
-O acesso passa por um servidor intermediário
+A requisição passa pelo servidor (Render)
 
-O servidor publica um evento via MQTT
+O servidor publica uma mensagem MQTT
 
-O ESP32 recebe o comando em tempo real
+O ESP32 correspondente recebe o comando
 
-O totem executa ação (som, LED, efeitos)
+O totem executa ação física (LED / Som / Efeito)
+
+O usuário é redirecionado para o Instagram do cliente
 
 O sistema foi projetado para:
 
-Funcionar em eventos com redes diferentes
+Funcionar em qualquer evento com Wi-Fi local
 
-Permitir reconfiguração rápida de Wi-Fi
+Atender múltiplos clientes (até 300+ totens)
 
-Ser escalável para múltiplos totens
+Não depender da API do Instagram
 
-Operar em tempo real
+Ser escalável e comercialmente viável
 
 🏗️ Arquitetura do Sistema
 Usuário
    ↓
-QR Code (link rastreável)
+QR Code
    ↓
-Servidor Backend
+Servidor (Render - Node.js)
    ↓
 Broker MQTT
    ↓
 ESP32 (Totem)
    ↓
-Ação Física (LED / Som / Efeito)
-🔧 Hardware
+Ação Física
+   ↓
+Redirecionamento para Instagram
+📂 Estrutura do Projeto
+totem-server/
+│
+├── server.js
+├── package.json
+├── deploy.bat
+└── README.md
+🔧 Backend (Node.js + MQTT)
+📄 server.js
 
-ESP32
+Recebe requisição via /totem/:id
 
-Botão físico de RESET
+Publica play no tópico MQTT correspondente
 
-Módulo de som
+Redireciona para Instagram fixo do cliente
 
-LEDs / efeitos visuais
+Exemplo atual configurado:
 
-Fonte de alimentação adequada
+const clientes = {
+  "123": "https://www.instagram.com/printpixel_grafica/"
+};
 
-🌐 Configuração Inicial (Cliente Final)
-1️⃣ Primeiro uso
+Tópico MQTT utilizado:
 
-Ao ligar o dispositivo:
-
-Se não houver Wi-Fi salvo, o ESP inicia em modo Access Point
-
-Rede criada:
-
-TOTEM_SETUP
-Senha: 12345678
-
-O manual acompanha um QR Code padrão para conexão automática.
-
-2️⃣ Configuração da Rede
-
-Cliente conecta na rede TOTEM_SETUP
-
-Abre automaticamente 192.168.4.1
-
-Seleciona a rede Wi-Fi do local
-
-Insere senha
-
-Dispositivo reinicia e conecta à internet
-
-🔁 Troca de Rede (Novo Evento)
-
-O dispositivo possui botão físico de reset.
-
-Para redefinir:
-
-Pressionar botão por 5 segundos
-
-Credenciais Wi-Fi são apagadas
-
-Dispositivo retorna ao modo configuração
-
-Se a conexão falhar por 30 segundos, o dispositivo entra automaticamente em modo configuração.
-
+totem/123
 📡 Comunicação MQTT
-Broker
 
-Endereço: broker.seudominio.com
+Broker utilizado (teste):
 
-Porta: 1883 (ou 8883 com TLS)
+broker.hivemq.com
+porta: 1883
 
-Tópico
-totem/{ID_DO_TOTEM}
+Cada totem se inscreve em:
+
+totem/{DEVICE_ID}
 
 Exemplo:
 
 totem/123
-Payload esperado
+
+Quando o servidor publica:
+
 play
 
-Ao receber play, o dispositivo executa a ação configurada.
+O ESP executa a ação física.
 
-🖥️ Backend
+🔌 Firmware ESP32
+Configuração essencial
+#define DEVICE_ID "123"
 
-Quando o QR Code do Instagram é acessado:
+O valor precisa ser idêntico ao ID usado no servidor e na URL.
 
-O servidor registra o acesso
+🌐 URL para QR Code
 
-Publica mensagem MQTT no tópico correspondente
+Formato padrão:
 
-Redireciona o usuário para o Instagram
+https://SEUAPP.onrender.com/totem/ID
 
-Exemplo de fluxo:
+Exemplo real:
 
-seudominio.com/totem/123
+https://totem-server.onrender.com/totem/123
+🔁 Fluxo Completo de Execução
 
-Servidor:
+Usuário escaneia QR
 
-Publica MQTT → totem/123
+Acessa /totem/123
 
-Redireciona → Instagram
+Servidor publica:
 
-🔐 Segurança
+totem/123 → play
 
-Recomendado para ambiente de produção:
+ESP32 recebe mensagem
 
-MQTT com autenticação (usuário/senha)
+LED pisca
 
-TLS (porta 8883)
+Usuário é redirecionado para:
 
-ID único por dispositivo
+https://www.instagram.com/printpixel_grafica/
+🚀 Deploy
+Atualizar servidor
 
-Watchdog ativo
+Use o arquivo:
 
-Reconexão automática Wi-Fi e MQTT
+deploy.bat
 
-OTA para atualização remota
+Ele:
 
-🔄 Reconexão Automática
+Adiciona alterações
 
-O firmware deve:
+Pede mensagem personalizada
 
-Reconectar Wi-Fi caso perca sinal
+Faz commit
 
-Reconectar MQTT automaticamente
+Executa push
 
-Reiniciar em caso de falha crítica
+Render faz deploy automático
 
-📊 Escalabilidade
+📊 Escalabilidade (até 300 totens)
 
-O sistema suporta múltiplos totens simultaneamente:
+Arquitetura atual suporta múltiplos dispositivos.
 
-Cada dispositivo possui ID único
+Para adicionar novos clientes:
 
-Cada evento pode ter QR exclusivo
+Definir novo ID
 
-Backend pode registrar métricas por local
+Atualizar clientes no server.js
 
-🚀 Recursos Futuramente Integráveis
+Gerar QR correspondente
 
-Dashboard de métricas
+Gravar firmware com mesmo ID
 
-Atualização OTA
+Exemplo:
 
-Ranking por evento
+const clientes = {
+  "123": "https://instagram.com/clienteA",
+  "124": "https://instagram.com/clienteB",
+  "125": "https://instagram.com/clienteC"
+};
+🔐 Segurança (Próxima Evolução)
 
-Sistema gamificado
+Para produção real com 300 unidades recomenda-se:
 
-Captura de leads
+Broker MQTT privado (EMQX Cloud / HiveMQ Cloud)
 
-Integração com CRM
+Autenticação MQTT
 
-📦 Estrutura do Projeto
-/firmware
-   main.ino
-   wifi_manager.cpp
-   mqtt_handler.cpp
+Token na URL para evitar spam
 
-/backend
-   server.js
-   mqtt_publish.js
-🧠 Objetivo do Produto
+Rate limit
 
-Criar uma solução escalável para eventos que:
+Monitoramento de uptime
 
-Gera engajamento real
+⚠️ Observações Importantes
 
-Produz métricas mensuráveis
+Plano Free do Render pode entrar em sleep
 
-Funciona em qualquer local
+Primeira requisição pode demorar alguns segundos
 
-Não depende de API do Instagram
+Broker público não é recomendado para produção
 
-Permite modelo SaaS
+🎯 Objetivo Comercial
 
-📄 Licença
+Transformar o Totem em:
 
-Uso comercial permitido mediante autorização do desenvolvedor.
+Produto físico de engajamento para eventos
 
-Se quiser, posso gerar agora:
+Solução white-label
 
-🔐 Versão README voltada para investidores
+Plataforma escalável para múltiplas marcas
 
-📦 Versão técnica detalhada para desenvolvedores
+📌 Status Atual
 
-📘 Manual simplificado para cliente final
+✔ ESP32 configurado
+✔ MQTT funcional
+✔ Backend funcional
+✔ QR Code operacional
+✔ Redirecionamento validado
 
-🚀 Modelo de apresentação comercial do produto
-
-Qual você quer preparar agora?
+Sistema completo e funcional.
