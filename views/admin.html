@@ -13,7 +13,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         header {
@@ -69,6 +69,7 @@
         td {
             padding: 15px;
             border-bottom: 1px solid #3d3d3d;
+            vertical-align: middle;
         }
         tr:last-child td {
             border-bottom: none;
@@ -76,12 +77,15 @@
         tr:hover {
             background: #3d3d3d;
         }
-        .btn-editar, .btn-excluir {
+        .btn-editar, .btn-excluir, .btn-copiar {
             padding: 5px 10px;
             text-decoration: none;
             border-radius: 3px;
             margin-right: 5px;
             font-size: 14px;
+            display: inline-block;
+            border: none;
+            cursor: pointer;
         }
         .btn-editar {
             background: #ffc107;
@@ -91,18 +95,39 @@
             background: #dc3545;
             color: #fff;
         }
-        .sucesso {
-            background: #28a745;
+        .btn-copiar {
+            background: #17a2b8;
             color: #fff;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            display: none;
+        }
+        .qr-link {
+            font-size: 12px;
+            color: #ccc;
+            max-width: 250px;
+            word-break: break-all;
+            background: #3d3d3d;
+            padding: 5px;
+            border-radius: 3px;
         }
         .vazio {
             text-align: center;
             padding: 40px;
             color: #999;
+        }
+        .copiado {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            animation: fadeOut 2s forwards;
+            z-index: 1000;
+        }
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; display: none; }
         }
     </style>
 </head>
@@ -120,6 +145,7 @@
                 <tr>
                     <th>ID do Totem</th>
                     <th>Link Instagram</th>
+                    <th>Link QR Code</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -129,11 +155,29 @@
         </table>
     </div>
 
+    <div id="copiadoMsg" style="display:none;" class="copiado">✅ Link copiado!</div>
+
     <script>
-        // Mostra mensagem de sucesso se tiver parâmetro na URL
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('msg') === 'sucesso') {
             alert('✅ Cliente adicionado com sucesso!');
+        }
+
+        function copiarLink(id) {
+            const baseUrl = window.location.origin;
+            const link = `${baseUrl}/totem/${id}`;
+            
+            navigator.clipboard.writeText(link).then(function() {
+                const msg = document.getElementById('copiadoMsg');
+                msg.style.display = 'block';
+                msg.textContent = '✅ Link copiado: ' + link;
+                
+                setTimeout(() => {
+                    msg.style.display = 'none';
+                }, 2000);
+            }, function() {
+                alert('❌ Erro ao copiar. Selecione manualmente.');
+            });
         }
     </script>
 </body>

@@ -24,7 +24,7 @@ app.use(session({
     saveUninitialized: true
 }));
 
-// Servir arquivos estáticos (CSS se quiser depois)
+// Servir arquivos estáticos
 app.use(express.static("public"));
 
 // 🔹 Conecta no broker MQTT
@@ -42,30 +42,24 @@ mqttClient.on("error", (err) => {
 // ROTAS PÚBLICAS (TOTENS)
 // ==============================================
 
-// Rota principal - redireciona para admin (opcional)
 app.get("/", (req, res) => {
     res.redirect("/admin/login");
 });
 
-// Rota do totem (pública)
 app.get("/totem/:id", (req, res) => {
     const id = req.params.id;
     const arquivoCliente = path.join(PASTA_CLIENTES, `${id}.txt`);
 
-    // Verifica se o cliente existe
     if (!fs.existsSync(arquivoCliente)) {
         return res.status(404).send("❌ Totem não encontrado");
     }
 
-    // Lê o link do Instagram do arquivo
     const instagramLink = fs.readFileSync(arquivoCliente, "utf8").trim();
 
-    // Publica no MQTT
     const topic = `totem/${id}`;
     console.log(`📢 Publicando play em: ${topic}`);
     mqttClient.publish(topic, "play");
 
-    // Redireciona para o Instagram
     res.redirect(instagramLink);
 });
 
@@ -73,7 +67,6 @@ app.get("/totem/:id", (req, res) => {
 // ROTAS ADMIN (PROTEGIDAS)
 // ==============================================
 
-// Middleware de autenticação
 function verificarAuth(req, res, next) {
     if (req.session.autenticado) {
         next();
@@ -82,12 +75,10 @@ function verificarAuth(req, res, next) {
     }
 }
 
-// Página de login
 app.get("/admin/login", (req, res) => {
     res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
-// Processar login
 app.post("/admin/login", (req, res) => {
     const { senha } = req.body;
     
@@ -95,19 +86,15 @@ app.post("/admin/login", (req, res) => {
         req.session.autenticado = true;
         res.redirect("/admin/dashboard");
     } else {
-        res.sendFile(path.join(__dirname, "views", "mensagem.html"), {
-            root: __dirname
-        });
+        res.sendFile(path.join(__dirname, "views", "mensagem.html"));
     }
 });
 
-// Logout
 app.get("/admin/logout", (req, res) => {
     req.session.destroy();
     res.redirect("/admin/login");
 });
 
-// Dashboard admin (lista todos os clientes)
 app.get("/admin/dashboard", verificarAuth, async (req, res) => {
     try {
         const arquivos = await fs.readdir(PASTA_CLIENTES);
@@ -121,23 +108,37 @@ app.get("/admin/dashboard", verificarAuth, async (req, res) => {
             }
         }
 
-        // Ordena por ID
         clientes.sort((a, b) => a.id.localeCompare(b.id));
 
-        // Envia para o template (usando HTML simples)
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+
         let html = await fs.readFile(path.join(__dirname, "views", "admin.html"), "utf8");
         
-        // Gera as linhas da tabela
         let linhas = "";
         for (const cliente of clientes) {
+            const qrLink = `${baseUrl}/totem/${cliente.id}`;
             linhas += `
                 <tr>
-                    <td>${cliente.id}</td>
-                    <td>${cliente.link}</td>
+                    <td><strong>${cliente.id}</strong></td>
+                    <td>
+                        <a href="${cliente.link}" target="_blank" style="color: #17a2b8;">${cliente.link}</a>
+                    </td>
+                    <td>
+                        <div class="qr-link">${qrLink}</div>
+                    </td>
                     <td>
                         <a href="/admin/editar/${cliente.id}" class="btn-editar">✏️ Editar</a>
-                        <a href="/admin/excluir/${cliente.id}" class="btn-excluir" onclick="return confirm('Tem certeza?')">🗑️ Excluir</a>
+                        <button onclick="copiarLink('${cliente.id}')" class="btn-copiar">📋 Copiar QR Link</button>
+                        <a href="/admin/excluir/${cliente.id}" class="btn-excluir" onclick="return confirm('Tem certeza que deseja excluir?')">🗑️ Excluir</a>
                     </td>
+                </tr>
+            `;
+        }
+
+        if (clientes.length === 0) {
+            linhas = `
+                <tr>
+                    <td colspan="4" class="vazio">📭 Nenhum totem cadastrado. Clique em "Novo Cliente" para começar.</td>
                 </tr>
             `;
         }
@@ -146,16 +147,15 @@ app.get("/admin/dashboard", verificarAuth, async (req, res) => {
         res.send(html);
         
     } catch (error) {
+        console.error(error);
         res.status(500).send("Erro ao carregar dashboard");
     }
 });
 
-// Página para adicionar novo cliente
 app.get("/admin/novo", verificarAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "views", "novo.html"));
 });
 
-// Processa novo cliente
 app.post("/admin/novo", verificarAuth, async (req, res) => {
     const { id, link } = req.body;
     
@@ -163,25 +163,21 @@ app.post("/admin/novo", verificarAuth, async (req, res) => {
         return res.send("❌ ID e Link são obrigatórios");
     }
 
-    // Valida se o link é do Instagram (básico)
     if (!link.includes("instagram.com")) {
         return res.send("❌ O link precisa ser do Instagram");
     }
 
     const arquivoCliente = path.join(PASTA_CLIENTES, `${id}.txt`);
 
-    // Verifica se já existe
     if (fs.existsSync(arquivoCliente)) {
         return res.send("❌ Este ID já está cadastrado");
     }
 
-    // Salva o arquivo
     await fs.writeFile(arquivoCliente, link.trim());
     
     res.redirect("/admin/dashboard?msg=sucesso");
 });
 
-// Página para editar cliente
 app.get("/admin/editar/:id", verificarAuth, async (req, res) => {
     const id = req.params.id;
     const arquivoCliente = path.join(PASTA_CLIENTES, `${id}.txt`);
@@ -199,7 +195,6 @@ app.get("/admin/editar/:id", verificarAuth, async (req, res) => {
     res.send(html);
 });
 
-// Processa edição
 app.post("/admin/editar/:id", verificarAuth, async (req, res) => {
     const id = req.params.id;
     const { link } = req.body;
@@ -218,7 +213,6 @@ app.post("/admin/editar/:id", verificarAuth, async (req, res) => {
     res.redirect("/admin/dashboard");
 });
 
-// Excluir cliente
 app.get("/admin/excluir/:id", verificarAuth, async (req, res) => {
     const id = req.params.id;
     const arquivoCliente = path.join(PASTA_CLIENTES, `${id}.txt`);

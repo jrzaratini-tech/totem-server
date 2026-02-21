@@ -1,203 +1,302 @@
-🎛️ TOTEM INTERATIVO IoT
+# 🎛️ TOTEM INTERATIVO IoT v2.0
 
-Sistema de Engajamento com QR Code + ESP32 + MQTT
+Sistema de Engajamento com QR Code + ESP32 + MQTT + Dashboard Administrativo
 
-📌 Visão Geral
+## 📌 Visão Geral
 
 O Totem Interativo IoT é uma solução física para eventos que permite gerar engajamento em redes sociais de forma automatizada.
 
-Quando um usuário escaneia um QR Code:
+### Fluxo completo:
 
-A requisição passa pelo servidor (Render)
+1. Usuário escaneia QR Code
+2. Servidor (Render) recebe requisição `/totem/:id`
+3. Servidor publica `play` no MQTT
+4. ESP32 recebe e executa ação (LED 2 segundos)
+5. Usuário é redirecionado para Instagram do cliente
 
-O servidor publica uma mensagem MQTT
+---
 
-O ESP32 correspondente recebe o comando
+## 🏗️ Arquitetura do Sistema
+Usuário → QR Code → Servidor (Render) → Broker MQTT → ESP32 → Ação Física → Redirecionamento Instagram
 
-O totem executa ação física (LED / Som / Efeito)
+text
 
-O usuário é redirecionado para o Instagram do cliente
+---
 
-O sistema foi projetado para:
-
-Funcionar em qualquer evento com Wi-Fi local
-
-Atender múltiplos clientes (até 300+ totens)
-
-Não depender da API do Instagram
-
-Ser escalável e comercialmente viável
-
-🏗️ Arquitetura do Sistema
-Usuário
-   ↓
-QR Code
-   ↓
-Servidor (Render - Node.js)
-   ↓
-Broker MQTT
-   ↓
-ESP32 (Totem)
-   ↓
-Ação Física
-   ↓
-Redirecionamento para Instagram
-📂 Estrutura do Projeto
+## 📂 Estrutura do Projeto
 totem-server/
 │
-├── server.js
-├── package.json
-├── deploy.bat
-└── README.md
-🔧 Backend (Node.js + MQTT)
-📄 server.js
+├── server.js # Servidor principal + dashboard admin
+├── package.json # Dependências
+├── deploy.bat # Script de deploy
+├── clientes/ # PASTA COM OS LINKS DOS CLIENTES
+│ ├── 123.txt # Arquivo com link do Instagram
+│ └── TOTEM47.txt # ID personalizado
+└── views/ # Páginas do dashboard
+├── login.html
+├── admin.html
+├── novo.html
+├── editar.html
+└── mensagem.html
 
-Recebe requisição via /totem/:id
+text
 
-Publica play no tópico MQTT correspondente
+---
 
-Redireciona para Instagram fixo do cliente
+## 🔧 Backend (Node.js + MQTT + Dashboard)
 
-Exemplo atual configurado:
+### Funcionalidades:
 
-const clientes = {
-  "123": "https://www.instagram.com/printpixel_grafica/"
-};
+- **Rota pública:** `/totem/:id` → publica MQTT + redireciona
+- **Dashboard admin:** `/admin/login` (senha: `159268`)
+- **Gerenciamento de clientes:** Adicionar, editar, excluir via interface web
+- **Link do QR Code visível e copiável** para cada totem
+- **Armazenamento:** Arquivos `.txt` na pasta `clientes/` (ID → link)
 
-Tópico MQTT utilizado:
+---
 
-totem/123
-📡 Comunicação MQTT
+## 📡 Comunicação MQTT
 
-Broker utilizado (teste):
+- **Broker:** `broker.hivemq.com`
+- **Porta:** `1883`
+- **Tópico:** `totem/{DEVICE_ID}`
+- **Mensagem:** `play`
 
-broker.hivemq.com
-porta: 1883
+---
 
-Cada totem se inscreve em:
+## 🔌 Firmware ESP32
 
-totem/{DEVICE_ID}
+```cpp
+#include <WiFi.h>
+#include <WiFiManager.h>
+#include <PubSubClient.h>
 
-Exemplo:
+#define DEVICE_ID "123"           // ⚠️ MUDAR AQUI POR CLIENTE
+#define RESET_BUTTON 0             // Botão GPIO0 (segurar 5s para reset)
+#define LED_PIN 2                  // LED interno
 
-totem/123
+const char* mqtt_server = "broker.hivemq.com";
+const int mqtt_port = 1883;
 
-Quando o servidor publica:
+WiFiClient espClient;
+PubSubClient client(espClient);
+WiFiManager wm;
 
-play
+unsigned long buttonPressTime = 0;
+bool buttonPressed = false;
 
-O ESP executa a ação física.
+void executarAcao() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(2000);
+  digitalWrite(LED_PIN, LOW);
+}
 
-🔌 Firmware ESP32
-Configuração essencial
-#define DEVICE_ID "123"
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message;
+  for (int i = 0; i < length; i++) message += (char)payload[i];
 
-O valor precisa ser idêntico ao ID usado no servidor e na URL.
+  Serial.print("Mensagem: ");
+  Serial.println(message);
+
+  if (message == "play") executarAcao();
+}
+
+void conectarMQTT() {
+  while (!client.connected()) {
+    Serial.println("Conectando MQTT...");
+    String clientId = "TOTEM-" + String(DEVICE_ID);
+
+    if (client.connect(clientId.c_str())) {
+      Serial.println("Conectado!");
+      String topic = "totem/" + String(DEVICE_ID);
+      client.subscribe(topic.c_str());
+      Serial.print("Inscrito: ");
+      Serial.println(topic);
+    } else {
+      delay(2000);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(RESET_BUTTON, INPUT_PULLUP);
+
+  // Reset segurando botão ao ligar
+  if (digitalRead(RESET_BUTTON) == LOW) {
+    delay(5000);
+    if (digitalRead(RESET_BUTTON) == LOW) {
+      Serial.println("Resetando WiFi...");
+      wm.resetSettings();
+      ESP.restart();
+    }
+  }
+
+  WiFiManager wm;
+  bool res = wm.autoConnect("TOTEM_SETUP", "12345678");
+
+  if (!res) {
+    Serial.println("Falha WiFi. Reiniciando...");
+    ESP.restart();
+  }
+
+  Serial.println("WiFi conectado!");
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+}
+
+void loop() {
+  // Reset segurando botão durante operação
+  if (digitalRead(RESET_BUTTON) == LOW) {
+    if (!buttonPressed) {
+      buttonPressed = true;
+      buttonPressTime = millis();
+    }
+    if (millis() - buttonPressTime > 5000) {
+      Serial.println("Resetando WiFi...");
+      wm.resetSettings();
+      ESP.restart();
+    }
+  } else {
+    buttonPressed = false;
+  }
+
+  if (!client.connected()) conectarMQTT();
+  client.loop();
+}
+⚙️ Configuração do ESP32:
+Item	Descrição
+DEVICE_ID	ÚNICO POR TOTEM (ex: "123", "TOTEM47")
+RESET_BUTTON	Botão no pino 0 (segurar 5s para resetar WiFi)
+LED_PIN	Pino do LED (2 = LED interno)
+WiFi	Gerenciado pelo WiFiManager (portal captive)
+📱 Primeira inicialização do ESP32:
+Liga o ESP32
+
+Aparece rede WiFi TOTEM_SETUP
+
+Conecta com senha 12345678
+
+Configura o WiFi local
+
+Pronto! Conecta automaticamente depois
 
 🌐 URL para QR Code
-
-Formato padrão:
-
-https://SEUAPP.onrender.com/totem/ID
-
-Exemplo real:
+text
+https://SEUAPP.onrender.com/totem/ID_DO_TOTEM
+Exemplos:
 
 https://totem-server.onrender.com/totem/123
-🔁 Fluxo Completo de Execução
 
-Usuário escaneia QR
+https://totem-server.onrender.com/totem/TOTEM47
 
-Acessa /totem/123
+No dashboard: O link completo já aparece na tabela e pode ser copiado com um clique.
 
-Servidor publica:
+🖥️ Dashboard Administrativo
+Acessar:
+text
+https://SEUAPP.onrender.com/admin/login
+Senha: 159268
 
-totem/123 → play
+Funcionalidades:
+✅ Listar todos os totens cadastrados
 
-ESP32 recebe mensagem
+✅ Ver o link do QR Code de cada totem
 
-LED pisca
+✅ Copiar link do QR Code com um clique
 
-Usuário é redirecionado para:
+✅ Adicionar novo cliente (ID + Instagram)
 
-https://www.instagram.com/printpixel_grafica/
-🚀 Deploy
-Atualizar servidor
+✅ Editar link existente
 
-Use o arquivo:
+✅ Excluir totem
 
-deploy.bat
+✅ Login protegido
 
-Ele:
+🚀 Fluxo Comercial (Novo Cliente)
+Passo	Ação
+1	Cliente compra o totem
+2	Você define um ID (ex: TOTEM99)
+3	Altera #define DEVICE_ID "TOTEM99" no código
+4	Grava o firmware no ESP32
+5	Acessa o dashboard: /admin/novo
+6	Cadastra o mesmo ID e link do Instagram
+7	Copia o link do QR Code no dashboard
+8	Gera o QR Code e cola no totem
+9	Entrega o totem instalado
+Tempo total: < 5 minutos por cliente
 
-Adiciona alterações
+🔄 Atualização do Servidor (Deploy)
+Use o deploy.bat:
 
-Pede mensagem personalizada
+batch
+@echo off
+echo ===============================
+echo   Deploy Totem Server v2.0
+echo ===============================
+set /p msg=Mensagem do commit:
+git add .
+git commit -m "%msg%"
+git push
+pause
+O Render faz deploy automático.
 
-Faz commit
+🔐 Segurança
+✅ Dashboard com senha (159268)
 
-Executa push
+✅ Sessão expira ao fechar navegador
 
-Render faz deploy automático
+✅ Rotas admin protegidas
 
-📊 Escalabilidade (até 300 totens)
+✅ Validação de link (precisa conter instagram.com)
 
-Arquitetura atual suporta múltiplos dispositivos.
+📊 Escalabilidade (300+ totens)
+Arquitetura atual suporta centenas de dispositivos:
 
-Para adicionar novos clientes:
+IDs únicos por cliente
 
-Definir novo ID
+Arquivos individuais na pasta clientes/
 
-Atualizar clientes no server.js
+Dashboard para gerenciamento fácil
 
-Gerar QR correspondente
-
-Gravar firmware com mesmo ID
-
-Exemplo:
-
-const clientes = {
-  "123": "https://instagram.com/clienteA",
-  "124": "https://instagram.com/clienteB",
-  "125": "https://instagram.com/clienteC"
-};
-🔐 Segurança (Próxima Evolução)
-
-Para produção real com 300 unidades recomenda-se:
-
-Broker MQTT privado (EMQX Cloud / HiveMQ Cloud)
-
-Autenticação MQTT
-
-Token na URL para evitar spam
-
-Rate limit
-
-Monitoramento de uptime
+Links de QR Code sempre disponíveis
 
 ⚠️ Observações Importantes
+Plano Free do Render pode entrar em sleep (primeira requisição demora)
 
-Plano Free do Render pode entrar em sleep
+Broker público não é recomendado para produção em larga escala
 
-Primeira requisição pode demorar alguns segundos
-
-Broker público não é recomendado para produção
+LED pisca 2 segundos ao receber comando
 
 🎯 Objetivo Comercial
+Produto físico de engajamento para eventos:
 
-Transformar o Totem em:
+✅ Configuração rápida (WiFiManager)
 
-Produto físico de engajamento para eventos
+✅ Gerenciamento via dashboard
 
-Solução white-label
+✅ Links de QR Code sempre acessíveis
 
-Plataforma escalável para múltiplas marcas
+✅ Escalável para centenas de clientes
 
-📌 Status Atual
+✅ Sem dependência de APIs externas
 
-✔ ESP32 configurado
-✔ MQTT funcional
-✔ Backend funcional
-✔ QR Code operacional
-✔ Redirecionamento validado
+📌 Status Atual v2.0
+✔️ ESP32 com WiFiManager e botão de reset
 
-Sistema completo e funcional.
+✔️ MQTT funcional
+
+✔️ Backend com rotas públicas
+
+✔️ Dashboard administrativo completo
+
+✔️ Links de QR Code visíveis e copiáveis
+
+✔️ Gerenciamento via arquivos .txt
+
+✔️ Sistema pronto para comercialização
+
+Sistema completo, profissional e escalável! 🚀
+
+text
