@@ -1,23 +1,25 @@
-# 🎛️ TOTEM INTERATIVO IoT v2.0
+# 🎛️ TOTEM INTERATIVO IoT v3.0 (PROFISSIONAL)
 
-Sistema de Engajamento com QR Code + ESP32 + MQTT + Dashboard Administrativo
+Sistema de Engajamento com QR Code + ESP32 + MQTT + Dashboard Administrativo + Controle de Assinaturas via Firebase
 
 ## 📌 Visão Geral
 
-O Totem Interativo IoT é uma solução física para eventos que permite gerar engajamento em redes sociais de forma automatizada.
+O Totem Interativo IoT é uma solução física para eventos que permite gerar engajamento em redes sociais de forma automatizada, agora com **sistema de assinatura mensal** e **bloqueio automático** por data de expiração.
 
 ### Fluxo completo:
 
 1. Usuário escaneia QR Code
 2. Servidor (Render) recebe requisição `/totem/:id`
-3. Servidor publica `play` no MQTT
-4. ESP32 recebe e executa ação (LED 2 segundos)
-5. Usuário é redirecionado para Instagram do cliente
+3. Servidor **verifica no Firebase** se o totem está ativo
+4. Se ativo: publica `play` no MQTT e redireciona para Instagram
+5. Se expirado: redireciona para página de aviso ou não executa ação
+6. ESP32 recebe e executa ação (LED 2 segundos)
 
 ---
 
-## 🏗️ Arquitetura do Sistema
-Usuário → QR Code → Servidor (Render) → Broker MQTT → ESP32 → Ação Física → Redirecionamento Instagram
+## 🏗️ Arquitetura do Sistema v3.0
+Usuário → QR Code → Servidor (Render) → Firebase (verifica validade)
+→ Broker MQTT → ESP32 → Ação Física → Redirecionamento Instagram
 
 text
 
@@ -26,277 +28,254 @@ text
 ## 📂 Estrutura do Projeto
 totem-server/
 │
-├── server.js # Servidor principal + dashboard admin
+├── server.js # Servidor principal + Firebase Admin
 ├── package.json # Dependências
 ├── deploy.bat # Script de deploy
-├── clientes/ # PASTA COM OS LINKS DOS CLIENTES
-│ ├── 123.txt # Arquivo com link do Instagram
-│ └── TOTEM47.txt # ID personalizado
+├── firebase-credentials.json # 🔐 CHAVE DO FIREBASE (NÃO COMMITAR)
+├── .gitignore # Arquivos ignorados (credentials, node_modules)
+│
+├── clientes/ # 🟡 SERÁ REMOVIDO NA MIGRAÇÃO
+│ ├── 123.txt # (apenas compatibilidade temporária)
+│ └── TOTEM47.txt
+│
 └── views/ # Páginas do dashboard
 ├── login.html
-├── admin.html
+├── admin.html # 🔧 Será atualizado com campo "Data de Expiração"
 ├── novo.html
-├── editar.html
-└── mensagem.html
+├── editar.html # 🔧 Será atualizado com campo "Data de Expiração"
+├── mensagem.html
+└── expirado.html # ⚠️ NOVA página para totens bloqueados
 
 text
 
 ---
 
-## 🔧 Backend (Node.js + MQTT + Dashboard)
+## 🔧 Backend v3.0 (Node.js + Firebase + MQTT + Dashboard)
 
-### Funcionalidades:
+### Funcionalidades NOVAS:
 
-- **Rota pública:** `/totem/:id` → publica MQTT + redireciona
-- **Dashboard admin:** `/admin/login` (senha: `159268`)
-- **Gerenciamento de clientes:** Adicionar, editar, excluir via interface web
-- **Link do QR Code visível e copiável** para cada totem
-- **Armazenamento:** Arquivos `.txt` na pasta `clientes/` (ID → link)
+- **Controle de validade por data** (assinatura mensal)
+- **Bloqueio automático** após data de expiração
+- **Firebase Firestore** como banco de dados escalável
+- **Dashboard atualizado** com campo "Data de Expiração"
+- **Migração gradual** dos arquivos .txt para Firebase
+- **Página de aviso** para totens expirados
+
+### Funcionalidades mantidas:
+
+- ✅ Rota pública `/totem/:id` (agora com verificação)
+- ✅ Dashboard admin `/admin/login` (senha: `159268`)
+- ✅ Gerenciamento de clientes (agora com data)
+- ✅ Link do QR Code visível e copiável
+- ✅ Login protegido por sessão
 
 ---
 
-## 📡 Comunicação MQTT
+## 🔥 Firebase (NOVO)
 
-- **Broker:** `broker.hivemq.com`
-- **Porta:** `1883`
-- **Tópico:** `totem/{DEVICE_ID}`
-- **Mensagem:** `play`
+### Estrutura do Firestore:
+/totens/
+{ID_DO_TOTEM}:
+- link: "https://instagram.com/..."
+- dataExpiracao: "2026-12-31" (formato YYYY-MM-DD)
+- status: "ativo" / "bloqueado" (pode ser calculado)
+- cliente: "Nome do Cliente" (opcional)
+- criadoEm: timestamp
+- ultimaRenovacao: timestamp
 
----
-
-## 🔌 Firmware ESP32
-
-```cpp
-#include <WiFi.h>
-#include <WiFiManager.h>
-#include <PubSubClient.h>
-
-#define DEVICE_ID "123"           // ⚠️ MUDAR AQUI POR CLIENTE
-#define RESET_BUTTON 0             // Botão GPIO0 (segurar 5s para reset)
-#define LED_PIN 2                  // LED interno
-
-const char* mqtt_server = "broker.hivemq.com";
-const int mqtt_port = 1883;
-
-WiFiClient espClient;
-PubSubClient client(espClient);
-WiFiManager wm;
-
-unsigned long buttonPressTime = 0;
-bool buttonPressed = false;
-
-void executarAcao() {
-  digitalWrite(LED_PIN, HIGH);
-  delay(2000);
-  digitalWrite(LED_PIN, LOW);
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  String message;
-  for (int i = 0; i < length; i++) message += (char)payload[i];
-
-  Serial.print("Mensagem: ");
-  Serial.println(message);
-
-  if (message == "play") executarAcao();
-}
-
-void conectarMQTT() {
-  while (!client.connected()) {
-    Serial.println("Conectando MQTT...");
-    String clientId = "TOTEM-" + String(DEVICE_ID);
-
-    if (client.connect(clientId.c_str())) {
-      Serial.println("Conectado!");
-      String topic = "totem/" + String(DEVICE_ID);
-      client.subscribe(topic.c_str());
-      Serial.print("Inscrito: ");
-      Serial.println(topic);
-    } else {
-      delay(2000);
-    }
-  }
-}
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(RESET_BUTTON, INPUT_PULLUP);
-
-  // Reset segurando botão ao ligar
-  if (digitalRead(RESET_BUTTON) == LOW) {
-    delay(5000);
-    if (digitalRead(RESET_BUTTON) == LOW) {
-      Serial.println("Resetando WiFi...");
-      wm.resetSettings();
-      ESP.restart();
-    }
-  }
-
-  WiFiManager wm;
-  bool res = wm.autoConnect("TOTEM_SETUP", "12345678");
-
-  if (!res) {
-    Serial.println("Falha WiFi. Reiniciando...");
-    ESP.restart();
-  }
-
-  Serial.println("WiFi conectado!");
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
-}
-
-void loop() {
-  // Reset segurando botão durante operação
-  if (digitalRead(RESET_BUTTON) == LOW) {
-    if (!buttonPressed) {
-      buttonPressed = true;
-      buttonPressTime = millis();
-    }
-    if (millis() - buttonPressTime > 5000) {
-      Serial.println("Resetando WiFi...");
-      wm.resetSettings();
-      ESP.restart();
-    }
-  } else {
-    buttonPressed = false;
-  }
-
-  if (!client.connected()) conectarMQTT();
-  client.loop();
-}
-⚙️ Configuração do ESP32:
-Item	Descrição
-DEVICE_ID	ÚNICO POR TOTEM (ex: "123", "TOTEM47")
-RESET_BUTTON	Botão no pino 0 (segurar 5s para resetar WiFi)
-LED_PIN	Pino do LED (2 = LED interno)
-WiFi	Gerenciado pelo WiFiManager (portal captive)
-📱 Primeira inicialização do ESP32:
-Liga o ESP32
-
-Aparece rede WiFi TOTEM_SETUP
-
-Conecta com senha 12345678
-
-Configura o WiFi local
-
-Pronto! Conecta automaticamente depois
-
-🌐 URL para QR Code
 text
-https://SEUAPP.onrender.com/totem/ID_DO_TOTEM
-Exemplos:
 
-https://totem-server.onrender.com/totem/123
+### Regras de segurança:
 
-https://totem-server.onrender.com/totem/TOTEM47
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Apenas o servidor (Admin SDK) tem acesso total
+    // Clientes não acessam diretamente
+    match /{document=**} {
+      allow read, write: if false;  // Bloqueado para acesso direto
+    }
+  }
+}
+📡 Comunicação MQTT
+Broker: broker.hivemq.com
 
-No dashboard: O link completo já aparece na tabela e pode ser copiado com um clique.
+Porta: 1883
 
-🖥️ Dashboard Administrativo
-Acessar:
-text
-https://SEUAPP.onrender.com/admin/login
-Senha: 159268
+Tópico: totem/{DEVICE_ID}
 
-Funcionalidades:
-✅ Listar todos os totens cadastrados
+Mensagem: play (apenas se ativo)
 
-✅ Ver o link do QR Code de cada totem
+🔌 Firmware ESP32 (INALTERADO)
+O firmware do ESP32 não precisa ser alterado para o sistema v3.0. Ele continua recebendo o comando play via MQTT e acionando o LED.
 
-✅ Copiar link do QR Code com um clique
-
-✅ Adicionar novo cliente (ID + Instagram)
-
-✅ Editar link existente
-
-✅ Excluir totem
-
-✅ Login protegido
-
-🚀 Fluxo Comercial (Novo Cliente)
+cpp
+// Código permanece o mesmo
+#define DEVICE_ID "123"  // ⚠️ MUDAR POR CLIENTE
+🚀 Fluxo Comercial v3.0 (NOVO)
 Passo	Ação
-1	Cliente compra o totem
+1	Cliente contrata plano mensal
 2	Você define um ID (ex: TOTEM99)
-3	Altera #define DEVICE_ID "TOTEM99" no código
+3	Altera #define DEVICE_ID "TOTEM99" no firmware
 4	Grava o firmware no ESP32
 5	Acessa o dashboard: /admin/novo
-6	Cadastra o mesmo ID e link do Instagram
-7	Copia o link do QR Code no dashboard
-8	Gera o QR Code e cola no totem
-9	Entrega o totem instalado
-Tempo total: < 5 minutos por cliente
+6	Cadastra: ID + Link do Instagram + Data de Expiração (ex: 2026-04-22)
+7	Sistema salva no Firebase
+8	Copia o link do QR Code no dashboard
+9	Gera o QR Code e cola no totem
+10	Entrega o totem instalado
+Renovação:
+Passo	Ação
+1	Cliente paga nova mensalidade
+2	Acessa dashboard /admin/editar/TOTEM99
+3	Atualiza a Data de Expiração para +30 dias
+4	Sistema volta a aceitar requisições
+🔐 Como funciona o bloqueio por data
+Na rota /totem/:id:
 
-🔄 Atualização do Servidor (Deploy)
-Use o deploy.bat:
+Busca o totem no Firebase pelo ID
+
+Compara dataExpiracao com a data atual
+
+Se dataExpiracao >= hoje → permite acesso
+
+Se dataExpiracao < hoje → bloqueia
+
+Opções de bloqueio:
+
+Não publicar no MQTT
+
+Redirecionar para página de aviso (/expirado)
+
+Retornar erro 403
+
+📊 Dashboard v3.0 (O QUE SERÁ ALTERADO)
+Página NOVO Cliente (novo.html):
+Adicionar campo "Data de Expiração" (input type="date")
+
+Validação: data deve ser futura
+
+Página EDITAR Cliente (editar.html):
+Adicionar campo "Data de Expiração" preenchido
+
+Exibir status atual (Ativo / Expirado)
+
+Botão "Renovar por +30 dias" (atalho)
+
+Página ADMIN (admin.html):
+Nova coluna "Expira em" com a data
+
+Nova coluna "Status" com ícone: ✅ Ativo / ❌ Bloqueado
+
+Cálculo automático: se dataExpiracao < hoje = bloqueado
+
+Ordenação por data de expiração
+
+🔄 Migração dos dados existentes
+Para não perder os clientes atuais:
+
+Script de migração lerá todos os arquivos da pasta clientes/
+
+Para cada arquivo .txt, criará um documento no Firebase
+
+Data de expiração inicial: será definida manualmente ou padrão (ex: +30 dias)
+
+Pasta clientes/ será mantida apenas como backup temporário
+
+🧪 Testes necessários
+Criar totem com data futura → deve funcionar
+
+Criar totem com data passada → deve bloquear
+
+Editar data de expiração → deve atualizar
+
+Dashboard exibir corretamente ativos/expirados
+
+Migração dos arquivos .txt para Firebase
+
+🚀 Deploy e Atualização
+Usar o mesmo deploy.bat:
 
 batch
 @echo off
 echo ===============================
-echo   Deploy Totem Server v2.0
+echo   Deploy Totem Server v3.0
 echo ===============================
 set /p msg=Mensagem do commit:
 git add .
 git commit -m "%msg%"
 git push
 pause
-O Render faz deploy automático.
+Cuidados:
 
-🔐 Segurança
-✅ Dashboard com senha (159268)
+O arquivo firebase-credentials.json NÃO deve ser commitado
 
-✅ Sessão expira ao fechar navegador
+Adicionar no .gitignore antes do primeiro commit
 
-✅ Rotas admin protegidas
+No Render, as credenciais podem ser adicionadas como variável de ambiente (ou fazer upload manual)
 
-✅ Validação de link (precisa conter instagram.com)
+🔐 Segurança v3.0
+Item	Status
+Senha do dashboard	✅ (159268)
+Sessão expira ao fechar	✅
+Firebase com regras restritas	🔧 (configurar)
+Credenciais fora do Git	✅ (no .gitignore)
+Validação de data no backend	🔧 (implementar)
+📊 Escalabilidade (1000+ totens)
+Com Firebase, o sistema suporta:
 
-📊 Escalabilidade (300+ totens)
-Arquitetura atual suporta centenas de dispositivos:
+✅ Milhares de totens sem perda de performance
 
-IDs únicos por cliente
+✅ Consultas rápidas por ID
 
-Arquivos individuais na pasta clientes/
+✅ Backup automático (Firebase gerencia)
 
-Dashboard para gerenciamento fácil
+✅ Sem risco de corrupção de arquivos
 
-Links de QR Code sempre disponíveis
+✅ Atualizações simultâneas seguras
+
+✅ Controle de acesso refinado
 
 ⚠️ Observações Importantes
-Plano Free do Render pode entrar em sleep (primeira requisição demora)
+Firebase plano gratuito: 1 GiB de dados, 50k leituras/dia (mais que suficiente)
 
-Broker público não é recomendado para produção em larga escala
+Render plano free: pode entrar em sleep (primeira requisição demora)
 
-LED pisca 2 segundos ao receber comando
+Broker público: considere um privado para produção em larga escala
 
-🎯 Objetivo Comercial
-Produto físico de engajamento para eventos:
+Data de expiração: usar formato UTC para evitar problemas de fuso
+
+🎯 Objetivo Comercial v3.0
+Produto físico de engajamento com receita recorrente:
 
 ✅ Configuração rápida (WiFiManager)
-
-✅ Gerenciamento via dashboard
-
+✅ Gerenciamento via dashboard com validade
 ✅ Links de QR Code sempre acessíveis
+✅ Bloqueio automático se não pagar
+✅ Renovação simples (só alterar a data)
+✅ Escalável para milhares de clientes
+✅ Profissional com banco de dados seguro
 
-✅ Escalável para centenas de clientes
+📌 Status do Desenvolvimento v3.0
+Firebase criado
 
-✅ Sem dependência de APIs externas
+Coleção totens criada
 
-📌 Status Atual v2.0
-✔️ ESP32 com WiFiManager e botão de reset
+Estrutura de dados definida
 
-✔️ MQTT funcional
+Instalar firebase-admin no projeto
 
-✔️ Backend com rotas públicas
+Configurar credenciais no servidor
 
-✔️ Dashboard administrativo completo
+Implementar verificação de data na rota /totem/:id
 
-✔️ Links de QR Code visíveis e copiáveis
+Atualizar dashboard com campo "Data de Expiração"
 
-✔️ Gerenciamento via arquivos .txt
+Criar script de migração dos .txt para Firebase
 
-✔️ Sistema pronto para comercialização
+Testar bloqueio/renovação
 
-Sistema completo, profissional e escalável! 🚀
+Fazer deploy da versão 3.0
 
-text
+Sistema profissional, escalável e com receita recorrente! 🚀

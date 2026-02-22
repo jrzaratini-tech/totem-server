@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Admin - Totem Server</title>
+    <title>Dashboard Admin - Totem Server v3.0</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -13,7 +13,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
         }
         header {
@@ -28,6 +28,14 @@
         h1 {
             font-size: 24px;
             color: #007bff;
+        }
+        .badge {
+            background: #28a745;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-left: 10px;
         }
         .btn-sair {
             background: #dc3545;
@@ -102,7 +110,7 @@
         .qr-link {
             font-size: 12px;
             color: #ccc;
-            max-width: 250px;
+            max-width: 200px;
             word-break: break-all;
             background: #3d3d3d;
             padding: 5px;
@@ -129,27 +137,66 @@
             70% { opacity: 1; }
             100% { opacity: 0; display: none; }
         }
+        .status-ativo {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-bloqueado {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .filtros {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .filtro-btn {
+            background: #3d3d3d;
+            color: #fff;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .filtro-btn.ativo {
+            background: #007bff;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📊 Dashboard de Totens</h1>
+            <div>
+                <h1>📊 Dashboard de Totens v3.0 <span class="badge">Controle de Assinaturas</span></h1>
+            </div>
             <a href="/admin/logout" class="btn-sair">Sair</a>
         </header>
 
-        <a href="/admin/novo" class="btn-novo">➕ Novo Cliente</a>
+        <div class="filtros">
+            <span>🔍 Filtrar:</span>
+            <button class="filtro-btn ativo" onclick="filtrar('todos')">Todos</button>
+            <button class="filtro-btn" onclick="filtrar('ativos')">✅ Ativos</button>
+            <button class="filtro-btn" onclick="filtrar('expirados')">❌ Expirados</button>
+        </div>
+
+        <a href="/admin/novo" class="btn-novo">➕ Novo Cliente (com data de expiração)</a>
 
         <table>
             <thead>
                 <tr>
                     <th>ID do Totem</th>
                     <th>Link Instagram</th>
+                    <th>Expira em</th>
+                    <th>Status</th>
                     <th>Link QR Code</th>
                     <th>Ações</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="tabela-corpo">
                 {{LINHAS_TABELA}}
             </tbody>
         </table>
@@ -177,6 +224,31 @@
                 }, 2000);
             }, function() {
                 alert('❌ Erro ao copiar. Selecione manualmente.');
+            });
+        }
+        
+        function filtrar(tipo) {
+            const linhas = document.querySelectorAll('#tabela-corpo tr');
+            const botoes = document.querySelectorAll('.filtro-btn');
+            
+            botoes.forEach(btn => btn.classList.remove('ativo'));
+            event.target.classList.add('ativo');
+            
+            linhas.forEach(linha => {
+                if (tipo === 'todos') {
+                    linha.style.display = '';
+                } else {
+                    const status = linha.querySelector('.status-ativo, .status-bloqueado');
+                    if (status) {
+                        if (tipo === 'ativos' && status.classList.contains('status-ativo')) {
+                            linha.style.display = '';
+                        } else if (tipo === 'expirados' && status.classList.contains('status-bloqueado')) {
+                            linha.style.display = '';
+                        } else {
+                            linha.style.display = 'none';
+                        }
+                    }
+                }
             });
         }
     </script>

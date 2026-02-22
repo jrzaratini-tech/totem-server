@@ -1,0 +1,21 @@
+# Node modules
+node_modules/
+
+# Firebase credentials
+firebase-credentials.json
+*.json
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# pasta clientes (mantida para compatibilidade, mas não essencial)
+clientes/

@@ -44,6 +44,9 @@
             color: #fff;
             font-size: 16px;
         }
+        input[type="date"] {
+            color-scheme: dark;
+        }
         input::placeholder {
             color: #999;
         }
@@ -81,6 +84,14 @@
             margin-bottom: 20px;
             font-size: 14px;
         }
+        .destaque {
+            background: #ffc107;
+            color: #000;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -90,6 +101,10 @@
         <div class="info">
             ℹ️ O ID deve ser o mesmo gravado no ESP32 do cliente.
         </div>
+        
+        <div class="destaque">
+            ⚠️ NOVO: Agora com controle de assinatura mensal!
+        </div>
 
         <form action="/admin/novo" method="POST">
             <label for="id">ID do Totem:</label>
@@ -97,10 +112,19 @@
 
             <label for="link">Link do Instagram:</label>
             <input type="url" id="link" name="link" placeholder="https://www.instagram.com/printpixel_grafica/" required>
+            
+            <label for="dataExpiracao">📅 Data de Expiração (assinatura):</label>
+            <input type="date" id="dataExpiracao" name="dataExpiracao" required>
 
             <button type="submit">✅ Salvar Cliente</button>
             <a href="/admin/dashboard" class="btn-cancelar">↩️ Cancelar</a>
         </form>
     </div>
+    
+    <script>
+        // Define data mínima como hoje
+        const hoje = new Date().toISOString().split('T')[0];
+        document.getElementById('dataExpiracao').min = hoje;
+    </script>
 </body>
 </html>

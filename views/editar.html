@@ -53,6 +53,9 @@
             color: #fff;
             font-size: 16px;
         }
+        input[type="date"] {
+            color-scheme: dark;
+        }
         input::placeholder {
             color: #999;
         }
@@ -82,22 +85,42 @@
         .btn-cancelar:hover {
             background: #5a6268;
         }
+        .info {
+            background: #17a2b8;
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>✏️ Editando Cliente</h1>
 
+        <div class="info">
+            ⚠️ Altere a data de expiração para renovar a assinatura.
+        </div>
+
         <form action="/admin/editar/{{ID}}" method="POST">
             <label>ID do Totem (não pode ser alterado):</label>
             <div class="id-fixo">{{ID}}</div>
 
-            <label for="link">Novo link do Instagram:</label>
+            <label for="link">Link do Instagram:</label>
             <input type="url" id="link" name="link" value="{{LINK}}" required>
+            
+            <label for="dataExpiracao">📅 Data de Expiração:</label>
+            <input type="date" id="dataExpiracao" name="dataExpiracao" value="{{DATA_EXPIRACAO}}" required>
 
             <button type="submit">💾 Salvar Alterações</button>
             <a href="/admin/dashboard" class="btn-cancelar">↩️ Cancelar</a>
         </form>
     </div>
+    
+    <script>
+        // Define data mínima como hoje
+        const hoje = new Date().toISOString().split('T')[0];
+        document.getElementById('dataExpiracao').min = hoje;
+    </script>
 </body>
 </html>
