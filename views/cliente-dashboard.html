@@ -1,748 +1,1023 @@
-// ============================================
-// TOTEM INTERATIVO IoT v4.0
-// Servidor Principal com Suporte a Áudio Personalizado
-// Firebase + MQTT + Upload de MP3 + OTA
-// ============================================
-
-const express = require('express');
-const session = require('express-session');
-const bodyParser = require('body-parser');
-const mqtt = require('mqtt');
-const admin = require('firebase-admin');
-const fs = require('fs-extra');
-const path = require('path');
-const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
-const cors = require('cors');
-require('dotenv').config();
-
-// ========== CONFIGURAÇÕES ==========
-const PORT = process.env.PORT || 3000;
-const SENHA_ADMIN = '159268';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'totem-secret-key-v4';
-const MQTT_BROKER = 'broker.hivemq.com';
-const MQTT_PORT = 1883;
-const SERVER_URL = process.env.SERVER_URL || 'https://totem-server.onrender.com';
-
-// ========== INICIALIZAÇÃO ==========
-const app = express();
-
-// Middlewares
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-app.use(cors());
-app.use(express.static('public'));
-
-// Sessões
-app.use(session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: true,
-    cookie: { maxAge: 30 * 60 * 1000 }
-}));
-
-// ========== FIREBASE ADMIN ==========
-let db = null;
-let bucket = null;
-let firebaseInicializado = false;
-
-try {
-    let credentials;
-    
-    if (fs.existsSync('./firebase-credentials.json')) {
-        credentials = JSON.parse(fs.readFileSync('./firebase-credentials.json', 'utf8'));
-        console.log('✅ Firebase: Credenciais carregadas do arquivo');
-    } 
-    else if (process.env.FIREBASE_CREDENTIALS) {
-        credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-        console.log('✅ Firebase: Credenciais carregadas da env var');
-    }
-    else {
-        throw new Error('Credenciais Firebase não encontradas');
-    }
-    
-    admin.initializeApp({
-        credential: admin.credential.cert(credentials),
-        storageBucket: `${credentials.project_id}.appspot.com`
-    });
-    
-    db = admin.firestore();
-    bucket = admin.storage().bucket();
-    firebaseInicializado = true;
-    console.log('✅ Firebase conectado com sucesso!');
-    
-} catch (error) {
-    console.error('❌ Erro ao inicializar Firebase:', error.message);
-    console.warn('⚠️ Sistema continuará sem Firebase - apenas compatibilidade');
-}
-
-// ========== MQTT ==========
-let mqttClient = null;
-
-function conectarMQTT() {
-    try {
-        mqttClient = mqtt.connect(`mqtt://${MQTT_BROKER}:${MQTT_PORT}`);
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Totem - Dashboard do Cliente</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
         
-        mqttClient.on('connect', () => {
-            console.log('✅ MQTT conectado ao broker HiveMQ');
-        });
+        body {
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
         
-        mqttClient.on('error', (err) => {
-            console.error('❌ Erro MQTT:', err.message);
-        });
-    } catch (error) {
-        console.error('❌ Falha ao conectar MQTT:', error.message);
-    }
-}
-
-conectarMQTT();
-
-// Função para publicar no MQTT
-function publicarPlay(totemId) {
-    if (mqttClient && mqttClient.connected) {
-        const topico = `totem/${totemId}`;
-        mqttClient.publish(topico, 'play');
-        console.log(`📤 MQTT publicado: ${topico} = play`);
-        return true;
-    } else {
-        console.warn(`⚠️ MQTT não disponível para publicar em ${totemId}`);
-        return false;
-    }
-}
-
-// ========== CONFIGURAÇÃO DE UPLOAD (MULTER) ==========
-const uploadDir = path.join(__dirname, 'uploads');
-fs.ensureDirSync(uploadDir);
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        const totemId = req.params.id || req.body.totemId || 'temp';
-        const uniqueId = uuidv4().slice(0, 8);
-        const ext = path.extname(file.originalname);
-        cb(null, `${totemId}_${uniqueId}${ext}`);
-    }
-});
-
-const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/mpeg3'];
-    const allowedExt = ['.mp3', '.webm', '.ogg', '.wav'];
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .navbar h1 {
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .navbar h1 span {
+            font-size: 14px;
+            opacity: 0.8;
+            font-weight: normal;
+        }
+        
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .welcome-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-left: 4px solid #667eea;
+        }
+        
+        .welcome-card h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .welcome-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .totem-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .info-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        
+        .info-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-card .value {
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+            word-break: break-all;
+        }
+        
+        .audio-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        
+        .audio-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .current-audio {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .current-audio p {
+            margin: 10px 0;
+            color: #555;
+        }
+        
+        .current-audio strong {
+            color: #333;
+        }
+        
+        .audio-name {
+            font-size: 18px;
+            color: #0366d6;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            word-break: break-all;
+        }
+        
+        .recording-section {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf2 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px solid #667eea;
+        }
+        
+        .recording-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .recording-title h3 {
+            font-size: 20px;
+        }
+        
+        .recording-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .record-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 6px rgba(220,53,69,0.3);
+        }
+        
+        .record-btn:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+        
+        .record-btn.recording {
+            animation: pulse 1.5s infinite;
+            background: #ff4444;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); box-shadow: 0 0 20px #ff4444; }
+            100% { transform: scale(1); }
+        }
+        
+        .stop-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stop-btn:hover:not(:disabled) {
+            background: #5a6268;
+            transform: scale(1.05);
+        }
+        
+        .stop-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .play-preview-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .play-preview-btn:hover:not(:disabled) {
+            background: #218838;
+            transform: scale(1.05);
+        }
+        
+        .play-preview-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .send-recording-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .send-recording-btn:hover:not(:disabled) {
+            background: #5a6fd8;
+            transform: scale(1.05);
+        }
+        
+        .send-recording-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .recording-status {
+            text-align: center;
+            margin: 15px 0;
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .recording-timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #dc3545;
+            font-family: monospace;
+            margin-left: 15px;
+        }
+        
+        .visualizer {
+            width: 100%;
+            height: 60px;
+            background: #fff;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .visualizer canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .preview-audio {
+            width: 100%;
+            margin: 20px 0;
+        }
+        
+        .preview-audio audio {
+            width: 100%;
+        }
+        
+        .upload-form {
+            border: 2px dashed #ccc;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            margin-top: 30px;
+        }
+        
+        .upload-form:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .upload-form input[type="file"] {
+            display: none;
+        }
+        
+        .upload-label {
+            background: #667eea;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: inline-block;
+            margin: 20px 0;
+            transition: all 0.3s;
+        }
+        
+        .upload-label:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102,126,234,0.3);
+        }
+        
+        .file-info {
+            color: #666;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        
+        .btn-upload {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+        
+        .btn-upload:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
+        }
+        
+        .btn-remove {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-left: 10px;
+        }
+        
+        .btn-remove:hover {
+            background: #c82333;
+        }
+        
+        .instructions {
+            background: #e8f4fd;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .instructions h3 {
+            color: #0366d6;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .instructions li {
+            margin: 10px 0;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .instructions li:before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        .loading.active {
+            display: flex;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .alert.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Processando...</p>
+    </div>
     
-    const ext = path.extname(file.originalname).toLowerCase();
-    const mimetype = file.mimetype.toLowerCase();
+    <nav class="navbar">
+        <div class="navbar-content">
+            <h1>
+                🎛️ Meu Totem 
+                <span>ID: {{ID}}</span>
+            </h1>
+            <a href="/admin/logout" class="logout-btn">🚪 Sair</a>
+        </div>
+    </nav>
     
-    if (allowedTypes.includes(mimetype) || allowedExt.includes(ext)) {
-        cb(null, true);
-    } else {
-        cb(new Error('Apenas arquivos de áudio são permitidos!'), false);
-    }
-};
-
-const upload = multer({ 
-    storage: storage,
-    fileFilter: fileFilter,
-    limits: { 
-        fileSize: 10 * 1024 * 1024
-    }
-});
-
-// ========== FUNÇÕES AUXILIARES ==========
-
-function logger(req, res, next) {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.url}`);
-    next();
-}
-
-app.use(logger);
-
-function dataExpirada(dataStr) {
-    if (!dataStr) return true;
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const expiracao = new Date(dataStr + 'T00:00:00');
-    return expiracao < hoje;
-}
-
-function formatarData(dataStr) {
-    if (!dataStr) return 'Sem data';
-    const [ano, mes, dia] = dataStr.split('-');
-    return `${dia}/${mes}/${ano}`;
-}
-
-async function buscarTotem(id) {
-    if (firebaseInicializado && db) {
-        try {
-            const doc = await db.collection('totens').doc(id).get();
-            if (doc.exists) {
-                return { id: doc.id, ...doc.data() };
+    <div class="container">
+        <div class="welcome-card">
+            <h2>👋 Bem-vindo ao seu Dashboard!</h2>
+            <p>Aqui você pode gerenciar o áudio personalizado do seu totem. 
+               Grave diretamente do seu navegador ou faça upload de um arquivo MP3.</p>
+        </div>
+        
+        <div class="totem-info">
+            <div class="info-card">
+                <h3>📌 ID do Totem</h3>
+                <div class="value">{{ID}}</div>
+            </div>
+            
+            <div class="info-card">
+                <h3>🔗 Link do Instagram</h3>
+                <div class="value">{{LINK}}</div>
+            </div>
+            
+            <div class="info-card">
+                <h3>📅 Expira em</h3>
+                <div class="value">{{DATA_EXPIRACAO}}</div>
+            </div>
+            
+            <div class="info-card">
+                <h3>🎵 Áudio Atual</h3>
+                <div class="value" id="audioAtualDisplay">{{AUDIO_NOME}}</div>
+                <div style="font-size: 12px; color: #999; margin-top: 5px;" id="audioDataDisplay">
+                    Atualizado em: {{AUDIO_DATA}}
+                </div>
+            </div>
+        </div>
+        
+        <div class="recording-section">
+            <div class="recording-title">
+                <span style="font-size: 24px;">🎤</span>
+                <h3>Gravar Áudio Agora</h3>
+            </div>
+            
+            <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                Fale, cante ou toque algo. Grave e depois clique em "Enviar para o Totem".
+            </p>
+            
+            <div class="visualizer" id="visualizer">
+                <canvas id="visualizerCanvas" width="600" height="60"></canvas>
+            </div>
+            
+            <div class="recording-controls">
+                <button class="record-btn" id="recordBtn">
+                    <span>⏺️</span> Começar Gravação
+                </button>
+                
+                <button class="stop-btn" id="stopBtn" disabled>
+                    <span>⏹️</span> Parar
+                </button>
+                
+                <button class="play-preview-btn" id="previewBtn" disabled>
+                    <span>▶️</span> Ouvir Preview
+                </button>
+                
+                <button class="send-recording-btn" id="sendBtn" disabled>
+                    <span>📤</span> Enviar para o Totem
+                </button>
+            </div>
+            
+            <div class="recording-status" id="recordingStatus">
+                <span id="statusText">Pronto para gravar</span>
+                <span class="recording-timer" id="timerDisplay">00:00</span>
+            </div>
+            
+            <div class="preview-audio" id="previewContainer" style="display: none;">
+                <audio id="previewAudio" controls></audio>
+            </div>
+            
+            <div style="margin-top: 20px; display: none;" id="uploadProgress">
+                <p>Enviando áudio gravado...</p>
+                <progress value="0" max="100" style="width: 100%; height: 20px;"></progress>
+            </div>
+        </div>
+        
+        <div class="audio-section">
+            <h2>📁 Upload de Arquivo MP3</h2>
+            
+            <div class="current-audio">
+                <p><strong>Áudio em uso:</strong></p>
+                <div class="audio-name" id="audioAtual">📁 {{AUDIO_NOME}}</div>
+                <p style="margin-top: 15px;">
+                    <small>✅ Formatos aceitos: MP3, WebM, OGG, WAV (até 10MB)</small>
+                </p>
+            </div>
+            
+            <div id="alert" class="alert"></div>
+            
+            <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+                <input type="file" 
+                       id="audioFile" 
+                       name="audio" 
+                       accept=".mp3,.webm,.ogg,.wav,audio/*"
+                       required>
+                
+                <label for="audioFile" class="upload-label" id="fileLabel">
+                    📂 Escolher arquivo de áudio
+                </label>
+                
+                <div class="file-info" id="fileInfo">
+                    Nenhum arquivo selecionado
+                </div>
+                
+                <div id="audioPreview" style="display: none; margin: 20px 0;">
+                    <audio controls style="width: 100%; max-width: 300px;">
+                        <source src="" type="audio/mpeg">
+                    </audio>
+                </div>
+                
+                <div class="button-group">
+                    <button type="submit" class="btn-upload" id="btnUpload">
+                        ⬆️ Enviar Arquivo
+                    </button>
+                    
+                    <button type="button" class="btn-remove" id="btnRemove" style="display: none;">
+                        🗑️ Remover Áudio Personalizado
+                    </button>
+                </div>
+            </form>
+            
+            <div class="instructions">
+                <h3>📋 Instruções:</h3>
+                <ul>
+                    <li><strong>NOVO!</strong> Grave áudio diretamente do navegador (microfone necessário)</li>
+                    <li>Após gravar, ouça o preview e clique em "Enviar para o Totem"</li>
+                    <li>Ou faça upload de um arquivo de áudio (MP3, WebM, etc) até 10MB</li>
+                    <li>Recomendamos áudios de 15 a 30 segundos</li>
+                    <li>O totem será atualizado automaticamente em até 1 minuto</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const totemId = '{{ID}}';
+        const audioAtualNome = '{{AUDIO_NOME}}';
+        
+        const fileInput = document.getElementById('audioFile');
+        const fileLabel = document.getElementById('fileLabel');
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadForm = document.getElementById('uploadForm');
+        const loading = document.getElementById('loading');
+        const alert = document.getElementById('alert');
+        const audioPreview = document.getElementById('audioPreview');
+        const audioPlayer = audioPreview.querySelector('audio');
+        const btnRemove = document.getElementById('btnRemove');
+        
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const previewBtn = document.getElementById('previewBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const statusText = document.getElementById('statusText');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewAudio = document.getElementById('previewAudio');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = uploadProgress.querySelector('progress');
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordingTimer;
+        let recordingSeconds = 0;
+        let audioStream = null;
+        let recordedBlob = null;
+        let audioContext;
+        let analyser;
+        let canvas = document.getElementById('visualizerCanvas');
+        let canvasCtx = canvas.getContext('2d');
+        let animationFrame;
+        
+        if (audioAtualNome !== 'Nenhum áudio personalizado' && 
+            audioAtualNome !== 'padrao.mp3') {
+            btnRemove.style.display = 'inline-block';
+        }
+        
+        function initVisualizer(stream) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                if (!analyser) return;
+                
+                animationFrame = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                
+                canvasCtx.fillStyle = 'rgb(240, 240, 240)';
+                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let x = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = dataArray[i] / 2;
+                    
+                    const gradient = canvasCtx.createLinearGradient(0, 0, 0, canvas.height);
+                    gradient.addColorStop(0, '#667eea');
+                    gradient.addColorStop(1, '#764ba2');
+                    
+                    canvasCtx.fillStyle = gradient;
+                    canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    
+                    x += barWidth + 1;
+                }
             }
-        } catch (error) {
-            console.error('Erro ao buscar no Firebase:', error.message);
+            
+            draw();
         }
-    }
-    
-    const caminho = path.join(__dirname, 'clientes', `${id}.txt`);
-    if (fs.existsSync(caminho)) {
-        const link = fs.readFileSync(caminho, 'utf8').trim();
-        return { 
-            id, 
-            link, 
-            dataExpiracao: '2099-12-31',
-            _fallback: true 
-        };
-    }
-    
-    return null;
-}
-
-async function listarTotens() {
-    const totens = [];
-    
-    if (firebaseInicializado && db) {
-        try {
-            const snapshot = await db.collection('totens').get();
-            snapshot.forEach(doc => {
-                totens.push({ id: doc.id, ...doc.data() });
-            });
-        } catch (error) {
-            console.error('Erro ao listar Firebase:', error.message);
-        }
-    }
-    
-    if (totens.length === 0) {
-        const clientesDir = path.join(__dirname, 'clientes');
-        if (fs.existsSync(clientesDir)) {
-            const arquivos = fs.readdirSync(clientesDir).filter(f => f.endsWith('.txt'));
-            arquivos.forEach(arquivo => {
-                const id = arquivo.replace('.txt', '');
-                const link = fs.readFileSync(path.join(clientesDir, arquivo), 'utf8').trim();
-                totens.push({ 
-                    id, 
-                    link, 
-                    dataExpiracao: '2099-12-31',
-                    _fallback: true 
-                });
-            });
-        }
-    }
-    
-    return totens.sort((a, b) => a.id.localeCompare(b.id));
-}
-
-function adminAuth(req, res, next) {
-    if (req.session && req.session.adminAutenticado) {
-        next();
-    } else {
-        res.redirect('/admin/login');
-    }
-}
-
-app.locals.db = db;
-app.locals.bucket = bucket;
-app.locals.firebaseInicializado = firebaseInicializado;
-app.locals.mqttClient = mqttClient;
-
-app.use('/uploads', express.static('uploads'));
-
-// ========== ROTAS PÚBLICAS ==========
-
-app.get('/', (req, res) => {
-    res.redirect('/admin/login');
-});
-
-app.get('/totem/:id', async (req, res) => {
-    const id = req.params.id;
-    console.log(`🔍 Totem acessado: ${id}`);
-    
-    const totem = await buscarTotem(id);
-    
-    if (!totem) {
-        console.log(`❌ Totem não encontrado: ${id}`);
-        return res.status(404).send('Totem não encontrado');
-    }
-    
-    if (dataExpirada(totem.dataExpiracao)) {
-        console.log(`⛔ Totem expirado: ${id} (data: ${totem.dataExpiracao})`);
-        return res.redirect('/expirado');
-    }
-    
-    publicarPlay(id);
-    
-    console.log(`✅ Totem ativo: ${id} → ${totem.link}`);
-    res.redirect(totem.link);
-});
-
-app.get('/expirado', (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'expirado.html'));
-});
-
-// ========== ROTAS DE CLIENTE ==========
-
-app.get('/cliente/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'cliente-login.html'));
-});
-
-app.post('/cliente/login', async (req, res) => {
-    const { totemId, senha } = req.body;
-    
-    if (!totemId || !senha) {
-        return res.send(`
-            <html><body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ ID e senha são obrigatórios</h2>
-                <p><a href="/cliente/login">Voltar</a></p>
-            </body></html>
-        `);
-    }
-    
-    const totem = await buscarTotem(totemId);
-    
-    if (!totem) {
-        return res.send(`
-            <html><body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ Totem não encontrado</h2>
-                <p><a href="/cliente/login">Tentar novamente</a></p>
-            </body></html>
-        `);
-    }
-    
-    const ultimos4 = totemId.slice(-4);
-    const senhaEsperada = ultimos4 + '2026';
-    
-    if (senha !== senhaEsperada) {
-        return res.send(`
-            <html><body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ Senha incorreta</h2>
-                <p><a href="/cliente/login">Tentar novamente</a></p>
-            </body></html>
-        `);
-    }
-    
-    req.session.clienteTotemId = totemId;
-    req.session.isCliente = true;
-    
-    res.redirect(`/cliente/dashboard/${totemId}`);
-});
-
-app.get('/cliente/dashboard/:id', async (req, res) => {
-    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
-        return res.redirect('/cliente/login');
-    }
-    
-    const id = req.params.id;
-    const totem = await buscarTotem(id);
-    
-    if (!totem) {
-        return res.status(404).send('Totem não encontrado');
-    }
-    
-    let audioInfo = { nome: 'padrao.mp3', url: null, dataUpload: null };
-    
-    if (firebaseInicializado && db) {
-        try {
-            const doc = await db.collection('totens').doc(id).get();
-            if (doc.exists && doc.data().audio) {
-                audioInfo = doc.data().audio;
-            }
-        } catch (error) {
-            console.error('Erro ao buscar áudio:', error);
-        }
-    }
-    
-    let html = fs.readFileSync(path.join(__dirname, 'views', 'cliente-dashboard.html'), 'utf8');
-    
-    html = html.replace(/{{ID}}/g, id);
-    html = html.replace(/{{LINK}}/g, totem.link || '');
-    html = html.replace(/{{DATA_EXPIRACAO}}/g, formatarData(totem.dataExpiracao));
-    html = html.replace(/{{AUDIO_NOME}}/g, audioInfo.nome || 'Nenhum áudio personalizado');
-    html = html.replace(/{{AUDIO_DATA}}/g, audioInfo.dataUpload ? formatarData(audioInfo.dataUpload.split('T')[0]) : '---');
-    
-    res.send(html);
-});
-
-// ========== ROTA DE UPLOAD CORRIGIDA ==========
-app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
-    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
-        return res.status(401).json({ error: 'Não autorizado' });
-    }
-    
-    const id = req.params.id;
-    const file = req.file;
-    
-    if (!file) {
-        return res.status(400).json({ error: 'Nenhum arquivo enviado' });
-    }
-    
-    console.log(`📥 Upload de áudio para ${id}: ${file.filename}`);
-    console.log(`📁 Arquivo salvo em: ${file.path}`);
-    console.log(`📏 Tamanho: ${file.size} bytes`);
-    console.log(`🏷️ Tipo: ${file.mimetype}`);
-    
-    try {
-        let audioUrl = null;
-        let audioData = {
-            nome: file.originalname,
-            tamanho: file.size,
-            dataUpload: new Date().toISOString(),
-            filename: file.filename,
-            mimetype: file.mimetype
-        };
         
-        if (bucket) {
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        function updateTimer() {
+            recordingSeconds++;
+            timerDisplay.textContent = formatTime(recordingSeconds);
+        }
+        
+        recordBtn.addEventListener('click', async () => {
             try {
-                const destination = `audios/${id}/${file.filename}`;
-                console.log(`📤 Enviando para Firebase Storage: ${destination}`);
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                await bucket.upload(file.path, { 
-                    destination,
-                    metadata: {
-                        contentType: file.mimetype || 'audio/mpeg',
-                        metadata: {
-                            totemId: id,
-                            originalName: file.originalname,
-                            uploadDate: audioData.dataUpload
-                        }
+                initVisualizer(audioStream);
+                
+                mediaRecorder = new MediaRecorder(audioStream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
                     }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    
+                    const audioUrl = URL.createObjectURL(recordedBlob);
+                    previewAudio.src = audioUrl;
+                    previewContainer.style.display = 'block';
+                    
+                    previewBtn.disabled = false;
+                    sendBtn.disabled = false;
+                    
+                    if (animationFrame) {
+                        cancelAnimationFrame(animationFrame);
+                    }
+                    if (audioContext) {
+                        audioContext.close();
+                    }
+                    
+                    audioStream.getTracks().forEach(track => track.stop());
+                    
+                    statusText.textContent = 'Gravação finalizada!';
+                };
+                
+                mediaRecorder.start(100);
+                
+                recordBtn.disabled = true;
+                recordBtn.classList.add('recording');
+                stopBtn.disabled = false;
+                previewBtn.disabled = true;
+                sendBtn.disabled = true;
+                statusText.textContent = 'Gravando...';
+                
+                recordingSeconds = 0;
+                timerDisplay.textContent = '00:00';
+                recordingTimer = setInterval(updateTimer, 1000);
+                
+            } catch (err) {
+                console.error('Erro ao acessar microfone:', err);
+                showAlert('❌ Não foi possível acessar o microfone. Verifique as permissões.', 'error');
+            }
+        });
+        
+        stopBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                
+                clearInterval(recordingTimer);
+                
+                recordBtn.disabled = false;
+                recordBtn.classList.remove('recording');
+                stopBtn.disabled = true;
+            }
+        });
+        
+        previewBtn.addEventListener('click', () => {
+            previewAudio.play();
+        });
+        
+        sendBtn.addEventListener('click', async () => {
+            if (!recordedBlob) {
+                showAlert('❌ Nenhuma gravação disponível', 'error');
+                return;
+            }
+            
+            uploadProgress.style.display = 'block';
+            progressBar.value = 0;
+            
+            const formData = new FormData();
+            const audioFile = new File([recordedBlob], 'gravacao.webm', { 
+                type: 'audio/webm'
+            });
+            formData.append('audio', audioFile);
+            
+            loading.classList.add('active');
+            
+            try {
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 10;
+                    if (progress <= 90) {
+                        progressBar.value = progress;
+                    }
+                }, 300);
+                
+                console.log('Enviando áudio para o servidor...');
+                
+                const response = await fetch(`/cliente/audio/${totemId}`, {
+                    method: 'POST',
+                    body: formData
                 });
                 
-                const fileRef = bucket.file(destination);
-                await fileRef.makePublic();
+                clearInterval(progressInterval);
                 
-                audioUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-                audioData.url = audioUrl;
-                audioData.storagePath = destination;
+                console.log('Resposta do servidor:', response.status);
                 
-                console.log(`✅ Áudio público em: ${audioUrl}`);
-                
+                let result;
                 try {
-                    fs.removeSync(file.path);
-                    console.log('🗑️ Arquivo temporário removido');
+                    result = await response.json();
                 } catch (e) {
-                    console.warn('Erro ao remover temporário:', e);
+                    console.error('Erro ao parsear resposta:', e);
+                    throw new Error('Resposta inválida do servidor');
                 }
                 
-            } catch (storageError) {
-                console.error('❌ Erro no Firebase Storage:', storageError);
-                console.log('⚠️ Usando fallback local');
-                audioUrl = `${SERVER_URL}/uploads/${file.filename}`;
-                audioData.url = audioUrl;
-            }
-        } else {
-            console.log('⚠️ Firebase Storage não disponível, servindo localmente');
-            audioUrl = `${SERVER_URL}/uploads/${file.filename}`;
-            audioData.url = audioUrl;
-        }
-        
-        if (db) {
-            await db.collection('totens').doc(id).set({
-                audio: audioData,
-                ultimaAtualizacaoAudio: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-            console.log(`✅ Referência salva no Firestore para ${id}`);
-        }
-        
-        if (mqttClient && mqttClient.connected) {
-            const topicoAudio = `totem/${id}/audio`;
-            mqttClient.publish(topicoAudio, JSON.stringify({
-                comando: 'atualizar',
-                timestamp: Date.now(),
-                versao: audioData.dataUpload
-            }));
-            
-            const topicoPlay = `totem/${id}`;
-            mqttClient.publish(topicoPlay, 'atualizar_audio');
-            
-            console.log(`📤 Notificações MQTT enviadas`);
-        }
-        
-        return res.json({
-            success: true,
-            message: 'Áudio enviado com sucesso',
-            audio: {
-                nome: file.originalname,
-                tamanho: file.size,
-                url: audioUrl
+                if (response.ok && result.success) {
+                    progressBar.value = 100;
+                    showAlert('✅ Áudio gravado enviado com sucesso!', 'success');
+                    
+                    document.getElementById('audioAtual').textContent = '📁 gravacao.webm';
+                    document.getElementById('audioAtualDisplay').textContent = 'gravacao.webm';
+                    btnRemove.style.display = 'inline-block';
+                    
+                    sendBtn.disabled = true;
+                    
+                    setTimeout(() => {
+                        previewContainer.style.display = 'none';
+                        uploadProgress.style.display = 'none';
+                    }, 2000);
+                    
+                } else {
+                    throw new Error(result.error || 'Falha no upload');
+                }
+            } catch (error) {
+                console.error('Erro detalhado:', error);
+                showAlert('❌ Erro: ' + error.message, 'error');
+                uploadProgress.style.display = 'none';
+            } finally {
+                loading.classList.remove('active');
             }
         });
         
-    } catch (error) {
-        console.error('❌ Erro no upload:', error);
-        return res.status(500).json({ 
-            error: 'Erro interno: ' + error.message 
-        });
-    }
-});
-
-// ========== API PARA ESP32 ==========
-app.get('/api/audio/:id', async (req, res) => {
-    const id = req.params.id;
-    
-    console.log(`🔍 ESP32 consultando áudio para ${id}`);
-    
-    if (!firebaseInicializado || !db) {
-        console.log('⚠️ Firebase não disponível');
-        return res.json({ 
-            url: null, 
-            versao: '1.0'
-        });
-    }
-    
-    try {
-        const doc = await db.collection('totens').doc(id).get();
-        
-        if (doc.exists) {
-            const data = doc.data();
-            const audio = data.audio || {};
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
             
-            if (audio.url) {
-                let urlFinal = audio.url;
-                
-                if (urlFinal.startsWith('/uploads/')) {
-                    urlFinal = `${SERVER_URL}${urlFinal}`;
+            if (file) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showAlert('❌ Arquivo muito grande! Máximo 10MB.', 'error');
+                    fileInput.value = '';
+                    fileInfo.textContent = 'Nenhum arquivo selecionado';
+                    audioPreview.style.display = 'none';
+                    return;
                 }
                 
-                console.log(`✅ Retornando URL: ${urlFinal}`);
+                fileInfo.textContent = `📁 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
                 
-                return res.json({
-                    url: urlFinal,
-                    nome: audio.nome || 'audio.mp3',
-                    versao: audio.dataUpload || data.ultimaRenovacao || '1.0',
-                    tamanho: audio.tamanho || 0
-                });
+                const url = URL.createObjectURL(file);
+                audioPlayer.querySelector('source').src = url;
+                audioPlayer.load();
+                audioPreview.style.display = 'block';
+                
+                showAlert('', '');
+            } else {
+                fileInfo.textContent = 'Nenhum arquivo selecionado';
+                audioPreview.style.display = 'none';
+            }
+        });
+        
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!fileInput.files[0]) {
+                showAlert('❌ Selecione um arquivo de áudio', 'error');
+                return;
             }
             
-            console.log(`ℹ️ ${id} não tem áudio personalizado`);
-            return res.json({
-                url: null,
-                versao: '1.0'
-            });
-        } else {
-            console.log(`❌ Totem ${id} não encontrado`);
-            return res.status(404).json({ 
-                error: 'Totem não encontrado' 
-            });
-        }
-    } catch (error) {
-        console.error('❌ Erro na API:', error);
-        return res.status(500).json({ 
-            error: 'Erro interno' 
-        });
-    }
-});
-
-app.delete('/api/audio/:id', async (req, res) => {
-    if (!req.session || 
-        (!req.session.adminAutenticado && req.session.clienteTotemId !== req.params.id)) {
-        return res.status(401).json({ error: 'Não autorizado' });
-    }
-    
-    const id = req.params.id;
-    
-    try {
-        if (db) {
-            const doc = await db.collection('totens').doc(id).get();
+            const formData = new FormData();
+            formData.append('audio', fileInput.files[0]);
             
-            if (doc.exists && doc.data().audio) {
-                const audio = doc.data().audio;
-                
-                if (bucket && audio.storagePath) {
-                    try {
-                        await bucket.file(audio.storagePath).delete();
-                        console.log(`🗑️ Áudio removido do Storage`);
-                    } catch (storageError) {
-                        console.warn('Erro ao remover do Storage:', storageError);
-                    }
-                }
-                
-                await db.collection('totens').doc(id).update({
-                    audio: admin.firestore.FieldValue.delete()
+            loading.classList.add('active');
+            
+            try {
+                const response = await fetch(`/cliente/audio/${totemId}`, {
+                    method: 'POST',
+                    body: formData
                 });
                 
-                console.log(`🗑️ Áudio removido do Firestore`);
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showAlert('✅ Áudio enviado com sucesso!', 'success');
+                    fileInput.value = '';
+                    fileInfo.textContent = 'Nenhum arquivo selecionado';
+                    audioPreview.style.display = 'none';
+                    btnRemove.style.display = 'inline-block';
+                    
+                    document.getElementById('audioAtual').textContent = `📁 ${fileInput.files[0].name}`;
+                    document.getElementById('audioAtualDisplay').textContent = fileInput.files[0].name;
+                } else {
+                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
             }
-        }
-        
-        return res.json({
-            success: true,
-            message: 'Áudio removido'
         });
         
-    } catch (error) {
-        console.error('Erro ao remover áudio:', error);
-        return res.status(500).json({ error: 'Erro interno' });
-    }
-});
-
-// ========== ROTAS ADMIN ==========
-
-app.get('/admin/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'login.html'));
-});
-
-app.post('/admin/login', (req, res) => {
-    const { senha } = req.body;
-    
-    if (senha === SENHA_ADMIN) {
-        req.session.adminAutenticado = true;
-        res.redirect('/admin/dashboard');
-    } else {
-        res.sendFile(path.join(__dirname, 'views', 'mensagem.html'));
-    }
-});
-
-app.get('/admin/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/admin/login');
-});
-
-app.get('/admin/dashboard', adminAuth, async (req, res) => {
-    const totens = await listarTotens();
-    
-    let linhasTabela = '';
-    
-    for (const totem of totens) {
-        const expirada = dataExpirada(totem.dataExpiracao);
-        const statusIcon = expirada ? '❌' : '✅';
-        const statusText = expirada ? 'Expirado' : 'Ativo';
-        const temAudio = totem.audio ? '🎵' : '';
+        btnRemove.addEventListener('click', async function() {
+            if (!confirm('Tem certeza que deseja remover o áudio personalizado? O totem voltará a usar o áudio padrão.')) {
+                return;
+            }
+            
+            loading.classList.add('active');
+            
+            try {
+                const response = await fetch(`/api/audio/${totemId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showAlert('✅ Áudio removido! Totem usará áudio padrão.', 'success');
+                    btnRemove.style.display = 'none';
+                    document.getElementById('audioAtual').textContent = '📁 áudio padrão';
+                    document.getElementById('audioAtualDisplay').textContent = 'áudio padrão';
+                } else {
+                    showAlert('❌ Erro: ' + (result.error || 'Falha ao remover'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
         
-        linhasTabela += `
-            <tr>
-                <td>${totem.id} ${temAudio}</td>
-                <td><a href="${totem.link}" target="_blank">${totem.link}</a></td>
-                <td>${formatarData(totem.dataExpiracao)}</td>
-                <td>${statusIcon} ${statusText}</td>
-                <td>
-                    <a href="/admin/editar/${totem.id}">✏️ Editar</a> | 
-                    <a href="/admin/excluir/${totem.id}" onclick="return confirm('Excluir totem?')">🗑️ Excluir</a>
-                </td>
-            </tr>
-        `;
-    }
-    
-    let html = fs.readFileSync(path.join(__dirname, 'views', 'admin.html'), 'utf8');
-    html = html.replace('{{LINHAS_TABELA}}', linhasTabela);
-    
-    res.send(html);
-});
-
-app.get('/admin/novo', adminAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'novo.html'));
-});
-
-app.post('/admin/novo', adminAuth, async (req, res) => {
-    const { id, link, dataExpiracao } = req.body;
-    
-    if (!id || !link || !dataExpiracao) {
-        return res.status(400).send('Todos os campos são obrigatórios');
-    }
-    
-    if (!link.includes('instagram.com')) {
-        return res.status(400).send('Link deve ser do Instagram');
-    }
-    
-    if (dataExpirada(dataExpiracao)) {
-        return res.status(400).send('Data de expiração deve ser futura');
-    }
-    
-    const totemData = {
-        link,
-        dataExpiracao,
-        status: 'ativo',
-        criadoEm: admin.firestore.FieldValue.serverTimestamp(),
-        ultimaRenovacao: admin.firestore.FieldValue.serverTimestamp()
-    };
-    
-    if (firebaseInicializado && db) {
-        try {
-            await db.collection('totens').doc(id).set(totemData);
-            console.log(`✅ Totem ${id} criado no Firebase`);
-        } catch (error) {
-            console.error('Erro ao criar no Firebase:', error);
+        function showAlert(message, type) {
+            if (!message) {
+                alert.style.display = 'none';
+                alert.className = 'alert';
+                return;
+            }
+            
+            alert.textContent = message;
+            alert.className = 'alert ' + type;
         }
-    }
-    
-    const clientesDir = path.join(__dirname, 'clientes');
-    fs.ensureDirSync(clientesDir);
-    fs.writeFileSync(path.join(clientesDir, `${id}.txt`), link);
-    
-    res.redirect('/admin/dashboard');
-});
-
-app.get('/admin/editar/:id', adminAuth, async (req, res) => {
-    const id = req.params.id;
-    const totem = await buscarTotem(id);
-    
-    if (!totem) {
-        return res.status(404).send('Totem não encontrado');
-    }
-    
-    let html = fs.readFileSync(path.join(__dirname, 'views', 'editar.html'), 'utf8');
-    html = html.replace(/{{ID}}/g, totem.id);
-    html = html.replace(/{{LINK}}/g, totem.link || '');
-    html = html.replace(/{{DATA_EXPIRACAO}}/g, totem.dataExpiracao || '');
-    
-    res.send(html);
-});
-
-app.post('/admin/editar/:id', adminAuth, async (req, res) => {
-    const id = req.params.id;
-    const { link, dataExpiracao } = req.body;
-    
-    if (!link || !dataExpiracao) {
-        return res.status(400).send('Todos os campos são obrigatórios');
-    }
-    
-    if (firebaseInicializado && db) {
-        try {
-            await db.collection('totens').doc(id).set({
-                link,
-                dataExpiracao,
-                ultimaRenovacao: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-            console.log(`✅ Totem ${id} atualizado no Firebase`);
-        } catch (error) {
-            console.error('Erro ao atualizar no Firebase:', error);
-        }
-    }
-    
-    fs.writeFileSync(path.join(__dirname, 'clientes', `${id}.txt`), link);
-    
-    res.redirect('/admin/dashboard');
-});
-
-app.get('/admin/excluir/:id', adminAuth, async (req, res) => {
-    const id = req.params.id;
-    
-    if (firebaseInicializado && db) {
-        try {
-            await db.collection('totens').doc(id).delete();
-            console.log(`✅ Totem ${id} excluído do Firebase`);
-        } catch (error) {
-            console.error('Erro ao excluir do Firebase:', error);
-        }
-    }
-    
-    const caminho = path.join(__dirname, 'clientes', `${id}.txt`);
-    if (fs.existsSync(caminho)) {
-        fs.removeSync(caminho);
-    }
-    
-    res.redirect('/admin/dashboard');
-});
-
-// ========== INICIAR SERVIDOR ==========
-app.listen(PORT, () => {
-    console.log('\n' + '='.repeat(50));
-    console.log('🚀 TOTEM SERVER v4.0 rodando!');
-    console.log('='.repeat(50));
-    console.log(`📡 Porta: ${PORT}`);
-    console.log(`🌐 URL: ${SERVER_URL}`);
-    console.log(`📊 Admin: ${SERVER_URL}/admin/login`);
-    console.log(`👤 Cliente: ${SERVER_URL}/cliente/login`);
-    console.log(`📡 MQTT: ${MQTT_BROKER}:${MQTT_PORT}`);
-    console.log(`🔥 Firebase: ${firebaseInicializado ? '✅ Conectado' : '❌ Não disponível'}`);
-    console.log('='.repeat(50) + '\n');
-});
+        
+        window.addEventListener('beforeunload', function() {
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+            }
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+        });
+    </script>
+</body>
+</html>
