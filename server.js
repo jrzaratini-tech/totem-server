@@ -18,10 +18,11 @@ require('dotenv').config();
 
 // ========== CONFIGURAÇÕES ==========
 const PORT = process.env.PORT || 3000;
-const SENHA_ADMIN = '159268'; // Senha fixa do dashboard administrativo
+const SENHA_ADMIN = '159268';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'totem-secret-key-v4';
 const MQTT_BROKER = 'broker.hivemq.com';
 const MQTT_PORT = 1883;
+const SERVER_URL = process.env.SERVER_URL || 'https://totem-server.onrender.com';
 
 // ========== INICIALIZAÇÃO ==========
 const app = express();
@@ -37,7 +38,7 @@ app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
-    cookie: { maxAge: 30 * 60 * 1000 } // 30 minutos
+    cookie: { maxAge: 30 * 60 * 1000 }
 }));
 
 // ========== FIREBASE ADMIN ==========
@@ -48,12 +49,10 @@ let firebaseInicializado = false;
 try {
     let credentials;
     
-    // Tenta carregar do arquivo local
     if (fs.existsSync('./firebase-credentials.json')) {
         credentials = JSON.parse(fs.readFileSync('./firebase-credentials.json', 'utf8'));
         console.log('✅ Firebase: Credenciais carregadas do arquivo');
     } 
-    // Tenta carregar da variável de ambiente
     else if (process.env.FIREBASE_CREDENTIALS) {
         credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
         console.log('✅ Firebase: Credenciais carregadas da env var');
@@ -128,9 +127,8 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    // Aceitar apenas MP3
     const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/mpeg3'];
-    const allowedExt = ['.mp3'];
+    const allowedExt = ['.mp3', '.webm', '.ogg', '.wav'];
     
     const ext = path.extname(file.originalname).toLowerCase();
     const mimetype = file.mimetype.toLowerCase();
@@ -138,7 +136,7 @@ const fileFilter = (req, file, cb) => {
     if (allowedTypes.includes(mimetype) || allowedExt.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error('Apenas arquivos MP3 são permitidos!'), false);
+        cb(new Error('Apenas arquivos de áudio são permitidos!'), false);
     }
 };
 
@@ -146,13 +144,12 @@ const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: { 
-        fileSize: 5 * 1024 * 1024 // 5MB max
+        fileSize: 10 * 1024 * 1024
     }
 });
 
 // ========== FUNÇÕES AUXILIARES ==========
 
-// Middleware de logging
 function logger(req, res, next) {
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] ${req.method} ${req.url}`);
@@ -161,7 +158,6 @@ function logger(req, res, next) {
 
 app.use(logger);
 
-// Verificar se uma data está expirada
 function dataExpirada(dataStr) {
     if (!dataStr) return true;
     const hoje = new Date();
@@ -170,22 +166,13 @@ function dataExpirada(dataStr) {
     return expiracao < hoje;
 }
 
-// Obter data atual no formato YYYY-MM-DD
-function hojeStr() {
-    const hoje = new Date();
-    return hoje.toISOString().split('T')[0];
-}
-
-// Formatar data para exibição
 function formatarData(dataStr) {
     if (!dataStr) return 'Sem data';
     const [ano, mes, dia] = dataStr.split('-');
     return `${dia}/${mes}/${ano}`;
 }
 
-// Buscar totem no Firebase (com fallback para arquivo)
 async function buscarTotem(id) {
-    // Tenta Firebase primeiro
     if (firebaseInicializado && db) {
         try {
             const doc = await db.collection('totens').doc(id).get();
@@ -197,14 +184,13 @@ async function buscarTotem(id) {
         }
     }
     
-    // Fallback: arquivo texto
     const caminho = path.join(__dirname, 'clientes', `${id}.txt`);
     if (fs.existsSync(caminho)) {
         const link = fs.readFileSync(caminho, 'utf8').trim();
         return { 
             id, 
             link, 
-            dataExpiracao: '2099-12-31', // Compatibilidade: nunca expira
+            dataExpiracao: '2099-12-31',
             _fallback: true 
         };
     }
@@ -212,11 +198,9 @@ async function buscarTotem(id) {
     return null;
 }
 
-// Listar todos os totens
 async function listarTotens() {
     const totens = [];
     
-    // Do Firebase
     if (firebaseInicializado && db) {
         try {
             const snapshot = await db.collection('totens').get();
@@ -228,7 +212,6 @@ async function listarTotens() {
         }
     }
     
-    // Se não há totens no Firebase, carrega dos arquivos
     if (totens.length === 0) {
         const clientesDir = path.join(__dirname, 'clientes');
         if (fs.existsSync(clientesDir)) {
@@ -249,7 +232,6 @@ async function listarTotens() {
     return totens.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-// Middleware de autenticação admin
 function adminAuth(req, res, next) {
     if (req.session && req.session.adminAutenticado) {
         next();
@@ -258,37 +240,19 @@ function adminAuth(req, res, next) {
     }
 }
 
-// Middleware de autenticação cliente
-function clienteAuth(req, res, next) {
-    if (req.session && req.session.clienteTotemId) {
-        const idUrl = req.params.id || req.body.totemId;
-        if (idUrl && idUrl === req.session.clienteTotemId) {
-            next();
-        } else {
-            res.status(403).send('Acesso negado: ID do totem não corresponde');
-        }
-    } else {
-        res.redirect('/cliente/login');
-    }
-}
-
-// Disponibilizar dependências para as rotas
 app.locals.db = db;
 app.locals.bucket = bucket;
 app.locals.firebaseInicializado = firebaseInicializado;
 app.locals.mqttClient = mqttClient;
 
-// Servir arquivos de upload (se existirem)
 app.use('/uploads', express.static('uploads'));
 
 // ========== ROTAS PÚBLICAS ==========
 
-// Rota raiz redireciona para admin
 app.get('/', (req, res) => {
     res.redirect('/admin/login');
 });
 
-// Rota principal do totem (acionada pelo QR Code)
 app.get('/totem/:id', async (req, res) => {
     const id = req.params.id;
     console.log(`🔍 Totem acessado: ${id}`);
@@ -300,37 +264,30 @@ app.get('/totem/:id', async (req, res) => {
         return res.status(404).send('Totem não encontrado');
     }
     
-    // Verificar expiração
     if (dataExpirada(totem.dataExpiracao)) {
         console.log(`⛔ Totem expirado: ${id} (data: ${totem.dataExpiracao})`);
         return res.redirect('/expirado');
     }
     
-    // Publicar no MQTT
     publicarPlay(id);
     
-    // Redirecionar para o link
     console.log(`✅ Totem ativo: ${id} → ${totem.link}`);
     res.redirect(totem.link);
 });
 
-// Página de totem expirado
 app.get('/expirado', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'expirado.html'));
 });
 
-// ========== ROTAS DE CLIENTE (ÁUDIO PERSONALIZADO) ==========
+// ========== ROTAS DE CLIENTE ==========
 
-// Página de login do cliente
 app.get('/cliente/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'cliente-login.html'));
 });
 
-// Processar login do cliente
 app.post('/cliente/login', async (req, res) => {
     const { totemId, senha } = req.body;
     
-    // Validar entrada
     if (!totemId || !senha) {
         return res.send(`
             <html><body style="font-family: Arial; text-align: center; padding: 50px;">
@@ -346,12 +303,11 @@ app.post('/cliente/login', async (req, res) => {
         return res.send(`
             <html><body style="font-family: Arial; text-align: center; padding: 50px;">
                 <h2>❌ Totem não encontrado</h2>
-                <p>ID inválido. <a href="/cliente/login">Tentar novamente</a></p>
+                <p><a href="/cliente/login">Tentar novamente</a></p>
             </body></html>
         `);
     }
     
-    // Senha temporária: últimos 4 dígitos do ID + 2026
     const ultimos4 = totemId.slice(-4);
     const senhaEsperada = ultimos4 + '2026';
     
@@ -364,16 +320,13 @@ app.post('/cliente/login', async (req, res) => {
         `);
     }
     
-    // Criar sessão do cliente
     req.session.clienteTotemId = totemId;
     req.session.isCliente = true;
     
     res.redirect(`/cliente/dashboard/${totemId}`);
 });
 
-// Dashboard do cliente
 app.get('/cliente/dashboard/:id', async (req, res) => {
-    // Verificar se está logado
     if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
         return res.redirect('/cliente/login');
     }
@@ -385,7 +338,6 @@ app.get('/cliente/dashboard/:id', async (req, res) => {
         return res.status(404).send('Totem não encontrado');
     }
     
-    // Buscar informações de áudio
     let audioInfo = { nome: 'padrao.mp3', url: null, dataUpload: null };
     
     if (firebaseInicializado && db) {
@@ -399,10 +351,8 @@ app.get('/cliente/dashboard/:id', async (req, res) => {
         }
     }
     
-    // Renderizar dashboard
     let html = fs.readFileSync(path.join(__dirname, 'views', 'cliente-dashboard.html'), 'utf8');
     
-    // Substituir placeholders
     html = html.replace(/{{ID}}/g, id);
     html = html.replace(/{{LINK}}/g, totem.link || '');
     html = html.replace(/{{DATA_EXPIRACAO}}/g, formatarData(totem.dataExpiracao));
@@ -412,9 +362,8 @@ app.get('/cliente/dashboard/:id', async (req, res) => {
     res.send(html);
 });
 
-// Upload de áudio
+// ========== ROTA DE UPLOAD CORRIGIDA ==========
 app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
-    // Verificar login
     if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
         return res.status(401).json({ error: 'Não autorizado' });
     }
@@ -427,6 +376,9 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     }
     
     console.log(`📥 Upload de áudio para ${id}: ${file.filename}`);
+    console.log(`📁 Arquivo salvo em: ${file.path}`);
+    console.log(`📏 Tamanho: ${file.size} bytes`);
+    console.log(`🏷️ Tipo: ${file.mimetype}`);
     
     try {
         let audioUrl = null;
@@ -434,17 +386,19 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             nome: file.originalname,
             tamanho: file.size,
             dataUpload: new Date().toISOString(),
-            filename: file.filename
+            filename: file.filename,
+            mimetype: file.mimetype
         };
         
-        // Se Firebase Storage está disponível, faz upload
         if (bucket) {
             try {
                 const destination = `audios/${id}/${file.filename}`;
+                console.log(`📤 Enviando para Firebase Storage: ${destination}`);
+                
                 await bucket.upload(file.path, { 
                     destination,
                     metadata: {
-                        contentType: 'audio/mpeg',
+                        contentType: file.mimetype || 'audio/mpeg',
                         metadata: {
                             totemId: id,
                             originalName: file.originalname,
@@ -453,52 +407,56 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                     }
                 });
                 
-                // Gerar URL assinada (válida por 1 ano)
-                const [url] = await bucket.file(destination).getSignedUrl({
-                    action: 'read',
-                    expires: Date.now() + 365 * 24 * 60 * 60 * 1000
-                });
+                const fileRef = bucket.file(destination);
+                await fileRef.makePublic();
                 
-                audioUrl = url;
-                audioData.url = url;
+                audioUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
+                audioData.url = audioUrl;
                 audioData.storagePath = destination;
                 
-                console.log(`✅ Áudio enviado para Firebase Storage: ${destination}`);
+                console.log(`✅ Áudio público em: ${audioUrl}`);
+                
+                try {
+                    fs.removeSync(file.path);
+                    console.log('🗑️ Arquivo temporário removido');
+                } catch (e) {
+                    console.warn('Erro ao remover temporário:', e);
+                }
+                
             } catch (storageError) {
-                console.error('Erro no Firebase Storage:', storageError);
-                // Fallback: salvar localmente
-                const localUrl = `/uploads/${file.filename}`;
-                audioUrl = localUrl;
-                audioData.url = localUrl;
+                console.error('❌ Erro no Firebase Storage:', storageError);
+                console.log('⚠️ Usando fallback local');
+                audioUrl = `${SERVER_URL}/uploads/${file.filename}`;
+                audioData.url = audioUrl;
             }
         } else {
-            // Fallback: servir localmente
-            const localUrl = `/uploads/${file.filename}`;
-            audioUrl = localUrl;
-            audioData.url = localUrl;
+            console.log('⚠️ Firebase Storage não disponível, servindo localmente');
+            audioUrl = `${SERVER_URL}/uploads/${file.filename}`;
+            audioData.url = audioUrl;
         }
         
-        // Salvar referência no Firestore
         if (db) {
             await db.collection('totens').doc(id).set({
                 audio: audioData,
                 ultimaAtualizacaoAudio: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
-            console.log(`✅ Referência de áudio salva no Firestore para ${id}`);
+            console.log(`✅ Referência salva no Firestore para ${id}`);
         }
         
-        // Notificar ESP32 via MQTT
         if (mqttClient && mqttClient.connected) {
-            const topico = `totem/${id}/audio`;
-            mqttClient.publish(topico, JSON.stringify({
+            const topicoAudio = `totem/${id}/audio`;
+            mqttClient.publish(topicoAudio, JSON.stringify({
                 comando: 'atualizar',
                 timestamp: Date.now(),
                 versao: audioData.dataUpload
             }));
-            console.log(`📤 Notificação MQTT enviada para ${id}`);
+            
+            const topicoPlay = `totem/${id}`;
+            mqttClient.publish(topicoPlay, 'atualizar_audio');
+            
+            console.log(`📤 Notificações MQTT enviadas`);
         }
         
-        // Resposta de sucesso
         return res.json({
             success: true,
             message: 'Áudio enviado com sucesso',
@@ -510,36 +468,24 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Erro no processo de upload:', error);
+        console.error('❌ Erro no upload:', error);
         return res.status(500).json({ 
-            error: 'Erro interno ao processar upload' 
+            error: 'Erro interno: ' + error.message 
         });
-    } finally {
-        // Limpar arquivo temporário (se ainda existir)
-        if (file && file.path && fs.existsSync(file.path)) {
-            try {
-                fs.removeSync(file.path);
-            } catch (cleanError) {
-                console.warn('Erro ao limpar arquivo temporário:', cleanError);
-            }
-        }
     }
 });
 
-// ========== ROTAS DE API PARA ÁUDIO ==========
-
-/**
- * GET /api/audio/:id
- * Endpoint para ESP32 verificar se há novo áudio
- */
+// ========== API PARA ESP32 ==========
 app.get('/api/audio/:id', async (req, res) => {
     const id = req.params.id;
     
+    console.log(`🔍 ESP32 consultando áudio para ${id}`);
+    
     if (!firebaseInicializado || !db) {
+        console.log('⚠️ Firebase não disponível');
         return res.json({ 
             url: null, 
-            versao: '1.0',
-            message: 'Firebase não disponível'
+            versao: '1.0'
         });
     }
     
@@ -550,41 +496,43 @@ app.get('/api/audio/:id', async (req, res) => {
             const data = doc.data();
             const audio = data.audio || {};
             
-            // Se tem URL salva, retorna
             if (audio.url) {
+                let urlFinal = audio.url;
+                
+                if (urlFinal.startsWith('/uploads/')) {
+                    urlFinal = `${SERVER_URL}${urlFinal}`;
+                }
+                
+                console.log(`✅ Retornando URL: ${urlFinal}`);
+                
                 return res.json({
-                    url: audio.url,
+                    url: urlFinal,
                     nome: audio.nome || 'audio.mp3',
                     versao: audio.dataUpload || data.ultimaRenovacao || '1.0',
                     tamanho: audio.tamanho || 0
                 });
             }
             
-            // Se não tem áudio personalizado, retorna áudio padrão
+            console.log(`ℹ️ ${id} não tem áudio personalizado`);
             return res.json({
                 url: null,
-                versao: '1.0',
-                message: 'Usar áudio padrão do totem'
+                versao: '1.0'
             });
         } else {
+            console.log(`❌ Totem ${id} não encontrado`);
             return res.status(404).json({ 
                 error: 'Totem não encontrado' 
             });
         }
     } catch (error) {
-        console.error('Erro ao buscar áudio:', error);
+        console.error('❌ Erro na API:', error);
         return res.status(500).json({ 
-            error: 'Erro interno no servidor' 
+            error: 'Erro interno' 
         });
     }
 });
 
-/**
- * DELETE /api/audio/:id
- * Remove áudio personalizado
- */
 app.delete('/api/audio/:id', async (req, res) => {
-    // Verificar autenticação
     if (!req.session || 
         (!req.session.adminAutenticado && req.session.clienteTotemId !== req.params.id)) {
         return res.status(401).json({ error: 'Não autorizado' });
@@ -599,85 +547,40 @@ app.delete('/api/audio/:id', async (req, res) => {
             if (doc.exists && doc.data().audio) {
                 const audio = doc.data().audio;
                 
-                // Remover do Storage se existir
                 if (bucket && audio.storagePath) {
                     try {
                         await bucket.file(audio.storagePath).delete();
-                        console.log(`🗑️ Áudio removido do Storage: ${audio.storagePath}`);
+                        console.log(`🗑️ Áudio removido do Storage`);
                     } catch (storageError) {
                         console.warn('Erro ao remover do Storage:', storageError);
                     }
                 }
                 
-                // Remover referência do Firestore
                 await db.collection('totens').doc(id).update({
                     audio: admin.firestore.FieldValue.delete()
                 });
                 
-                console.log(`🗑️ Áudio removido do Firestore para ${id}`);
+                console.log(`🗑️ Áudio removido do Firestore`);
             }
         }
         
         return res.json({
             success: true,
-            message: 'Áudio removido, totem voltará a usar áudio padrão'
+            message: 'Áudio removido'
         });
         
     } catch (error) {
         console.error('Erro ao remover áudio:', error);
-        return res.status(500).json({ error: 'Erro interno ao remover áudio' });
-    }
-});
-
-/**
- * GET /api/audio/:id/info
- * Informações detalhadas do áudio
- */
-app.get('/api/audio/:id/info', async (req, res) => {
-    const id = req.params.id;
-    
-    if (!db) {
-        return res.json({ 
-            personalizado: false,
-            message: 'Firebase não disponível'
-        });
-    }
-    
-    try {
-        const doc = await db.collection('totens').doc(id).get();
-        
-        if (!doc.exists) {
-            return res.status(404).json({ error: 'Totem não encontrado' });
-        }
-        
-        const data = doc.data();
-        const audio = data.audio || {};
-        
-        const info = {
-            totemId: id,
-            personalizado: !!audio.url,
-            audioAtual: audio.nome || 'áudio padrão',
-            dataUpload: audio.dataUpload || null,
-            tamanho: audio.tamanho || 0,
-            ultimaAtualizacao: data.ultimaAtualizacaoAudio || data.ultimaRenovacao || null
-        };
-        
-        return res.json(info);
-        
-    } catch (error) {
-        console.error('Erro ao buscar info do áudio:', error);
         return res.status(500).json({ error: 'Erro interno' });
     }
 });
 
-// ========== ROTAS ADMIN (DASHBOARD) ==========
+// ========== ROTAS ADMIN ==========
 
-// Página de login admin
 app.get('/admin/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'login.html'));
 });
 
-// Processar login admin
 app.post('/admin/login', (req, res) => {
     const { senha } = req.body;
     
@@ -689,13 +592,11 @@ app.post('/admin/login', (req, res) => {
     }
 });
 
-// Logout admin
 app.get('/admin/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/admin/login');
 });
 
-// Dashboard admin
 app.get('/admin/dashboard', adminAuth, async (req, res) => {
     const totens = await listarTotens();
     
@@ -705,8 +606,6 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
         const expirada = dataExpirada(totem.dataExpiracao);
         const statusIcon = expirada ? '❌' : '✅';
         const statusText = expirada ? 'Expirado' : 'Ativo';
-        
-        // Verificar se tem áudio personalizado
         const temAudio = totem.audio ? '🎵' : '';
         
         linhasTabela += `
@@ -729,16 +628,13 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
     res.send(html);
 });
 
-// Página de novo totem
 app.get('/admin/novo', adminAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'novo.html'));
 });
 
-// Criar novo totem
 app.post('/admin/novo', adminAuth, async (req, res) => {
     const { id, link, dataExpiracao } = req.body;
     
-    // Validações básicas
     if (!id || !link || !dataExpiracao) {
         return res.status(400).send('Todos os campos são obrigatórios');
     }
@@ -751,7 +647,6 @@ app.post('/admin/novo', adminAuth, async (req, res) => {
         return res.status(400).send('Data de expiração deve ser futura');
     }
     
-    // Dados do totem
     const totemData = {
         link,
         dataExpiracao,
@@ -760,7 +655,6 @@ app.post('/admin/novo', adminAuth, async (req, res) => {
         ultimaRenovacao: admin.firestore.FieldValue.serverTimestamp()
     };
     
-    // Salvar no Firebase
     if (firebaseInicializado && db) {
         try {
             await db.collection('totens').doc(id).set(totemData);
@@ -770,7 +664,6 @@ app.post('/admin/novo', adminAuth, async (req, res) => {
         }
     }
     
-    // Compatibilidade: salvar arquivo
     const clientesDir = path.join(__dirname, 'clientes');
     fs.ensureDirSync(clientesDir);
     fs.writeFileSync(path.join(clientesDir, `${id}.txt`), link);
@@ -778,7 +671,6 @@ app.post('/admin/novo', adminAuth, async (req, res) => {
     res.redirect('/admin/dashboard');
 });
 
-// Página de editar totem
 app.get('/admin/editar/:id', adminAuth, async (req, res) => {
     const id = req.params.id;
     const totem = await buscarTotem(id);
@@ -795,7 +687,6 @@ app.get('/admin/editar/:id', adminAuth, async (req, res) => {
     res.send(html);
 });
 
-// Atualizar totem
 app.post('/admin/editar/:id', adminAuth, async (req, res) => {
     const id = req.params.id;
     const { link, dataExpiracao } = req.body;
@@ -804,7 +695,6 @@ app.post('/admin/editar/:id', adminAuth, async (req, res) => {
         return res.status(400).send('Todos os campos são obrigatórios');
     }
     
-    // Atualizar no Firebase
     if (firebaseInicializado && db) {
         try {
             await db.collection('totens').doc(id).set({
@@ -818,17 +708,14 @@ app.post('/admin/editar/:id', adminAuth, async (req, res) => {
         }
     }
     
-    // Atualizar arquivo
     fs.writeFileSync(path.join(__dirname, 'clientes', `${id}.txt`), link);
     
     res.redirect('/admin/dashboard');
 });
 
-// Excluir totem
 app.get('/admin/excluir/:id', adminAuth, async (req, res) => {
     const id = req.params.id;
     
-    // Excluir do Firebase
     if (firebaseInicializado && db) {
         try {
             await db.collection('totens').doc(id).delete();
@@ -838,7 +725,6 @@ app.get('/admin/excluir/:id', adminAuth, async (req, res) => {
         }
     }
     
-    // Excluir arquivo
     const caminho = path.join(__dirname, 'clientes', `${id}.txt`);
     if (fs.existsSync(caminho)) {
         fs.removeSync(caminho);
@@ -853,8 +739,9 @@ app.listen(PORT, () => {
     console.log('🚀 TOTEM SERVER v4.0 rodando!');
     console.log('='.repeat(50));
     console.log(`📡 Porta: ${PORT}`);
-    console.log(`📊 Admin: http://localhost:${PORT}/admin/login`);
-    console.log(`👤 Cliente: http://localhost:${PORT}/cliente/login`);
+    console.log(`🌐 URL: ${SERVER_URL}`);
+    console.log(`📊 Admin: ${SERVER_URL}/admin/login`);
+    console.log(`👤 Cliente: ${SERVER_URL}/cliente/login`);
     console.log(`📡 MQTT: ${MQTT_BROKER}:${MQTT_PORT}`);
     console.log(`🔥 Firebase: ${firebaseInicializado ? '✅ Conectado' : '❌ Não disponível'}`);
     console.log('='.repeat(50) + '\n');
