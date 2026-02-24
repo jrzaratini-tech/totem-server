@@ -158,7 +158,7 @@
             word-break: break-all;
         }
         
-        /* ========== NOVOS ESTILOS PARA GRAVAÇÃO ========== */
+        /* Estilos para gravação */
         .recording-section {
             background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf2 100%);
             border-radius: 15px;
@@ -269,6 +269,31 @@
             cursor: not-allowed;
         }
         
+        .send-recording-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .send-recording-btn:hover:not(:disabled) {
+            background: #5a6fd8;
+            transform: scale(1.05);
+        }
+        
+        .send-recording-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         .recording-status {
             text-align: center;
             margin: 15px 0;
@@ -281,6 +306,7 @@
             font-weight: bold;
             color: #dc3545;
             font-family: monospace;
+            margin-left: 15px;
         }
         
         .visualizer {
@@ -308,7 +334,6 @@
         .preview-audio audio {
             width: 100%;
         }
-        /* ============================================ */
         
         .upload-form {
             border: 2px dashed #ccc;
@@ -471,6 +496,13 @@
             display: block;
         }
         
+        .alert.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+        
         .button-group {
             display: flex;
             gap: 10px;
@@ -527,7 +559,7 @@
             </div>
         </div>
         
-        <!-- ========== NOVA SEÇÃO DE GRAVAÇÃO ========== -->
+        <!-- SEÇÃO DE GRAVAÇÃO -->
         <div class="recording-section">
             <div class="recording-title">
                 <span style="font-size: 24px;">🎤</span>
@@ -535,10 +567,10 @@
             </div>
             
             <p style="text-align: center; color: #666; margin-bottom: 20px;">
-                Fale, cante ou toque algo. O áudio será enviado automaticamente após a gravação.
+                Fale, cante ou toque algo. Grave e depois decida se quer enviar.
             </p>
             
-            <!-- Visualizador de áudio (opcional, mas legal) -->
+            <!-- Visualizador de áudio -->
             <div class="visualizer" id="visualizer">
                 <canvas id="visualizerCanvas" width="600" height="60"></canvas>
             </div>
@@ -556,6 +588,10 @@
                 <button class="play-preview-btn" id="previewBtn" disabled>
                     <span>▶️</span> Ouvir Preview
                 </button>
+                
+                <button class="send-recording-btn" id="sendBtn" disabled>
+                    <span>📤</span> Enviar para o Totem
+                </button>
             </div>
             
             <!-- Timer e status -->
@@ -569,13 +605,12 @@
                 <audio id="previewAudio" controls></audio>
             </div>
             
-            <!-- Barra de progresso do envio (aparece durante upload) -->
+            <!-- Barra de progresso do envio -->
             <div style="margin-top: 20px; display: none;" id="uploadProgress">
                 <p>Enviando áudio gravado...</p>
                 <progress value="0" max="100" style="width: 100%; height: 20px;"></progress>
             </div>
         </div>
-        <!-- ============================================ -->
         
         <div class="audio-section">
             <h2>📁 Upload de Arquivo MP3</h2>
@@ -626,7 +661,7 @@
                 <h3>📋 Instruções:</h3>
                 <ul>
                     <li><strong>NOVO!</strong> Grave áudio diretamente do navegador (microfone necessário)</li>
-                    <li>Após gravar, você pode ouvir antes de enviar</li>
+                    <li>Após gravar, ouça o preview e clique em "Enviar"</li>
                     <li>Ou faça upload de um arquivo MP3 de até 5MB</li>
                     <li>Recomendamos áudios de 15 a 30 segundos</li>
                     <li>O totem será atualizado automaticamente em até 1 minuto</li>
@@ -650,10 +685,11 @@
         const audioPlayer = audioPreview.querySelector('audio');
         const btnRemove = document.getElementById('btnRemove');
         
-        // ========== NOVOS ELEMENTOS PARA GRAVAÇÃO ==========
+        // Elementos de gravação
         const recordBtn = document.getElementById('recordBtn');
         const stopBtn = document.getElementById('stopBtn');
         const previewBtn = document.getElementById('previewBtn');
+        const sendBtn = document.getElementById('sendBtn');
         const recordingStatus = document.getElementById('recordingStatus');
         const statusText = document.getElementById('statusText');
         const timerDisplay = document.getElementById('timerDisplay');
@@ -708,7 +744,6 @@
                 for (let i = 0; i < bufferLength; i++) {
                     const barHeight = dataArray[i] / 2;
                     
-                    // Gradiente vermelho para roxo
                     const gradient = canvasCtx.createLinearGradient(0, 0, 0, canvas.height);
                     gradient.addColorStop(0, '#667eea');
                     gradient.addColorStop(1, '#764ba2');
@@ -723,7 +758,7 @@
             draw();
         }
         
-        // Formatar tempo (segundos para MM:SS)
+        // Formatar tempo
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
             const secs = seconds % 60;
@@ -739,18 +774,11 @@
         // Começar gravação
         recordBtn.addEventListener('click', async () => {
             try {
-                // Solicitar permissão do microfone [citation:2][citation:8]
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioStream = stream;
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                // Inicializar visualizador
-                initVisualizer(stream);
+                initVisualizer(audioStream);
                 
-                // Criar MediaRecorder [citation:8]
-                mediaRecorder = new MediaRecorder(stream, { 
-                    mimeType: 'audio/webm;codecs=opus' // Formato universal [citation:2]
-                });
-                
+                mediaRecorder = new MediaRecorder(audioStream);
                 audioChunks = [];
                 
                 mediaRecorder.ondataavailable = (event) => {
@@ -760,14 +788,15 @@
                 };
                 
                 mediaRecorder.onstop = () => {
-                    // Criar blob do áudio gravado [citation:8][citation:9]
                     recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     
-                    // Criar URL para preview
                     const audioUrl = URL.createObjectURL(recordedBlob);
                     previewAudio.src = audioUrl;
                     previewContainer.style.display = 'block';
+                    
+                    // Habilitar botões
                     previewBtn.disabled = false;
+                    sendBtn.disabled = false;
                     
                     // Parar visualizador
                     if (animationFrame) {
@@ -777,28 +806,20 @@
                         audioContext.close();
                     }
                     
-                    // Parar todas as tracks do stream
-                    stream.getTracks().forEach(track => track.stop());
+                    audioStream.getTracks().forEach(track => track.stop());
                     
                     statusText.textContent = 'Gravação finalizada!';
-                    
-                    // PERGUNTAR SE QUER ENVIAR
-                    if (confirm('Gravação concluída! Deseja enviar este áudio para o totem?')) {
-                        enviarAudioGravado();
-                    }
                 };
                 
-                // Iniciar gravação
-                mediaRecorder.start(100); // Coleta dados a cada 100ms [citation:2]
+                mediaRecorder.start(100);
                 
-                // Atualizar UI
                 recordBtn.disabled = true;
                 recordBtn.classList.add('recording');
                 stopBtn.disabled = false;
                 previewBtn.disabled = true;
+                sendBtn.disabled = true;
                 statusText.textContent = 'Gravando...';
                 
-                // Iniciar timer
                 recordingSeconds = 0;
                 timerDisplay.textContent = '00:00';
                 recordingTimer = setInterval(updateTimer, 1000);
@@ -814,10 +835,8 @@
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
                 
-                // Parar timer
                 clearInterval(recordingTimer);
                 
-                // Atualizar UI
                 recordBtn.disabled = false;
                 recordBtn.classList.remove('recording');
                 stopBtn.disabled = true;
@@ -829,25 +848,31 @@
             previewAudio.play();
         });
         
-        // Enviar áudio gravado
-        async function enviarAudioGravado() {
-            if (!recordedBlob) return;
+        // ========== FUNÇÃO CORRIGIDA PARA ENVIAR ÁUDIO GRAVADO ==========
+        sendBtn.addEventListener('click', async () => {
+            if (!recordedBlob) {
+                showAlert('❌ Nenhuma gravação disponível', 'error');
+                return;
+            }
             
             // Mostrar progresso
             uploadProgress.style.display = 'block';
             progressBar.value = 0;
             
-            // Criar FormData [citation:1][citation:5]
+            // Criar FormData com o blob gravado
             const formData = new FormData();
             
-            // Converter Blob para File (para ter nome)
-            const audioFile = new File([recordedBlob], 'gravacao.webm', { type: 'audio/webm' });
+            // IMPORTANTE: Renomear para .mp3 e mudar o tipo para audio/mpeg
+            // Isso faz o servidor aceitar como MP3
+            const audioFile = new File([recordedBlob], 'gravacao.mp3', { 
+                type: 'audio/mpeg' // Forçar tipo MP3
+            });
             formData.append('audio', audioFile);
             
             loading.classList.add('active');
             
             try {
-                // Simular progresso (não dá para saber progresso real facilmente)
+                // Simular progresso
                 let progress = 0;
                 const progressInterval = setInterval(() => {
                     progress += 10;
@@ -856,6 +881,8 @@
                     }
                 }, 300);
                 
+                console.log('Enviando áudio para o servidor...');
+                
                 const response = await fetch(`/cliente/audio/${totemId}`, {
                     method: 'POST',
                     body: formData
@@ -863,16 +890,27 @@
                 
                 clearInterval(progressInterval);
                 
-                const result = await response.json();
+                console.log('Resposta do servidor:', response.status);
+                
+                let result;
+                try {
+                    result = await response.json();
+                } catch (e) {
+                    console.error('Erro ao parsear resposta:', e);
+                    throw new Error('Resposta inválida do servidor');
+                }
                 
                 if (response.ok && result.success) {
                     progressBar.value = 100;
                     showAlert('✅ Áudio gravado enviado com sucesso!', 'success');
                     
                     // Atualizar interface
-                    document.getElementById('audioAtual').textContent = '📁 gravação.webm';
-                    document.getElementById('audioAtualDisplay').textContent = 'gravação.webm';
+                    document.getElementById('audioAtual').textContent = '📁 gravacao.mp3';
+                    document.getElementById('audioAtualDisplay').textContent = 'gravacao.mp3';
                     btnRemove.style.display = 'inline-block';
+                    
+                    // Desabilitar botão de enviar
+                    sendBtn.disabled = true;
                     
                     // Esconder preview após envio
                     setTimeout(() => {
@@ -881,26 +919,23 @@
                     }, 2000);
                     
                 } else {
-                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
-                    uploadProgress.style.display = 'none';
+                    throw new Error(result.error || 'Falha no upload');
                 }
             } catch (error) {
-                console.error('Erro:', error);
-                showAlert('❌ Erro de conexão com o servidor', 'error');
+                console.error('Erro detalhado:', error);
+                showAlert('❌ Erro: ' + error.message, 'error');
                 uploadProgress.style.display = 'none';
             } finally {
                 loading.classList.remove('active');
             }
-        }
+        });
         
-        // ========== FUNÇÕES EXISTENTES (UPLOAD DE ARQUIVO) ==========
+        // ========== FUNÇÕES DE UPLOAD DE ARQUIVO ==========
         
-        // Preview do arquivo selecionado
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             
             if (file) {
-                // Validar tamanho
                 if (file.size > 5 * 1024 * 1024) {
                     showAlert('❌ Arquivo muito grande! Máximo 5MB.', 'error');
                     fileInput.value = '';
@@ -909,7 +944,6 @@
                     return;
                 }
                 
-                // Validar tipo
                 if (!file.type.includes('mp3') && !file.name.endsWith('.mp3')) {
                     showAlert('❌ Apenas arquivos MP3 são permitidos!', 'error');
                     fileInput.value = '';
@@ -920,7 +954,6 @@
                 
                 fileInfo.textContent = `📁 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
                 
-                // Preview do áudio
                 const url = URL.createObjectURL(file);
                 audioPlayer.querySelector('source').src = url;
                 audioPlayer.load();
@@ -933,7 +966,6 @@
             }
         });
         
-        // Upload do formulário
         uploadForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -962,7 +994,6 @@
                     audioPreview.style.display = 'none';
                     btnRemove.style.display = 'inline-block';
                     
-                    // Atualizar nome do áudio na interface
                     document.getElementById('audioAtual').textContent = `📁 ${fileInput.files[0].name}`;
                     document.getElementById('audioAtualDisplay').textContent = fileInput.files[0].name;
                 } else {
@@ -976,7 +1007,6 @@
             }
         });
         
-        // Remover áudio
         btnRemove.addEventListener('click', async function() {
             if (!confirm('Tem certeza que deseja remover o áudio personalizado? O totem voltará a usar o áudio padrão.')) {
                 return;
