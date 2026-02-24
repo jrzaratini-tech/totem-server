@@ -513,157 +513,267 @@
 <body>
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        <p>Processando...</p>
-    </div>
-    
-    <nav class="navbar">
-        <div class="navbar-content">
-            <h1>
-                🎛️ Meu Totem 
-                <span>ID: {{ID}}</span>
-            </h1>
-            <a href="/admin/logout" class="logout-btn">🚪 Sair</a>
-        </div>
-    </nav>
-    
-    <div class="container">
-        <div class="welcome-card">
-            <h2>👋 Bem-vindo ao seu Dashboard!</h2>
-            <p>Aqui você pode gerenciar o áudio personalizado do seu totem. 
-               Grave diretamente do seu navegador ou faça upload de um arquivo MP3.</p>
+            
+            .visualizer canvas {
+                width: 100%;
+                height: 100%;
+            }
+            
+            .preview-audio {
+                width: 100%;
+                margin: 20px 0;
+            }
+            
+            .preview-audio audio {
+                width: 100%;
+            }
+            
+            .upload-form {
+                border: 2px dashed #ccc;
+                border-radius: 15px;
+                padding: 40px;
+                text-align: center;
+                transition: all 0.3s;
+                margin-top: 30px;
+            }
+            
+            .upload-form:hover {
+                border-color: #667eea;
+                background: #f8f9ff;
+            }
+            
+            .upload-form input[type="file"] {
+                display: none;
+            }
+            
+            .upload-label {
+                background: #667eea;
+                color: white;
+                padding: 15px 30px;
+                border-radius: 10px;
+                cursor: pointer;
+                display: inline-block;
+                margin: 20px 0;
+                transition: all 0.3s;
+            }
+            
+            .upload-label:hover {
+                background: #5a6fd8;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(102,126,234,0.3);
+            }
+            
+            .file-info {
+                color: #666;
+                font-size: 14px;
+                margin: 10px 0;
+            }
+            
+            .btn-upload {
+                background: #28a745;
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s;
+                margin-top: 20px;
+            }
+            
+            .btn-upload:hover {
+                background: #218838;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(40,167,69,0.3);
+            }
+            
+            .btn-remove {
+                background: #dc3545;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.3s;
+                margin-left: 10px;
+            }
+            
+            .btn-remove:hover {
+                background: #c82333;
+            }
+            
+            .instructions {
+                background: #e8f4fd;
+                border-radius: 10px;
+                padding: 20px;
+                margin-top: 30px;
+            }
+            
+            .instructions h3 {
+                color: #0366d6;
+                margin-bottom: 15px;
+            }
+            
+            .instructions ul {
+                list-style: none;
+                padding: 0;
+            }
+            
+            .instructions li {
+                margin: 10px 0;
+                color: #555;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .instructions li:before {
+                content: "✓";
+                color: #28a745;
+                font-weight: bold;
+            }
+            
+            .loading {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255,255,255,0.9);
+                z-index: 9999;
+                justify-content: center;
+                align-items: center;
+                flex-direction: column;
+            }
+            
+            .loading.active {
+                display: flex;
+            }
+            
+            .spinner {
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #667eea;
+                border-radius: 50%;
+                width: 50px;
+                height: 50px;
+                animation: spin 1s linear infinite;
+                margin-bottom: 20px;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            .alert {
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+                display: none;
+            }
+            
+            .alert.success {
+                background: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+                display: block;
+            }
+            
+            .alert.error {
+                background: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+                display: block;
+            }
+            
+            .alert.info {
+                background: #d1ecf1;
+                color: #0c5460;
+                border: 1px solid #bee5eb;
+                display: block;
+            }
+            
+            .button-group {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processando...</p>
         </div>
         
-        <div class="totem-info">
-            <div class="info-card">
-                <h3>📌 ID do Totem</h3>
-                <div class="value">{{ID}}</div>
+        <nav class="navbar">
+            <div class="navbar-content">
+                <h1>
+                    🎛️ Meu Totem 
+                    <span>ID: {{ID}}</span>
+                </h1>
+                <a href="/cliente/logout" class="logout-btn">🚪 Sair</a>
+            </div>
+        </nav>
+        
+        <div class="container">
+            <div class="welcome-card">
+                <h2>👋 Bem-vindo ao seu Dashboard!</h2>
+                <p>Aqui você pode gerenciar o áudio personalizado do seu totem. 
+                   Grave diretamente do seu navegador ou faça upload de um arquivo MP3.</p>
             </div>
             
-            <div class="info-card">
-                <h3>🔗 Link do Instagram</h3>
-                <div class="value">{{LINK}}</div>
-            </div>
-            
-            <div class="info-card">
-                <h3>📅 Expira em</h3>
-                <div class="value">{{DATA_EXPIRACAO}}</div>
-            </div>
-            
-            <div class="info-card">
-                <h3>🎵 Áudio Atual</h3>
-                <div class="value" id="audioAtualDisplay">{{AUDIO_NOME}}</div>
-                <div style="font-size: 12px; color: #999; margin-top: 5px;" id="audioDataDisplay">
-                    Atualizado em: {{AUDIO_DATA}}
+            <div class="totem-info">
+                <div class="info-card">
+                    <h3>📌 ID do Totem</h3>
+                    <div class="value">{{ID}}</div>
+                </div>
+                
+                <div class="info-card">
+                    <h3>🔗 Link do Instagram</h3>
+                    <div class="value">{{LINK}}</div>
+                </div>
+                
+                <div class="info-card">
+                    <h3>📅 Expira em</h3>
+                    <div class="value">{{DATA_EXPIRACAO}}</div>
+                </div>
+                
+                <div class="info-card">
+                    <h3>🎵 Áudio Atual</h3>
+                    <div class="value" id="audioAtualDisplay">{{AUDIO_NOME}}</div>
+                    <div style="font-size: 12px; color: #999; margin-top: 5px;" id="audioDataDisplay">
+                        Atualizado em: {{AUDIO_DATA}}
+                    </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="recording-section">
-            <div class="recording-title">
-                <span style="font-size: 24px;">🎤</span>
-                <h3>Gravar Áudio Agora</h3>
-            </div>
             
-            <p style="text-align: center; color: #666; margin-bottom: 20px;">
-                Fale, cante ou toque algo. Grave e depois clique em "Enviar para o Totem".
-            </p>
-            
-            <div class="visualizer" id="visualizer">
-                <canvas id="visualizerCanvas" width="600" height="60"></canvas>
-            </div>
-            
-            <div class="recording-controls">
-                <button class="record-btn" id="recordBtn">
-                    <span>⏺️</span> Começar Gravação
-                </button>
+            <div class="recording-section">
+                <div class="recording-title">
+                    <span style="font-size: 24px;">🎤</span>
+                    <h3>Gravar Áudio Agora</h3>
+                </div>
                 
-                <button class="stop-btn" id="stopBtn" disabled>
-                    <span>⏹️</span> Parar
-                </button>
-                
-                <button class="play-preview-btn" id="previewBtn" disabled>
-                    <span>▶️</span> Ouvir Preview
-                </button>
-                
-                <button class="send-recording-btn" id="sendBtn" disabled>
-                    <span>📤</span> Enviar para o Totem
-                </button>
-            </div>
-            
-            <div class="recording-status" id="recordingStatus">
-                <span id="statusText">Pronto para gravar</span>
-                <span class="recording-timer" id="timerDisplay">00:00</span>
-            </div>
-            
-            <div class="preview-audio" id="previewContainer" style="display: none;">
-                <audio id="previewAudio" controls></audio>
-            </div>
-            
-            <div style="margin-top: 20px; display: none;" id="uploadProgress">
-                <p>Enviando áudio gravado...</p>
-                <progress value="0" max="100" style="width: 100%; height: 20px;"></progress>
-            </div>
-        </div>
-        
-        <div class="audio-section">
-            <h2>📁 Upload de Arquivo MP3</h2>
-            
-            <div class="current-audio">
-                <p><strong>Áudio em uso:</strong></p>
-                <div class="audio-name" id="audioAtual">📁 {{AUDIO_NOME}}</div>
-                <p style="margin-top: 15px;">
-                    <small>✅ Formatos aceitos: MP3, WebM, OGG, WAV (até 10MB)</small>
+                <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                    Fale, cante ou toque algo. Grave e depois clique em "Enviar para o Totem".
                 </p>
-            </div>
-            
-            <div id="alert" class="alert"></div>
-            
-            <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
-                <input type="file" 
-                       id="audioFile" 
-                       name="audio" 
-                       accept=".mp3,.webm,.ogg,.wav,audio/*"
-                       required>
                 
-                <label for="audioFile" class="upload-label" id="fileLabel">
-                    📂 Escolher arquivo de áudio
-                </label>
-                
-                <div class="file-info" id="fileInfo">
-                    Nenhum arquivo selecionado
+                <div class="visualizer" id="visualizer">
+                    <canvas id="visualizerCanvas" width="600" height="60"></canvas>
                 </div>
                 
-                <div id="audioPreview" style="display: none; margin: 20px 0;">
-                    <audio controls style="width: 100%; max-width: 300px;">
-                        <source src="" type="audio/mpeg">
-                    </audio>
-                </div>
-                
-                <div class="button-group">
-                    <button type="submit" class="btn-upload" id="btnUpload">
-                        ⬆️ Enviar Arquivo
+                <div class="recording-controls">
+                    <button class="record-btn" id="recordBtn">
+                        <span>⏺️</span> Começar Gravação
                     </button>
                     
-                    <button type="button" class="btn-remove" id="btnRemove" style="display: none;">
-                        🗑️ Remover Áudio Personalizado
+                    <button class="stop-btn" id="stopBtn" disabled>
+                        <span>⏹️</span> Parar
                     </button>
-                </div>
-            </form>
-            
-            <div class="instructions">
-                <h3>📋 Instruções:</h3>
-                <ul>
-                    <li><strong>NOVO!</strong> Grave áudio diretamente do navegador (microfone necessário)</li>
-                    <li>Após gravar, ouça o preview e clique em "Enviar para o Totem"</li>
-                    <li>Ou faça upload de um arquivo de áudio (MP3, WebM, etc) até 10MB</li>
-                    <li>Recomendamos áudios de 15 a 30 segundos</li>
-                    <li>O totem será atualizado automaticamente em até 1 minuto</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-    
-    <script>
         const totemId = '{{ID}}';
         const audioAtualNome = '{{AUDIO_NOME}}';
         
@@ -832,6 +942,9 @@
                 showAlert('❌ Nenhuma gravação disponível', 'error');
                 return;
             }
+            
+            showAlert('❌ Este módulo (MP3-TF-16P) aceita apenas MP3. Grave e exporte em MP3, ou envie um arquivo MP3 pelo upload.', 'error');
+            return;
             
             uploadProgress.style.display = 'block';
             progressBar.value = 0;

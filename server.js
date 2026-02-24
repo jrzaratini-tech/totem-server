@@ -128,7 +128,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
     const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/mpeg3'];
-    const allowedExt = ['.mp3', '.webm', '.ogg', '.wav'];
+    const allowedExt = ['.mp3'];
     
     const ext = path.extname(file.originalname).toLowerCase();
     const mimetype = file.mimetype.toLowerCase();
@@ -136,7 +136,7 @@ const fileFilter = (req, file, cb) => {
     if (allowedTypes.includes(mimetype) || allowedExt.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error('Apenas arquivos de áudio são permitidos!'), false);
+        cb(new Error('Apenas arquivos MP3 são permitidos!'), false);
     }
 };
 
@@ -360,6 +360,12 @@ app.get('/cliente/dashboard/:id', async (req, res) => {
     html = html.replace(/{{AUDIO_DATA}}/g, audioInfo.dataUpload ? formatarData(audioInfo.dataUpload.split('T')[0]) : '---');
     
     res.send(html);
+});
+
+app.get('/cliente/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.redirect('/cliente/login');
+    });
 });
 
 // ========== ROTA DE UPLOAD CORRIGIDA ==========
