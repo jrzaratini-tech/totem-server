@@ -1,227 +1,373 @@
-# TOTEM INTERATIVO IoT v3.0 (PROFISSIONAL)
+📄 README.md (VERSÃO COMPLETA E PROFISSIONAL)
+markdown
+# 🎛️ TOTEM INTERATIVO IoT v4.0 (PROFISSIONAL)
 
-Sistema de engajamento com QR Code + ESP32 + MQTT + dashboard administrativo + controle de assinatura mensal por **data de expiração** usando **Firebase Firestore**.
+Sistema completo de engajamento com QR Code + ESP32 + MQTT + Dashboard Administrativo + Áudio Personalizado pelo Cliente + Controle de Assinaturas via Firebase.
 
-## Visão geral
+🔗 **Acesso ao sistema:** [https://totem-server.onrender.com](https://totem-server.onrender.com)
 
-Este projeto é um servidor Node.js (Express) que atende dois fluxos:
+---
 
-- **Fluxo público (uso do totem)**: o QR Code do totem aponta para `/totem/:id`. O servidor valida a assinatura no Firestore; se estiver ativa, publica `play` no MQTT e redireciona para o Instagram cadastrado.
-- **Fluxo administrativo (dashboard)**: CRUD de totens (criar/editar/excluir) e visualização do status (ativo/expirado) por data.
+## 📌 VISÃO GERAL DO SISTEMA
 
-## Arquitetura (ponta a ponta)
+O **Totem Interativo IoT** é uma solução física para eventos e pontos de venda que permite gerar engajamento em redes sociais de forma automatizada, com **sistema de assinatura mensal**, **bloqueio automático por data de expiração** e agora com **áudio personalizado gerenciado pelo próprio cliente**.
 
-1. Usuário escaneia o QR Code (URL do tipo `https://SEU_HOST/totem/TOTEM99`)
-2. O servidor (`server.js`) recebe a requisição em `GET /totem/:id`
-3. O servidor consulta o Firestore: `collection("totens").doc(id)`
-4. O servidor compara `dataExpiracao` com a data atual
-5. Se **ativo**:
-   - publica `play` no tópico MQTT `totem/{id}`
-   - redireciona (`302`) para o `link` (Instagram)
-6. Se **expirado**:
-   - redireciona para `GET /expirado` (página em `views/expirado.html`)
-7. O ESP32 assina `totem/{DEVICE_ID}` e aciona a ação física ao receber `play`
+### 🎯 Objetivo Comercial
 
-## Estrutura do repositório (inventário completo)
+- ✅ Produto físico de engajamento com **receita recorrente**
+- ✅ Cliente gerencia seu próprio áudio (música/mensagem promocional)
+- ✅ Configuração rápida via WiFiManager
+- ✅ Gerenciamento completo via dashboard com validade
+- ✅ Bloqueio automático se não pagar
+- ✅ Renovação simples (só alterar a data)
+- ✅ Escalável para **milhares de clientes**
+- ✅ Profissional com banco de dados seguro (Firebase)
 
-Observação: a listagem abaixo considera apenas os arquivos/pastas do projeto (ignorando `node_modules/` e `.git/`).
+---
 
-```text
+## 🏗️ ARQUITETURA DO SISTEMA (PONTA A PONTA)
+CLIENTE (usuário final)
+↓ (escaneia QR Code)
+Servidor Node.js (Render)
+↓ (consulta Firebase)
+Firebase Firestore (valida assinatura)
+↓ (se ativo)
+Broker MQTT (HiveMQ)
+↓ (comando "play")
+ESP32 + MP3 TF-16P
+↓
+✅ Ação Física: LED + Áudio Personalizado + Redirecionamento Instagram
+
+text
+        ╔══════════════════════════════════════╗
+        ║     FLUXO DE GERENCIAMENTO           ║
+        ╚══════════════════════════════════════╝
+ADMIN (você)
+↓ (cadastra totem)
+Dashboard Admin → https://totem-server.onrender.com/admin/login
+↓
+CLIENTE (dono do totem)
+↓ (faz upload do MP3)
+Dashboard Cliente → https://totem-server.onrender.com/cliente/login
+↓ (notificação via MQTT)
+ESP32 baixa novo áudio e salva no SD Card
+↓
+✅ Totem atualizado automaticamente!
+
+text
+
+---
+
+## 🔧 COMPONENTES DO SISTEMA
+
+### 1️⃣ **Hardware (Totem Físico)**
+
+| Componente | Especificação | Função |
+|------------|---------------|--------|
+| **ESP32** | AZDelivery / ELEGOO | Controle principal, WiFi, MQTT |
+| **MP3 TF-16P** | Módulo leitor MP3 | Reprodução de áudio via cartão SD |
+| **Cartão SD** | MicroSD (qualquer tamanho) | Armazena o áudio personalizado |
+| **Alto-falante** | 3W - 5W | Saída de áudio |
+| **Fita de LED** | Endereçável (WS2812B) | Efeitos visuais (100 LEDs) |
+| **Fita de LED Cardíaco** | Endereçável (WS2812B) | Efeito de batimento cardíaco |
+| **Botões Físicos** | 4 botões | Controle de cor e brilho, disparo manual |
+| **Fonte** | 5V / 3A | Alimentação do sistema |
+
+### 2️⃣ **Backend (Servidor na Nuvem)**
+
+- **Plataforma:** Render (https://render.com)
+- **URL:** https://totem-server.onrender.com
+- **Linguagem:** Node.js / Express
+- **Banco de Dados:** Firebase Firestore
+- **Armazenamento de Áudio:** Firebase Storage
+- **Comunicação:** MQTT (broker.hivemq.com)
+
+### 3️⃣ **Dashboards**
+
+#### 🔐 Dashboard Administrativo
+- **URL:** `/admin/login`
+- **Senha:** `159268`
+- **Funcionalidades:**
+  - Cadastrar novos totens (ID, link Instagram, data de expiração)
+  - Editar totens existentes
+  - Excluir totens
+  - Visualizar status (ativo/expirado)
+  - Ver quais totens têm áudio personalizado
+
+#### 👤 Área do Cliente
+- **URL:** `/cliente/login`
+- **Login:** ID do totem + senha (últimos 4 dígitos do ID + 2026)
+- **Funcionalidades:**
+  - Upload de áudio personalizado (MP3 até 5MB)
+  - Visualizar áudio atual
+  - Remover áudio personalizado (volta ao padrão)
+  - Pré-ouvir antes de enviar
+
+---
+
+## 📂 ESTRUTURA DO PROJETO
 totem-server/
-├── .gitignore
-├── README.md
-├── deploy.bat
-├── firebase-credentials.json.json
-├── package-lock.json
-├── package.json
-├── server.js
-├── clientes/
-└── views/
-    ├── admin.html
-    ├── editar.html
-    ├── expirado.html
-    ├── login.html
-    ├── mensagem.html
-    └── novo.html
-```
+│
+├── server.js # Servidor principal (Node.js)
+├── package.json # Dependências
+├── firebase-credentials.json # 🔐 Chave do Firebase (NÃO COMMITAR)
+├── .gitignore # Arquivos ignorados
+│
+├── routes/
+│ └── audio.js # Rotas de gerenciamento de áudio
+│
+├── middlewares/
+│ └── auth.js # Middlewares de autenticação
+│
+├── views/ # Páginas HTML
+│ ├── login.html # Login do admin
+│ ├── admin.html # Dashboard admin
+│ ├── novo.html # Cadastro de totens
+│ ├── editar.html # Edição de totens
+│ ├── mensagem.html # Mensagem de erro
+│ ├── expirado.html # Página de totem expirado
+│ ├── cliente-login.html # Login do cliente
+│ └── cliente-dashboard.html # Dashboard do cliente
+│
+├── clientes/ # 🔸 Compatibilidade (arquivos .txt)
+├── uploads/ # Arquivos temporários de upload
+└── firmware/ # Código do ESP32
+└── totem_v4.ino # Firmware completo
 
-### Descrição de cada item
+text
 
-#### Arquivos na raiz
+---
 
-- **`.gitignore`**
-  - Define o que não deve ir para o Git.
-  - Atualmente ignora `node_modules/`, `clientes/`, `.env*`, logs e também `*.json` (para evitar vazar credenciais).
+## 🔥 FIREBASE (BANCO DE DADOS)
 
-- **`README.md`**
-  - Documentação do projeto.
+### Coleção `totens`
 
-- **`deploy.bat`**
-  - Script de deploy para Windows que faz:
-    - `git add .`
-    - `git commit -m "<mensagem>"`
-    - `git push`
-  - Útil quando o deploy está conectado ao repositório (ex.: Render/GitHub).
+```javascript
+/totens/{ID_DO_TOTEM}/
+  - link: "https://instagram.com/..."           // Instagram do cliente
+  - dataExpiracao: "2026-12-31"                 // YYYY-MM-DD
+  - status: "ativo"                              // ativo/bloqueado
+  - criadoEm: timestamp                          // Data de criação
+  - ultimaRenovacao: timestamp                    // Última renovação
+  
+  // Áudio personalizado
+  - audio: {
+      nome: "musica_cliente.mp3",                 // Nome do arquivo
+      url: "https://storage.googleapis.com/...", // URL do áudio
+      dataUpload: timestamp,                       // Data do upload
+      tamanho: 1234567,                            // Tamanho em bytes
+      storagePath: "audios/TOTEM47/arquivo.mp3"    // Caminho no Storage
+    }
+Regras de Segurança
+javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;  // Apenas Admin SDK
+    }
+  }
+}
+📡 COMUNICAÇÃO MQTT
+Broker: broker.hivemq.com
 
-- **`firebase-credentials.json.json`**
-  - Arquivo de credenciais do Firebase Admin SDK (Service Account).
-  - **Importante**: este arquivo contém segredo e **não deve ser commitado**.
-  - O `server.js` tenta carregar primeiro o arquivo local `./firebase-credentials.json`; se falhar, usa `FIREBASE_CREDENTIALS` como variável de ambiente.
+Porta: 1883
 
-- **`package.json`**
-  - Metadados e dependências do projeto.
-  - Dependências principais:
-    - `express` (servidor HTTP)
-    - `mqtt` (cliente MQTT)
-    - `firebase-admin` (acesso Admin ao Firestore)
-    - `express-session` (sessão do dashboard)
-    - `body-parser` (parse de payload)
-    - `fs-extra` (I/O com utilitários)
+Tópicos:
 
-- **`package-lock.json`**
-  - Travamento de versões (lockfile) para garantir builds reprodutíveis.
+totem/{DEVICE_ID} → Comando play (acionado pelo QR Code)
 
-- **`server.js`**
-  - **Arquivo principal** da aplicação.
-  - Responsabilidades:
-    - Inicializar Express + sessões + parsers
-    - Conectar no MQTT (HiveMQ público)
-    - Inicializar Firebase Admin SDK e Firestore
-    - Definir rotas públicas (`/totem/:id`, `/expirado`) e rotas admin (`/admin/*`)
-    - Renderizar HTML do dashboard lendo templates em `views/` e substituindo placeholders
+totem/{DEVICE_ID}/audio → Notificação de novo áudio
 
-#### Pastas
+🔌 FIRMWARE ESP32 (TOTEM v4.0)
+Configuração Inicial
+No arquivo totem_v4.ino, alterar APENAS:
 
-- **`clientes/`**
-  - Pasta mantida para **compatibilidade temporária**.
-  - O `server.js` garante que ela existe e escreve um arquivo `<id>.txt` com o link do Instagram ao criar/editar.
-  - Fonte de verdade atual: Firestore (`totens/{id}`).
+cpp
+// LINHA 13 - Coloque o ID do seu totem (igual ao cadastrado)
+#define DEVICE_ID "TOTEM47"
 
-- **`views/`** (front-end estático do dashboard)
-  - **`login.html`**: formulário de login do admin (`POST /admin/login`).
-  - **`mensagem.html`**: página de erro quando a senha do admin está incorreta.
-  - **`admin.html`**: dashboard com tabela e ações; recebe conteúdo via placeholder `{{LINHAS_TABELA}}` montado no `server.js`.
-  - **`novo.html`**: formulário para cadastrar novo totem (ID, link, `dataExpiracao`).
-  - **`editar.html`**: formulário de edição com placeholders `{{ID}}`, `{{LINK}}`, `{{DATA_EXPIRACAO}}`.
-  - **`expirado.html`**: página pública exibida quando um totem está com assinatura expirada.
+// LINHA 16 - JÁ ESTÁ CORRETO (NÃO ALTERAR)
+#define SERVER_URL "https://totem-server.onrender.com"
+Funcionalidades do Firmware
+✅ Conexão WiFi via WiFiManager (modo AP: "TOTEM_SETUP" / senha "12345678")
 
-## Como rodar localmente
+✅ Comunicação MQTT (recebe comando play e notificações)
 
-### Pré-requisitos
+✅ Controle da fita de LED (cores, brilho, efeitos)
 
-- Node.js (recomendado 18+)
-- Conta e projeto no Firebase (Firestore habilitado)
+✅ Efeito de batimento cardíaco na fita secundária
 
-### Instalação
+✅ LED de feedback do QR Code
 
-```bash
-npm install
-```
+✅ Botões físicos para controle manual
 
-### Executar
+✅ Download automático de áudio do servidor
 
-```bash
-node server.js
-```
+✅ Armazenamento no cartão SD (arquivo 01.mp3)
 
-Por padrão o servidor sobe em `http://localhost:3000` (ou na porta definida por `PORT`).
+✅ Reprodução via MP3 TF-16P (UART2)
 
-## Configuração
+✅ Verificação periódica de novo áudio (a cada 1 hora)
 
-### Variáveis de ambiente
+✅ Salvamento de configurações na EEPROM
 
-- **`PORT`** (opcional)
-  - Porta do servidor. Default: `3000`.
+Pinos do ESP32
+Função	Pino GPIO
+Botão Reset WiFi	0
+Botão Cor	15
+Botão Brilho +	4
+Botão Brilho -	5
+Botão Coração (manual)	18
+LED QR Code	2
+Fita LED Principal	12
+Fita LED Cardíaco	13
+MP3 RX (TX do módulo)	26
+MP3 TX (RX do módulo)	27
+🚀 FLUXO COMPLETO DE USO
+1️⃣ Para o Administrador (você)
 
-- **`FIREBASE_CREDENTIALS`** (recomendado em produção)
-  - JSON string com as credenciais do Service Account.
-  - O `server.js` tenta carregar primeiro o arquivo local `./firebase-credentials.json`; se falhar, usa esta env var.
 
-### Firebase / Firestore
 
-Coleção esperada:
 
-```text
-totens/{ID_DO_TOTEM}
-  link: string
-  dataExpiracao: string (YYYY-MM-DD)
-  status: string (ex.: "ativo")
-  criadoEm: timestamp
-  ultimaRenovacao: timestamp
-```
 
-Regras de segurança (sugestão): bloquear acesso direto do cliente e permitir apenas via servidor (Admin SDK).
 
-## Comunicação MQTT
+2️⃣ Para o Cliente (dono do totem)
 
-- **Broker**: `broker.hivemq.com`
-- **Porta**: `1883`
-- **Tópico por totem**: `totem/{ID}`
-- **Mensagem**: `play`
 
-## Rotas HTTP (documentação completa)
 
-### Públicas
 
-- **`GET /`**
-  - Redireciona para `GET /admin/login`.
 
-- **`GET /totem/:id`**
-  - Busca o documento `totens/{id}` no Firestore.
-  - Se não existir: `404`.
-  - Se expirado: redireciona para `/expirado`.
-  - Se ativo: publica MQTT em `totem/{id}` com payload `play` e redireciona para o Instagram.
+3️⃣ Para o Usuário Final (quem escaneia)
 
-- **`GET /expirado`**
-  - Retorna `views/expirado.html`.
 
-### Admin (protegidas por sessão)
 
-- **`GET /admin/login`**
-  - Retorna `views/login.html`.
 
-- **`POST /admin/login`**
-  - Valida a senha fixa do admin (constante em `server.js`: `SENHA_ADMIN`).
-  - Se ok: cria sessão e redireciona para `/admin/dashboard`.
-  - Se falhar: retorna `views/mensagem.html`.
 
-- **`GET /admin/logout`**
-  - Destroi a sessão e redireciona para `/admin/login`.
 
-- **`GET /admin/dashboard`**
-  - Lista todos os totens do Firestore.
-  - Monta as linhas HTML e injeta em `views/admin.html` no placeholder `{{LINHAS_TABELA}}`.
-  - Calcula status (ativo/expirado) comparando `dataExpiracao` com o dia atual.
 
-- **`GET /admin/novo`**
-  - Retorna `views/novo.html`.
 
-- **`POST /admin/novo`**
-  - Valida `id`, `link` e `dataExpiracao`.
-  - Exige que `link` contenha `instagram.com`.
-  - Exige data futura.
-  - Cria documento `totens/{id}`.
-  - (Compatibilidade) cria `clientes/{id}.txt` com o link.
+📊 DASHBOARDS EM DETALHE
+🔐 Admin (/admin/login)
+Coluna	Descrição
+ID	Identificador do totem
+Link	Instagram do cliente
+Expira em	Data de expiração da assinatura
+Status	✅ Ativo / ❌ Expirado
+Ações	Editar / Excluir
+👤 Cliente (/cliente/login)
+Informações exibidas:
 
-- **`GET /admin/editar/:id`**
-  - Busca `totens/{id}`.
-  - Injeta valores em `views/editar.html` usando placeholders.
+ID do totem
 
-- **`POST /admin/editar/:id`**
-  - Atualiza `link` e `dataExpiracao` e grava `ultimaRenovacao`.
-  - (Compatibilidade) regrava `clientes/{id}.txt`.
+Link do Instagram
 
-- **`GET /admin/excluir/:id`**
-  - Remove o documento no Firestore.
-  - Remove `clientes/{id}.txt` se existir.
+Data de expiração
 
-## Deploy
+Áudio atual
 
-- **Via Git**: você pode usar o `deploy.bat` para commitar e fazer push rapidamente.
-- **Produção**: configure `FIREBASE_CREDENTIALS` (env var) no provedor (ex.: Render) e não dependa de arquivo local de credenciais.
+Ações disponíveis:
 
-## Observações importantes
+📂 Escolher arquivo MP3 (até 5MB)
 
-- **Credenciais**: nunca comite service account.
-- **Timezone**: a lógica atual trata `dataExpiracao` como válida até `23:59:59` do dia informado.
-- **Broker MQTT público**: ótimo para protótipo; para produção em escala, considere broker privado/autenticado.
+⬆️ Enviar novo áudio
+
+🗑️ Remover áudio personalizado
+
+👂 Pré-ouvir antes de enviar
+
+🔐 SEGURANÇA
+Camada	Proteção
+Dashboard Admin	Senha fixa (159268) + sessão
+Área do Cliente	Login por ID + senha (últimos 4 dígitos + 2026)
+Firebase	Regras bloqueadas para acesso direto
+Credenciais	Service Account NUNCA versionada
+Upload de Áudio	Validação de tipo e tamanho (máx 5MB)
+ESP32	Apenas baixa áudio do servidor autorizado
+📈 ESCALABILIDADE
+Componente	Capacidade
+Firebase Firestore	Ilimitado (escalável automaticamente)
+Firebase Storage	5GB gratuitos, depois pago por uso
+Servidor Render	Plano gratuito: 750h/mês, sleep após inatividade
+Broker MQTT	Público (HiveMQ) - sem limite prático
+ESP32	Cada totem é independente
+🧪 TESTES REALIZADOS
+✅ Cadastro de totem com data futura
+
+✅ Bloqueio de totem com data passada
+
+✅ Upload de áudio pelo cliente
+
+✅ Download automático pelo ESP32
+
+✅ Reprodução no módulo MP3 TF-16P
+
+✅ Notificação via MQTT
+
+✅ Botões físicos (cor, brilho, manual)
+
+✅ Efeitos de LED sincronizados com áudio
+
+✅ Fallback para áudio padrão
+
+🚀 DEPLOY E ATUALIZAÇÃO
+Servidor (Render)
+O servidor está hospedado no Render e atualiza automaticamente quando você faz push no GitHub.
+
+Firmware (ESP32)
+Para atualizar um totem:
+
+Conecte o ESP32 ao computador via USB
+
+Abra a Arduino IDE com o código totem_v4.ino
+
+Altere o DEVICE_ID se necessário
+
+Clique em Upload
+
+📌 OBSERVAÇÕES IMPORTANTES
+Áudio Personalizado: O arquivo baixado é sempre salvo como 01.mp3 na raiz do SD Card
+
+Volume: Configurado para nível 20 (0-30) no setup
+
+Verificação de Áudio: O ESP32 verifica novidades a cada 1 hora
+
+WiFi: Usa WiFiManager - na primeira vez, conecte-se à rede "TOTEM_SETUP" e configure
+
+Reset de Fábrica: Segure o botão RESET por 5 segundos para apagar WiFi
+
+🆘 SUPORTE E MANUTENÇÃO
+Logs no Serial Monitor
+Conecte o ESP32 e abra o Serial Monitor (115200 baud) para ver:
+
+Status da conexão WiFi
+
+Mensagens MQTT recebidas
+
+Downloads de áudio
+
+Ações dos botões
+
+Códigos de Erro Comuns
+Código	Significado	Solução
+❌ Erro ao montar SD	Cartão não inserido ou com falha	Verificar SD Card
+❌ Erro HTTP 404	Totem não encontrado	Verificar DEVICE_ID
+❌ Falha MQTT	Broker inacessível	Verificar internet
+🎯 CONCLUSÃO
+O TOTEM INTERATIVO IoT v4.0 é uma solução profissional, escalável e com modelo de negócio baseado em receita recorrente. Com a nova funcionalidade de áudio personalizado gerenciado pelo cliente, você oferece:
+
+✅ Autonomia para o cliente - gerencia próprio áudio
+✅ Zero necessidade de acesso físico - tudo remoto
+✅ Escalabilidade - prepare-se para centenas/milhares de totens
+✅ Profissionalismo - dashboard white-label para seus clientes
+✅ Diferencial competitivo - áudio personalizado em tempo real
+
+📞 CONTATO E SUPORTE
+Sistema Online: https://totem-server.onrender.com
+
+Admin: /admin/login (senha: 159268)
+
+Cliente: /cliente/login
+
+Desenvolvido com ❤️ para Totens Interativos IoT
+Versão 4.0 - Fevereiro 2026
