@@ -1,281 +1,227 @@
-# 🎛️ TOTEM INTERATIVO IoT v3.0 (PROFISSIONAL)
+# TOTEM INTERATIVO IoT v3.0 (PROFISSIONAL)
 
-Sistema de Engajamento com QR Code + ESP32 + MQTT + Dashboard Administrativo + Controle de Assinaturas via Firebase
+Sistema de engajamento com QR Code + ESP32 + MQTT + dashboard administrativo + controle de assinatura mensal por **data de expiração** usando **Firebase Firestore**.
 
-## 📌 Visão Geral
+## Visão geral
 
-O Totem Interativo IoT é uma solução física para eventos que permite gerar engajamento em redes sociais de forma automatizada, agora com **sistema de assinatura mensal** e **bloqueio automático** por data de expiração.
+Este projeto é um servidor Node.js (Express) que atende dois fluxos:
 
-### Fluxo completo:
+- **Fluxo público (uso do totem)**: o QR Code do totem aponta para `/totem/:id`. O servidor valida a assinatura no Firestore; se estiver ativa, publica `play` no MQTT e redireciona para o Instagram cadastrado.
+- **Fluxo administrativo (dashboard)**: CRUD de totens (criar/editar/excluir) e visualização do status (ativo/expirado) por data.
 
-1. Usuário escaneia QR Code
-2. Servidor (Render) recebe requisição `/totem/:id`
-3. Servidor **verifica no Firebase** se o totem está ativo
-4. Se ativo: publica `play` no MQTT e redireciona para Instagram
-5. Se expirado: redireciona para página de aviso ou não executa ação
-6. ESP32 recebe e executa ação (LED 2 segundos)
+## Arquitetura (ponta a ponta)
 
----
+1. Usuário escaneia o QR Code (URL do tipo `https://SEU_HOST/totem/TOTEM99`)
+2. O servidor (`server.js`) recebe a requisição em `GET /totem/:id`
+3. O servidor consulta o Firestore: `collection("totens").doc(id)`
+4. O servidor compara `dataExpiracao` com a data atual
+5. Se **ativo**:
+   - publica `play` no tópico MQTT `totem/{id}`
+   - redireciona (`302`) para o `link` (Instagram)
+6. Se **expirado**:
+   - redireciona para `GET /expirado` (página em `views/expirado.html`)
+7. O ESP32 assina `totem/{DEVICE_ID}` e aciona a ação física ao receber `play`
 
-## 🏗️ Arquitetura do Sistema v3.0
-Usuário → QR Code → Servidor (Render) → Firebase (verifica validade)
-→ Broker MQTT → ESP32 → Ação Física → Redirecionamento Instagram
+## Estrutura do repositório (inventário completo)
 
-text
+Observação: a listagem abaixo considera apenas os arquivos/pastas do projeto (ignorando `node_modules/` e `.git/`).
 
----
-
-## 📂 Estrutura do Projeto
+```text
 totem-server/
-│
-├── server.js # Servidor principal + Firebase Admin
-├── package.json # Dependências
-├── deploy.bat # Script de deploy
-├── firebase-credentials.json # 🔐 CHAVE DO FIREBASE (NÃO COMMITAR)
-├── .gitignore # Arquivos ignorados (credentials, node_modules)
-│
-├── clientes/ # 🟡 SERÁ REMOVIDO NA MIGRAÇÃO
-│ ├── 123.txt # (apenas compatibilidade temporária)
-│ └── TOTEM47.txt
-│
-└── views/ # Páginas do dashboard
-├── login.html
-├── admin.html # 🔧 Será atualizado com campo "Data de Expiração"
-├── novo.html
-├── editar.html # 🔧 Será atualizado com campo "Data de Expiração"
-├── mensagem.html
-└── expirado.html # ⚠️ NOVA página para totens bloqueados
-
-text
-
----
-
-## 🔧 Backend v3.0 (Node.js + Firebase + MQTT + Dashboard)
-
-### Funcionalidades NOVAS:
-
-- **Controle de validade por data** (assinatura mensal)
-- **Bloqueio automático** após data de expiração
-- **Firebase Firestore** como banco de dados escalável
-- **Dashboard atualizado** com campo "Data de Expiração"
-- **Migração gradual** dos arquivos .txt para Firebase
-- **Página de aviso** para totens expirados
-
-### Funcionalidades mantidas:
-
-- ✅ Rota pública `/totem/:id` (agora com verificação)
-- ✅ Dashboard admin `/admin/login` (senha: `159268`)
-- ✅ Gerenciamento de clientes (agora com data)
-- ✅ Link do QR Code visível e copiável
-- ✅ Login protegido por sessão
-
----
-
-## 🔥 Firebase (NOVO)
-
-### Estrutura do Firestore:
-/totens/
-{ID_DO_TOTEM}:
-- link: "https://instagram.com/..."
-- dataExpiracao: "2026-12-31" (formato YYYY-MM-DD)
-- status: "ativo" / "bloqueado" (pode ser calculado)
-- cliente: "Nome do Cliente" (opcional)
-- criadoEm: timestamp
-- ultimaRenovacao: timestamp
+├── .gitignore
+├── README.md
+├── deploy.bat
+├── firebase-credentials.json.json
+├── package-lock.json
+├── package.json
+├── server.js
+├── clientes/
+└── views/
+    ├── admin.html
+    ├── editar.html
+    ├── expirado.html
+    ├── login.html
+    ├── mensagem.html
+    └── novo.html
+```
+
+### Descrição de cada item
+
+#### Arquivos na raiz
+
+- **`.gitignore`**
+  - Define o que não deve ir para o Git.
+  - Atualmente ignora `node_modules/`, `clientes/`, `.env*`, logs e também `*.json` (para evitar vazar credenciais).
+
+- **`README.md`**
+  - Documentação do projeto.
+
+- **`deploy.bat`**
+  - Script de deploy para Windows que faz:
+    - `git add .`
+    - `git commit -m "<mensagem>"`
+    - `git push`
+  - Útil quando o deploy está conectado ao repositório (ex.: Render/GitHub).
+
+- **`firebase-credentials.json.json`**
+  - Arquivo de credenciais do Firebase Admin SDK (Service Account).
+  - **Importante**: este arquivo contém segredo e **não deve ser commitado**.
+  - O `server.js` tenta carregar primeiro o arquivo local `./firebase-credentials.json`; se falhar, usa `FIREBASE_CREDENTIALS` como variável de ambiente.
+
+- **`package.json`**
+  - Metadados e dependências do projeto.
+  - Dependências principais:
+    - `express` (servidor HTTP)
+    - `mqtt` (cliente MQTT)
+    - `firebase-admin` (acesso Admin ao Firestore)
+    - `express-session` (sessão do dashboard)
+    - `body-parser` (parse de payload)
+    - `fs-extra` (I/O com utilitários)
+
+- **`package-lock.json`**
+  - Travamento de versões (lockfile) para garantir builds reprodutíveis.
 
-text
+- **`server.js`**
+  - **Arquivo principal** da aplicação.
+  - Responsabilidades:
+    - Inicializar Express + sessões + parsers
+    - Conectar no MQTT (HiveMQ público)
+    - Inicializar Firebase Admin SDK e Firestore
+    - Definir rotas públicas (`/totem/:id`, `/expirado`) e rotas admin (`/admin/*`)
+    - Renderizar HTML do dashboard lendo templates em `views/` e substituindo placeholders
+
+#### Pastas
+
+- **`clientes/`**
+  - Pasta mantida para **compatibilidade temporária**.
+  - O `server.js` garante que ela existe e escreve um arquivo `<id>.txt` com o link do Instagram ao criar/editar.
+  - Fonte de verdade atual: Firestore (`totens/{id}`).
 
-### Regras de segurança:
+- **`views/`** (front-end estático do dashboard)
+  - **`login.html`**: formulário de login do admin (`POST /admin/login`).
+  - **`mensagem.html`**: página de erro quando a senha do admin está incorreta.
+  - **`admin.html`**: dashboard com tabela e ações; recebe conteúdo via placeholder `{{LINHAS_TABELA}}` montado no `server.js`.
+  - **`novo.html`**: formulário para cadastrar novo totem (ID, link, `dataExpiracao`).
+  - **`editar.html`**: formulário de edição com placeholders `{{ID}}`, `{{LINK}}`, `{{DATA_EXPIRACAO}}`.
+  - **`expirado.html`**: página pública exibida quando um totem está com assinatura expirada.
+
+## Como rodar localmente
+
+### Pré-requisitos
+
+- Node.js (recomendado 18+)
+- Conta e projeto no Firebase (Firestore habilitado)
+
+### Instalação
+
+```bash
+npm install
+```
+
+### Executar
+
+```bash
+node server.js
+```
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Apenas o servidor (Admin SDK) tem acesso total
-    // Clientes não acessam diretamente
-    match /{document=**} {
-      allow read, write: if false;  // Bloqueado para acesso direto
-    }
-  }
-}
-📡 Comunicação MQTT
-Broker: broker.hivemq.com
+Por padrão o servidor sobe em `http://localhost:3000` (ou na porta definida por `PORT`).
+
+## Configuração
+
+### Variáveis de ambiente
 
-Porta: 1883
+- **`PORT`** (opcional)
+  - Porta do servidor. Default: `3000`.
 
-Tópico: totem/{DEVICE_ID}
+- **`FIREBASE_CREDENTIALS`** (recomendado em produção)
+  - JSON string com as credenciais do Service Account.
+  - O `server.js` tenta carregar primeiro o arquivo local `./firebase-credentials.json`; se falhar, usa esta env var.
 
-Mensagem: play (apenas se ativo)
+### Firebase / Firestore
 
-🔌 Firmware ESP32 (INALTERADO)
-O firmware do ESP32 não precisa ser alterado para o sistema v3.0. Ele continua recebendo o comando play via MQTT e acionando o LED.
+Coleção esperada:
 
-cpp
-// Código permanece o mesmo
-#define DEVICE_ID "123"  // ⚠️ MUDAR POR CLIENTE
-🚀 Fluxo Comercial v3.0 (NOVO)
-Passo	Ação
-1	Cliente contrata plano mensal
-2	Você define um ID (ex: TOTEM99)
-3	Altera #define DEVICE_ID "TOTEM99" no firmware
-4	Grava o firmware no ESP32
-5	Acessa o dashboard: /admin/novo
-6	Cadastra: ID + Link do Instagram + Data de Expiração (ex: 2026-04-22)
-7	Sistema salva no Firebase
-8	Copia o link do QR Code no dashboard
-9	Gera o QR Code e cola no totem
-10	Entrega o totem instalado
-Renovação:
-Passo	Ação
-1	Cliente paga nova mensalidade
-2	Acessa dashboard /admin/editar/TOTEM99
-3	Atualiza a Data de Expiração para +30 dias
-4	Sistema volta a aceitar requisições
-🔐 Como funciona o bloqueio por data
-Na rota /totem/:id:
+```text
+totens/{ID_DO_TOTEM}
+  link: string
+  dataExpiracao: string (YYYY-MM-DD)
+  status: string (ex.: "ativo")
+  criadoEm: timestamp
+  ultimaRenovacao: timestamp
+```
 
-Busca o totem no Firebase pelo ID
+Regras de segurança (sugestão): bloquear acesso direto do cliente e permitir apenas via servidor (Admin SDK).
 
-Compara dataExpiracao com a data atual
+## Comunicação MQTT
 
-Se dataExpiracao >= hoje → permite acesso
+- **Broker**: `broker.hivemq.com`
+- **Porta**: `1883`
+- **Tópico por totem**: `totem/{ID}`
+- **Mensagem**: `play`
 
-Se dataExpiracao < hoje → bloqueia
+## Rotas HTTP (documentação completa)
 
-Opções de bloqueio:
+### Públicas
 
-Não publicar no MQTT
+- **`GET /`**
+  - Redireciona para `GET /admin/login`.
 
-Redirecionar para página de aviso (/expirado)
+- **`GET /totem/:id`**
+  - Busca o documento `totens/{id}` no Firestore.
+  - Se não existir: `404`.
+  - Se expirado: redireciona para `/expirado`.
+  - Se ativo: publica MQTT em `totem/{id}` com payload `play` e redireciona para o Instagram.
 
-Retornar erro 403
+- **`GET /expirado`**
+  - Retorna `views/expirado.html`.
 
-📊 Dashboard v3.0 (O QUE SERÁ ALTERADO)
-Página NOVO Cliente (novo.html):
-Adicionar campo "Data de Expiração" (input type="date")
+### Admin (protegidas por sessão)
 
-Validação: data deve ser futura
+- **`GET /admin/login`**
+  - Retorna `views/login.html`.
 
-Página EDITAR Cliente (editar.html):
-Adicionar campo "Data de Expiração" preenchido
+- **`POST /admin/login`**
+  - Valida a senha fixa do admin (constante em `server.js`: `SENHA_ADMIN`).
+  - Se ok: cria sessão e redireciona para `/admin/dashboard`.
+  - Se falhar: retorna `views/mensagem.html`.
 
-Exibir status atual (Ativo / Expirado)
+- **`GET /admin/logout`**
+  - Destroi a sessão e redireciona para `/admin/login`.
 
-Botão "Renovar por +30 dias" (atalho)
+- **`GET /admin/dashboard`**
+  - Lista todos os totens do Firestore.
+  - Monta as linhas HTML e injeta em `views/admin.html` no placeholder `{{LINHAS_TABELA}}`.
+  - Calcula status (ativo/expirado) comparando `dataExpiracao` com o dia atual.
 
-Página ADMIN (admin.html):
-Nova coluna "Expira em" com a data
+- **`GET /admin/novo`**
+  - Retorna `views/novo.html`.
 
-Nova coluna "Status" com ícone: ✅ Ativo / ❌ Bloqueado
+- **`POST /admin/novo`**
+  - Valida `id`, `link` e `dataExpiracao`.
+  - Exige que `link` contenha `instagram.com`.
+  - Exige data futura.
+  - Cria documento `totens/{id}`.
+  - (Compatibilidade) cria `clientes/{id}.txt` com o link.
 
-Cálculo automático: se dataExpiracao < hoje = bloqueado
+- **`GET /admin/editar/:id`**
+  - Busca `totens/{id}`.
+  - Injeta valores em `views/editar.html` usando placeholders.
 
-Ordenação por data de expiração
+- **`POST /admin/editar/:id`**
+  - Atualiza `link` e `dataExpiracao` e grava `ultimaRenovacao`.
+  - (Compatibilidade) regrava `clientes/{id}.txt`.
 
-🔄 Migração dos dados existentes
-Para não perder os clientes atuais:
+- **`GET /admin/excluir/:id`**
+  - Remove o documento no Firestore.
+  - Remove `clientes/{id}.txt` se existir.
 
-Script de migração lerá todos os arquivos da pasta clientes/
+## Deploy
 
-Para cada arquivo .txt, criará um documento no Firebase
+- **Via Git**: você pode usar o `deploy.bat` para commitar e fazer push rapidamente.
+- **Produção**: configure `FIREBASE_CREDENTIALS` (env var) no provedor (ex.: Render) e não dependa de arquivo local de credenciais.
 
-Data de expiração inicial: será definida manualmente ou padrão (ex: +30 dias)
+## Observações importantes
 
-Pasta clientes/ será mantida apenas como backup temporário
-
-🧪 Testes necessários
-Criar totem com data futura → deve funcionar
-
-Criar totem com data passada → deve bloquear
-
-Editar data de expiração → deve atualizar
-
-Dashboard exibir corretamente ativos/expirados
-
-Migração dos arquivos .txt para Firebase
-
-🚀 Deploy e Atualização
-Usar o mesmo deploy.bat:
-
-batch
-@echo off
-echo ===============================
-echo   Deploy Totem Server v3.0
-echo ===============================
-set /p msg=Mensagem do commit:
-git add .
-git commit -m "%msg%"
-git push
-pause
-Cuidados:
-
-O arquivo firebase-credentials.json NÃO deve ser commitado
-
-Adicionar no .gitignore antes do primeiro commit
-
-No Render, as credenciais podem ser adicionadas como variável de ambiente (ou fazer upload manual)
-
-🔐 Segurança v3.0
-Item	Status
-Senha do dashboard	✅ (159268)
-Sessão expira ao fechar	✅
-Firebase com regras restritas	🔧 (configurar)
-Credenciais fora do Git	✅ (no .gitignore)
-Validação de data no backend	🔧 (implementar)
-📊 Escalabilidade (1000+ totens)
-Com Firebase, o sistema suporta:
-
-✅ Milhares de totens sem perda de performance
-
-✅ Consultas rápidas por ID
-
-✅ Backup automático (Firebase gerencia)
-
-✅ Sem risco de corrupção de arquivos
-
-✅ Atualizações simultâneas seguras
-
-✅ Controle de acesso refinado
-
-⚠️ Observações Importantes
-Firebase plano gratuito: 1 GiB de dados, 50k leituras/dia (mais que suficiente)
-
-Render plano free: pode entrar em sleep (primeira requisição demora)
-
-Broker público: considere um privado para produção em larga escala
-
-Data de expiração: usar formato UTC para evitar problemas de fuso
-
-🎯 Objetivo Comercial v3.0
-Produto físico de engajamento com receita recorrente:
-
-✅ Configuração rápida (WiFiManager)
-✅ Gerenciamento via dashboard com validade
-✅ Links de QR Code sempre acessíveis
-✅ Bloqueio automático se não pagar
-✅ Renovação simples (só alterar a data)
-✅ Escalável para milhares de clientes
-✅ Profissional com banco de dados seguro
-
-📌 Status do Desenvolvimento v3.0
-Firebase criado
-
-Coleção totens criada
-
-Estrutura de dados definida
-
-Instalar firebase-admin no projeto
-
-Configurar credenciais no servidor
-
-Implementar verificação de data na rota /totem/:id
-
-Atualizar dashboard com campo "Data de Expiração"
-
-Criar script de migração dos .txt para Firebase
-
-Testar bloqueio/renovação
-
-Fazer deploy da versão 3.0
-
-Sistema profissional, escalável e com receita recorrente! 🚀
+- **Credenciais**: nunca comite service account.
+- **Timezone**: a lógica atual trata `dataExpiracao` como válida até `23:59:59` do dia informado.
+- **Broker MQTT público**: ótimo para protótipo; para produção em escala, considere broker privado/autenticado.
