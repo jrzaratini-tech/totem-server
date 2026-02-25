@@ -1,5 +1,5 @@
 // ============================================
-// TOTEM INTERATIVO IoT v4.0
+// TOTEM INTERATIVO IoT v4.0 - CORRIGIDO
 // Servidor Principal com Suporte a Áudio Personalizado
 // Firebase + MQTT + Upload de MP3 + OTA
 // ============================================
@@ -49,10 +49,15 @@ let firebaseInicializado = false;
 try {
     let credentials;
     
+    // CORREÇÃO: Verifica ambas as extensões possíveis
     if (fs.existsSync('./firebase-credentials.json')) {
         credentials = JSON.parse(fs.readFileSync('./firebase-credentials.json', 'utf8'));
-        console.log('✅ Firebase: Credenciais carregadas do arquivo');
+        console.log('✅ Firebase: Credenciais carregadas do arquivo (firebase-credentials.json)');
     } 
+    else if (fs.existsSync('./firebase-credentials.json.json')) {
+        credentials = JSON.parse(fs.readFileSync('./firebase-credentials.json.json', 'utf8'));
+        console.log('✅ Firebase: Credenciais carregadas do arquivo (firebase-credentials.json.json)');
+    }
     else if (process.env.FIREBASE_CREDENTIALS) {
         credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
         console.log('✅ Firebase: Credenciais carregadas da env var');
@@ -110,6 +115,26 @@ function publicarPlay(totemId) {
     }
 }
 
+// Função para notificar ESP32 sobre novo áudio
+function notificarAtualizacaoAudio(totemId, versao) {
+    if (mqttClient && mqttClient.connected) {
+        const topicoAudio = `totem/${totemId}/audio`;
+        const mensagem = JSON.stringify({
+            comando: 'atualizar',
+            timestamp: Date.now(),
+            versao: versao
+        });
+        mqttClient.publish(topicoAudio, mensagem);
+        
+        const topicoPlay = `totem/${totemId}`;
+        mqttClient.publish(topicoPlay, 'atualizar_audio');
+        
+        console.log(`📤 Notificações MQTT enviadas para ${totemId}`);
+        return true;
+    }
+    return false;
+}
+
 // ========== CONFIGURAÇÃO DE UPLOAD (MULTER) ==========
 const uploadDir = path.join(__dirname, 'uploads');
 fs.ensureDirSync(uploadDir);
@@ -121,8 +146,10 @@ const storage = multer.diskStorage({
     filename: function (req, file, cb) {
         const totemId = req.params.id || req.body.totemId || 'temp';
         const uniqueId = uuidv4().slice(0, 8);
-        const ext = path.extname(file.originalname);
-        cb(null, `${totemId}_${uniqueId}${ext}`);
+        const ext = path.extname(file.originalname).toLowerCase();
+        // Garante extensão .mp3
+        const finalExt = ext === '.mp3' ? '.mp3' : '.mp3';
+        cb(null, `${totemId}_${uniqueId}${finalExt}`);
     }
 });
 
@@ -144,7 +171,7 @@ const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: { 
-        fileSize: 10 * 1024 * 1024
+        fileSize: 10 * 1024 * 1024 // 10MB
     }
 });
 
@@ -388,10 +415,11 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     
     try {
         let audioUrl = null;
+        let versao = new Date().toISOString();
         let audioData = {
             nome: file.originalname,
             tamanho: file.size,
-            dataUpload: new Date().toISOString(),
+            dataUpload: versao,
             filename: file.filename,
             mimetype: file.mimetype
         };
@@ -449,19 +477,8 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             console.log(`✅ Referência salva no Firestore para ${id}`);
         }
         
-        if (mqttClient && mqttClient.connected) {
-            const topicoAudio = `totem/${id}/audio`;
-            mqttClient.publish(topicoAudio, JSON.stringify({
-                comando: 'atualizar',
-                timestamp: Date.now(),
-                versao: audioData.dataUpload
-            }));
-            
-            const topicoPlay = `totem/${id}`;
-            mqttClient.publish(topicoPlay, 'atualizar_audio');
-            
-            console.log(`📤 Notificações MQTT enviadas`);
-        }
+        // NOTIFICA O ESP32 IMEDIATAMENTE
+        notificarAtualizacaoAudio(id, versao);
         
         return res.json({
             success: true,
@@ -469,7 +486,8 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             audio: {
                 nome: file.originalname,
                 tamanho: file.size,
-                url: audioUrl
+                url: audioUrl,
+                versao: versao
             }
         });
         
@@ -567,6 +585,9 @@ app.delete('/api/audio/:id', async (req, res) => {
                 });
                 
                 console.log(`🗑️ Áudio removido do Firestore`);
+                
+                // Notifica ESP32 que o áudio foi removido
+                notificarAtualizacaoAudio(id, 'removido');
             }
         }
         
@@ -742,7 +763,7 @@ app.get('/admin/excluir/:id', adminAuth, async (req, res) => {
 // ========== INICIAR SERVIDOR ==========
 app.listen(PORT, () => {
     console.log('\n' + '='.repeat(50));
-    console.log('🚀 TOTEM SERVER v4.0 rodando!');
+    console.log('🚀 TOTEM SERVER v4.0 CORRIGIDO rodando!');
     console.log('='.repeat(50));
     console.log(`📡 Porta: ${PORT}`);
     console.log(`🌐 URL: ${SERVER_URL}`);
