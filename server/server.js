@@ -345,7 +345,17 @@ app.locals.bucket = bucket;
 app.locals.firebaseInicializado = firebaseInicializado;
 app.locals.mqttClient = mqttClient;
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.mp3') || path.endsWith('.wav') || path.endsWith('.ogg') || path.endsWith('.webm')) {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET');
+            res.setHeader('Access-Control-Allow-Headers', 'Range');
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Content-Type', 'audio/mpeg');
+        }
+    }
+}));
 
 // ========== ROTAS PÚBLICAS ==========
 

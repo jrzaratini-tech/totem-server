@@ -264,10 +264,48 @@
         }
 
         function playAudio(audioUrl) {
-            const audio = new Audio(audioUrl);
-            audio.play().catch(error => {
+            console.log('Tentando reproduzir áudio:', audioUrl);
+            
+            const audio = new Audio();
+            
+            // Adicionar CORS headers para permitir reprodução
+            audio.crossOrigin = 'anonymous';
+            
+            audio.addEventListener('error', (e) => {
+                console.error('Erro ao carregar áudio:', e);
+                console.error('Código do erro:', audio.error ? audio.error.code : 'desconhecido');
+                console.error('Mensagem do erro:', audio.error ? audio.error.message : 'desconhecido');
+                alert('Erro ao reproduzir áudio. Verifique se o arquivo existe e está acessível.');
+            });
+            
+            audio.addEventListener('loadstart', () => {
+                console.log('Iniciando carregamento do áudio...');
+            });
+            
+            audio.addEventListener('canplay', () => {
+                console.log('Áudio pronto para reprodução');
+            });
+            
+            audio.src = audioUrl;
+            
+            // Tentar reproduzir
+            audio.play().then(() => {
+                console.log('Áudio reproduzido com sucesso');
+            }).catch(error => {
                 console.error('Erro ao reproduzir áudio:', error);
-                alert('Erro ao reproduzir áudio. Tente novamente.');
+                
+                // Tentar com mute primeiro (alguns navegadores exigem)
+                audio.muted = true;
+                audio.play().then(() => {
+                    console.log('Áudio reproduzido com muted');
+                    // Tentar ativar som após início
+                    setTimeout(() => {
+                        audio.muted = false;
+                    }, 100);
+                }).catch(mutedError => {
+                    console.error('Erro mesmo com muted:', mutedError);
+                    alert('Erro ao reproduzir áudio. O navegador pode estar bloqueando reprodução automática. Tente clicar no botão novamente.');
+                });
             });
         }
     </script>
