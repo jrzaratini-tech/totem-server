@@ -32,7 +32,7 @@ public:
     bool connect();
     void subscribeTopics();
 
-    bool isConnected() const;
+    bool isConnected();
 
     bool publish(const String &topic, const String &payload, bool retained = false);
 

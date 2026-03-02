@@ -103,6 +103,6 @@ void MQTTManager::onMessage(std::function<void(const String&, const String&)> cb
     messageCallback = cb;
 }
 
-bool MQTTManager::isConnected() const {
+bool MQTTManager::isConnected() {
     return connected && client.connected();
 }

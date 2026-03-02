@@ -150,6 +150,10 @@ totem-server/
   - **Gerada em runtime**.
   - O `server/server.js` cria a pasta automaticamente e serve estático em `/uploads`.
 
+- **`firmware/include/span`**
+  - Polyfill mínimo de `std::span` para toolchains que não possuem o header `<span>`.
+  - Necessário para compilar a lib `ESP32-audioI2S` com o toolchain padrão do PlatformIO para ESP32 (GCC 8.x).
+
 ## Configuração
 
 ### Variáveis de ambiente
@@ -230,6 +234,15 @@ O **backend atual** publica:
 - `totem/{id}/configUpdate` com JSON de config
 
 Se você estiver usando o firmware modular, ajuste os tópicos (no firmware ou no backend) para ficarem iguais.
+
+### Recomendação (para evitar incompatibilidades)
+
+Se você está usando o firmware em `firmware/`, o caminho mais previsível é **padronizar o backend** para publicar também nos tópicos do firmware:
+
+- `totem/{id}/trigger` com payload `play`
+- `totem/{id}/audioUpdate` com payload/JSON de “atualizar”
+
+Assim você não precisa manter “compatibilidade dupla” (firmware legado vs modular).
 
 ## Áudio (upload/gravação) — compatibilidade
 
@@ -409,6 +422,44 @@ Arquivos relevantes:
 - `firmware/include/Config.h`: pinos, URL do servidor, MQTT, watchdog, HTTPS CA
 - `firmware/src/main.cpp`: integra state machine, WiFi/AP, MQTT, áudio, LEDs, botões, OTA
 
+### Dependências do firmware (PlatformIO)
+
+As dependências são resolvidas via `firmware/platformio.ini`. Os identificadores abaixo são os **compatíveis com o registry do PlatformIO** (evita `UnknownPackageError`):
+
+```ini
+lib_deps =
+    ESP32-audioI2S
+    esp32async/ESPAsyncWebServer
+    esp32async/AsyncTCP
+    FastLED
+    ArduinoJson
+    PubSubClient
+```
+
+> Observação: existem múltiplos forks de `AsyncTCP` no registry. Usar `esp32async/AsyncTCP` evita que o PlatformIO puxe bibliotecas incorretas (ex.: `RPAsyncTCP`, que é para RP2040 e não compila no ESP32).
+
+### C++ standard / flags
+
+Este firmware usa recursos modernos e algumas libs exigem um padrão de C++ mais novo. O `platformio.ini` está configurado para:
+
+```ini
+build_unflags = -std=gnu++20
+build_flags = -std=gnu++2a -fpermissive
+```
+
+- `-std=gnu++2a`: mantém compatibilidade com o toolchain GCC 8.x do ESP32 no PlatformIO.
+- `-fpermissive`: aplicado como *workaround* para diferenças de const-correctness entre `ESPAsyncWebServer` e `AsyncTCP` em algumas combinações de versões.
+
+### `ESP32-audioI2S` e erro `fatal error: span: No such file or directory`
+
+Se o build falhar com:
+
+```text
+fatal error: span: No such file or directory
+```
+
+Isso ocorre porque o toolchain padrão (GCC 8.x) não fornece `<span>`. Este repositório inclui um polyfill mínimo em `firmware/include/span`, o que permite compilar sem trocar o toolchain.
+
 ## 🔐 HTTPS no ESP32 (CA raiz)
 
 O backend de produção e URLs do Storage normalmente são **HTTPS**.
@@ -437,6 +488,32 @@ O backend de produção e URLs do Storage normalmente são **HTTPS**.
 - Confirme que `SERVER_URL` no firmware aponta para o servidor correto.
 - Se o download for HTTPS:
   - configure `ROOT_CA_PEM`, ou (apenas para teste) use abordagem insegura.
+
+### PlatformIO: `UnknownPackageError` ao instalar libs
+
+Se aparecer `UnknownPackageError` para libs como `ESP32-audioI2S` ou `ESP Async WebServer`, confira se o `lib_deps` está usando o **nome do registry** (ver seção “Dependências do firmware”).
+
+Exemplos que costumam falhar:
+
+- `schreibfaul1/ESP32-audioI2S`
+- `me-no-dev/ESP Async WebServer @ ^1.2.4`
+
+Exemplos corretos:
+
+- `ESP32-audioI2S`
+- `esp32async/ESPAsyncWebServer`
+
+### PlatformIO: erro envolvendo `RPAsyncTCP` / `ip_addr_t` / lwIP
+
+Se o build baixar `RPAsyncTCP` e falhar com erros do tipo `ip_addr_t has no member named addr`, significa que uma variante errada de AsyncTCP foi resolvida. Fix:
+
+- use `esp32async/AsyncTCP` no `lib_deps`.
+
+### PlatformIO: erro `passing 'const ...' discards qualifiers` (AsyncWebServer/AsyncTCP)
+
+Algumas versões da stack async apresentam inconsistências de `const`. Caso isso bloqueie o build:
+
+- mantenha `-fpermissive` em `build_flags`.
 
 ### Cliente não consegue logar
 

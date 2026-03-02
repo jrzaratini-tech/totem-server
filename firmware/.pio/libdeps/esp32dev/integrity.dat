@@ -1,6 +1,6 @@
-bblanchon/ArduinoJson@^6.21.5
-me-no-dev/ESP Async WebServer@^1.2.4
-me-no-dev/AsyncTCP@^1.1.1
-fastled/FastLED@^3.6.0
-schreibfaul1/ESP32-audioI2S
-knolleary/PubSubClient@^2.8
+ESP32-audioI2S
+PubSubClient
+FastLED
+esp32async/ESPAsyncWebServer
+ArduinoJson
+esp32async/AsyncTCP
