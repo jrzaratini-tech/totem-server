@@ -360,7 +360,7 @@ app.locals.bucket = bucket;
 app.locals.firebaseInicializado = firebaseInicializado;
 app.locals.mqttClient = mqttClient;
 
-// REMOVIDO: express.static('/uploads') - não usar mais filesystem local em produção
+app.use('/uploads', express.static(uploadDir));
 
 // ========== ROTAS PÚBLICAS ==========
 
@@ -573,18 +573,9 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     let finalFileName = null;
 
     try {
-        if (!bucket) {
-            const msg = 'Firebase Storage indisponível (bucket não inicializado).';
-            console.error(`❌ Upload bloqueado: ${msg}`);
-            try {
-                if (file && file.path && fs.existsSync(file.path)) fs.removeSync(file.path);
-            } catch (e) {
-                console.warn('Erro ao limpar arquivo temporário após Storage indisponível:', e);
-            }
-            return res.status(500).json({ error: msg });
-        }
+        const storagePodeSerUsado = !!bucket;
 
-        if (storageDisponivel === null) {
+        if (storagePodeSerUsado && storageDisponivel === null) {
             try {
                 const [exists] = await bucket.exists();
                 storageDisponivel = !!exists;
@@ -597,17 +588,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             }
         }
 
-        if (!storageDisponivel) {
-            const bucketName = bucket && bucket.name ? bucket.name : '(bucket não inicializado)';
-            const msg = `Firebase Storage indisponível. Bucket: ${bucketName}. Verifique se o Storage está habilitado e se o bucket padrão existe.`;
-            console.error(`❌ Upload bloqueado: ${msg}`);
-            try {
-                if (file && file.path && fs.existsSync(file.path)) fs.removeSync(file.path);
-            } catch (e) {
-                console.warn('Erro ao limpar arquivo temporário após Storage indisponível:', e);
-            }
-            return res.status(500).json({ error: msg });
-        }
+        const usarFirebaseStorage = storagePodeSerUsado && storageDisponivel !== false;
         
         const ext = path.extname(file.filename).toLowerCase();
         finalFilePath = file.path;
@@ -652,39 +633,49 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             filename: finalFileName,
             mimetype: 'audio/mpeg'
         };
-        
-        const destination = `audios/${id}/${finalFileName}`;
-        console.log(`📤 Enviando para Firebase Storage: ${destination}`);
-        
-        await bucket.upload(finalFilePath, { 
-            destination,
-            metadata: {
-                contentType: 'audio/mpeg',
+ 
+        let audioUrl = null;
+
+        if (usarFirebaseStorage) {
+            const destination = `audios/${id}/${finalFileName}`;
+            console.log(`📤 Enviando para Firebase Storage: ${destination}`);
+            
+            await bucket.upload(finalFilePath, { 
+                destination,
                 metadata: {
-                    totemId: id,
-                    originalName: file.originalname,
-                    uploadDate: audioData.dataUpload
+                    contentType: 'audio/mpeg',
+                    metadata: {
+                        totemId: id,
+                        originalName: file.originalname,
+                        uploadDate: audioData.dataUpload
+                    }
                 }
+            });
+            
+            const fileRef = bucket.file(destination);
+            await fileRef.makePublic();
+            
+            audioUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
+            audioData.url = audioUrl;
+            audioData.storagePath = destination;
+            
+            console.log(`✅ Áudio público em: ${audioUrl}`);
+            
+            // Limpa arquivo temporário após upload bem-sucedido
+            try {
+                fs.removeSync(finalFilePath);
+                console.log('🗑️ Arquivo temporário removido');
+            } catch (e) {
+                console.warn('Erro ao remover temporário:', e);
             }
-        });
-        
-        const fileRef = bucket.file(destination);
-        await fileRef.makePublic();
-        
-        const audioUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-        audioData.url = audioUrl;
-        audioData.storagePath = destination;
-        
-        console.log(`✅ Áudio público em: ${audioUrl}`);
-        
-        // Limpa arquivo temporário após upload bem-sucedido
-        try {
-            fs.removeSync(finalFilePath);
-            console.log('🗑️ Arquivo temporário removido');
-        } catch (e) {
-            console.warn('Erro ao remover temporário:', e);
+        } else {
+            const base = String(SERVER_URL || '').replace(/\/$/, '');
+            audioUrl = `${base}/uploads/${encodeURIComponent(finalFileName)}`;
+            audioData.url = audioUrl;
+            audioData.storagePath = null;
+            console.warn(`⚠️ Firebase Storage indisponível. Usando fallback local: ${audioUrl}`);
         }
-        
+
         if (db) {
             await db.collection('totens').doc(id).set({
                 audio: audioData,
@@ -692,7 +683,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             }, { merge: true });
             console.log(`✅ Referência salva no Firestore para ${id}`);
         }
-        
+
         // NOTIFICA O ESP32 IMEDIATAMENTE
         notificarAtualizacaoAudio(id, audioData.dataUpload);
         
@@ -701,7 +692,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             message: 'Áudio enviado com sucesso',
             audio: {
                 nome: file.originalname,
-                tamanho: file.size,
+                tamanho: audioData.tamanho,
                 url: audioUrl,
                 versao: audioData.dataUpload
             }
