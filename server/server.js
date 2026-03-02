@@ -351,12 +351,12 @@ app.get('/cliente/login', (req, res) => {
 });
 
 app.post('/cliente/login', async (req, res) => {
-    const { totemId, senha } = req.body;
+    const { totemId } = req.body;
     
-    if (!totemId || !senha) {
+    if (!totemId) {
         return res.send(`
             <html><body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ ID e senha são obrigatórios</h2>
+                <h2>❌ ID é obrigatório</h2>
                 <p><a href="/cliente/login">Voltar</a></p>
             </body></html>
         `);
@@ -368,18 +368,6 @@ app.post('/cliente/login', async (req, res) => {
         return res.send(`
             <html><body style="font-family: Arial; text-align: center; padding: 50px;">
                 <h2>❌ Totem não encontrado</h2>
-                <p><a href="/cliente/login">Tentar novamente</a></p>
-            </body></html>
-        `);
-    }
-    
-    const ultimos4 = totemId.slice(-4);
-    const senhaEsperada = ultimos4 + '2026';
-    
-    if (senha !== senhaEsperada) {
-        return res.send(`
-            <html><body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ Senha incorreta</h2>
                 <p><a href="/cliente/login">Tentar novamente</a></p>
             </body></html>
         `);
