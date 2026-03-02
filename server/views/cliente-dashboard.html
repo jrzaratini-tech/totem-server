@@ -270,6 +270,57 @@
             width: 100%;
         }
         
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        
+        .control {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: left;
+        }
+        
+        .control label {
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-weight: 600;
+        }
+        
+        .control input,
+        .control select {
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            background: #fff;
+            font-size: 14px;
+        }
+        
+        .hint {
+            color: #777;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .rec-status {
+            margin-top: 10px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            display: none;
+            text-align: left;
+        }
+        
+        .rec-status strong {
+            color: #333;
+        }
+        
         .loading {
             display: none;
             position: fixed;
@@ -454,6 +505,12 @@
                     </audio>
                 </div>
                 
+                <div class="rec-status" id="recStatus">
+                    <div><strong>Status:</strong> <span id="recStatusText">---</span></div>
+                    <div><strong>Tempo:</strong> <span id="recTimer">00:00</span></div>
+                    <div class="hint" id="recHint" style="margin-top:8px;"></div>
+                </div>
+                
                 <div class="button-group">
                     <button type="submit" class="btn-upload" id="btnUpload">
                         ⬆️ Enviar Áudio
@@ -478,8 +535,68 @@
                     <button type="button" class="btn-test" id="btnTestPlay" onclick="testarTotem()">
                         🔄 Testar Totem
                     </button>
+
+                    <button type="button" class="btn-test" id="btnTestAudio" style="background:#0d6efd;color:#fff;">
+                        🔊 Testar Áudio
+                    </button>
                 </div>
             </form>
+        </div>
+        
+        <div class="audio-section">
+            <h2>🎨 Personalização do Totem</h2>
+
+            <div class="current-audio">
+                <p><strong>💡 Luzes e Efeitos:</strong></p>
+                <p class="hint">Você pode alterar cor, efeito, brilho e tempo. As alterações são enviadas via MQTT e aplicadas quando o totem estiver online.</p>
+
+                <div class="grid-2">
+                    <div class="control">
+                        <label for="cfgMode">Efeito</label>
+                        <select id="cfgMode">
+                            <option value="BREATH">Breath (suave)</option>
+                            <option value="SOLID">Sólido</option>
+                            <option value="RAINBOW">Arco-íris</option>
+                            <option value="BLINK">Piscar</option>
+                            <option value="RUNNING">Corrida</option>
+                            <option value="HEART">Coração</option>
+                        </select>
+                    </div>
+
+                    <div class="control">
+                        <label for="cfgColor">Cor</label>
+                        <input id="cfgColor" type="color" value="#ff3366" />
+                    </div>
+
+                    <div class="control">
+                        <label for="cfgBrightness">Brilho</label>
+                        <input id="cfgBrightness" type="range" min="0" max="180" value="120" />
+                        <div class="hint">Atual: <span id="cfgBrightnessVal">120</span></div>
+                    </div>
+
+                    <div class="control">
+                        <label for="cfgSpeed">Velocidade</label>
+                        <input id="cfgSpeed" type="range" min="1" max="100" value="50" />
+                        <div class="hint">Atual: <span id="cfgSpeedVal">50</span></div>
+                    </div>
+
+                    <div class="control">
+                        <label for="cfgDuration">Duração (segundos)</label>
+                        <input id="cfgDuration" type="number" min="1" max="600" value="30" />
+                        <div class="hint">Tempo do efeito ao tocar (botão/mqtt).</div>
+                    </div>
+                </div>
+
+                <div class="button-group" style="margin-top: 12px;">
+                    <button type="button" class="btn-upload" id="btnApplyConfig" style="background:#6f42c1;">
+                        ✅ Aplicar Personalização
+                    </button>
+
+                    <button type="button" class="btn-test" id="btnTriggerTotem" style="background:#ffc107;color:#333;">
+                        📲 Disparar Totem (QR)
+                    </button>
+                </div>
+            </div>
         </div>
         
         <div class="instructions">
@@ -513,9 +630,28 @@
         const btnStopRec = document.getElementById('btnStopRec');
         const btnSendRec = document.getElementById('btnSendRec');
 
+        const btnTestAudio = document.getElementById('btnTestAudio');
+        const btnTriggerTotem = document.getElementById('btnTriggerTotem');
+
+        const recStatus = document.getElementById('recStatus');
+        const recStatusText = document.getElementById('recStatusText');
+        const recTimer = document.getElementById('recTimer');
+        const recHint = document.getElementById('recHint');
+
+        const cfgMode = document.getElementById('cfgMode');
+        const cfgColor = document.getElementById('cfgColor');
+        const cfgBrightness = document.getElementById('cfgBrightness');
+        const cfgBrightnessVal = document.getElementById('cfgBrightnessVal');
+        const cfgSpeed = document.getElementById('cfgSpeed');
+        const cfgSpeedVal = document.getElementById('cfgSpeedVal');
+        const cfgDuration = document.getElementById('cfgDuration');
+        const btnApplyConfig = document.getElementById('btnApplyConfig');
+
         let mediaRecorder = null;
         let recordedChunks = [];
         let recordedBlob = null;
+        let recTimerInterval = null;
+        let recStartedAt = 0;
 
         // Mostra botão remover se tiver áudio personalizado
         if (audioAtualNome !== 'Nenhum áudio personalizado' && 
@@ -546,6 +682,94 @@
             } else {
                 fileInfo.textContent = 'Nenhum arquivo selecionado';
                 audioPreview.style.display = 'none';
+            }
+        });
+
+        function formatTimer(ms) {
+            const totalSec = Math.max(0, Math.floor(ms / 1000));
+            const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+            const s = String(totalSec % 60).padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function setRecStatus(text, hint) {
+            recStatus.style.display = 'block';
+            recStatusText.textContent = text || '---';
+            recHint.textContent = hint || '';
+        }
+
+        async function carregarAudioAtual() {
+            try {
+                const response = await fetch(`/api/audio/${totemId}`);
+                const result = await response.json();
+
+                if (response.ok && result && result.url) {
+                    audioPlayer.querySelector('source').src = result.url;
+                    audioPlayer.load();
+                    audioPreview.style.display = 'block';
+                }
+            } catch (e) {
+                console.warn('Falha ao carregar áudio atual:', e);
+            }
+        }
+
+        async function testarAudioNoNavegador() {
+            if (audioPreview.style.display === 'none') {
+                await carregarAudioAtual();
+            }
+
+            try {
+                await audioPlayer.play();
+                showAlert('🔊 Reproduzindo áudio no navegador...', 'info');
+            } catch (e) {
+                console.error(e);
+                showAlert('❌ Não foi possível reproduzir o áudio. Tente clicar novamente ou verifique o volume/permissões do navegador.', 'error');
+            }
+        }
+
+        btnTestAudio.addEventListener('click', testarAudioNoNavegador);
+
+        btnTriggerTotem.addEventListener('click', function() {
+            testarTotem();
+        });
+
+        cfgBrightness.addEventListener('input', () => {
+            cfgBrightnessVal.textContent = String(cfgBrightness.value);
+        });
+        cfgSpeed.addEventListener('input', () => {
+            cfgSpeedVal.textContent = String(cfgSpeed.value);
+        });
+
+        btnApplyConfig.addEventListener('click', async function() {
+            const payload = {
+                mode: cfgMode.value,
+                color: cfgColor.value,
+                speed: Number(cfgSpeed.value),
+                duration: Number(cfgDuration.value),
+                maxBrightness: Number(cfgBrightness.value)
+            };
+
+            loading.classList.add('active');
+            showAlert('', '');
+
+            try {
+                const response = await fetch(`/cliente/config/${totemId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showAlert('✅ Personalização enviada! Se o totem estiver online, ele aplicará em instantes.', 'success');
+                } else {
+                    showAlert('❌ Erro ao aplicar: ' + (result.error || 'Falha'), 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                showAlert('❌ Erro de conexão ao aplicar personalização.', 'error');
+            } finally {
+                loading.classList.remove('active');
             }
         });
 
@@ -593,6 +817,12 @@
             recordedChunks = [];
             recordedBlob = null;
 
+            if (!window.isSecureContext) {
+                setRecStatus('Bloqueado', 'A gravação de microfone normalmente exige HTTPS (ou localhost). Acesse o dashboard em HTTPS para liberar o microfone.');
+                showAlert('❌ O navegador bloqueou o microfone. Use HTTPS (ou localhost) e permita o acesso ao microfone.', 'error');
+                return;
+            }
+
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 showAlert('❌ Seu navegador não suporta gravação de áudio.', 'error');
                 return;
@@ -601,7 +831,21 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-                const options = {};
+                // Escolhe um mimeType suportado para aumentar compatibilidade
+                let options = {};
+                const preferred = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/ogg'
+                ];
+                for (const t of preferred) {
+                    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+                        options = { mimeType: t };
+                        break;
+                    }
+                }
+
                 mediaRecorder = new MediaRecorder(stream, options);
 
                 mediaRecorder.ondataavailable = (e) => {
@@ -620,6 +864,13 @@
 
                     btnSendRec.style.display = 'inline-block';
 
+                    if (recTimerInterval) {
+                        clearInterval(recTimerInterval);
+                        recTimerInterval = null;
+                    }
+                    recTimer.textContent = '00:00';
+                    setRecStatus('Gravação pronta', 'Clique em "Enviar Gravação" para salvar no seu totem.');
+
                     // stop tracks
                     stream.getTracks().forEach(t => t.stop());
                 };
@@ -628,10 +879,19 @@
                 btnStartRec.style.display = 'none';
                 btnStopRec.style.display = 'inline-block';
                 btnSendRec.style.display = 'none';
+                recStartedAt = Date.now();
+                recTimer.textContent = '00:00';
+                if (recTimerInterval) clearInterval(recTimerInterval);
+                recTimerInterval = setInterval(() => {
+                    recTimer.textContent = formatTimer(Date.now() - recStartedAt);
+                }, 250);
+
+                setRecStatus('Gravando', 'Clique em "Parar" quando terminar.');
                 showAlert('🎙️ Gravando... clique em Parar quando terminar.', 'info');
             } catch (e) {
                 console.error(e);
                 showAlert('❌ Não foi possível acessar o microfone. Verifique as permissões do navegador.', 'error');
+                setRecStatus('Erro', 'Verifique as permissões do microfone no navegador.');
             }
         });
 
@@ -767,6 +1027,11 @@
             alert.textContent = message;
             alert.className = 'alert ' + type;
         }
+
+        // Inicializa UI
+        cfgBrightnessVal.textContent = String(cfgBrightness.value);
+        cfgSpeedVal.textContent = String(cfgSpeed.value);
+        carregarAudioAtual();
     </script>
 </body>
 </html>
