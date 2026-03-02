@@ -815,10 +815,17 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
         
         let audioCell = '';
         if (totem.audio && totem.audio.url) {
+            let audioUrl = totem.audio.url;
+            
+            // Converter URLs relativas em absolutas
+            if (audioUrl.startsWith('/uploads/')) {
+                audioUrl = `${SERVER_URL}${audioUrl}`;
+            }
+            
             audioCell = `
                 <div class="audio-player">
                     <audio controls preload="metadata">
-                        <source src="${totem.audio.url}" type="audio/mpeg">
+                        <source src="${audioUrl}" type="audio/mpeg">
                         Seu navegador não suporta áudio.
                     </audio>
                     <div style="font-size: 11px; color: #999; margin-top: 3px;">${totem.audio.nome || 'audio.mp3'}</div>
