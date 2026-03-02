@@ -15,12 +15,13 @@ Servidor Node.js (Express) para totens IoT com:
 
 O **Totem Interativo IoT** é uma solução física para eventos e pontos de venda que permite gerar engajamento em redes sociais de forma automatizada.
 
-Fluxo padrão:
+Fluxo padrão (ponta a ponta):
 
 1. Usuário escaneia QR Code (`/totem/:id`)
-2. Servidor valida assinatura (Firebase Firestore) via `dataExpiracao`
-3. Se ativo: publica MQTT (`totem/{id}` = `play`) e redireciona para o Instagram
-4. Se expirado: redireciona para `/expirado`
+2. Backend busca o documento do totem (Firestore; ou fallback local em `server/clientes/<id>.txt`)
+3. Backend valida a assinatura por data (`dataExpiracao`)
+4. Se ativo: publica um comando via MQTT e redireciona para o link configurado (Instagram)
+5. Se expirado: redireciona para `/expirado`
 
 ## 🏗️ Arquitetura (ponta a ponta)
 
@@ -31,6 +32,23 @@ Usuário → QR Code → Express (/totem/:id)
                  → ESP32 (ação física)
                  → Redirect Instagram
 ```
+
+## ✅ Status do projeto (o que está pronto de verdade)
+
+- **Backend**
+  - Express + sessões
+  - Integração com Firebase Admin (Firestore + Storage)
+  - Fallback sem Firebase (arquivos `.txt`)
+  - Upload/gravação de áudio com conversão para MP3 (FFmpeg)
+  - MQTT (HiveMQ público)
+- **Front (views HTML)**
+  - Admin (login + CRUD)
+  - Cliente (login + dashboard + áudio + configuração de LEDs/efeitos)
+- **Firmware (ESP32)**
+  - Firmware modular em `firmware/` (PlatformIO)
+  - Exemplo legado em `docs/ESP32.txt` (Arduino IDE / NeoPixel)
+
+> Observação: os arquivos em `docs/` estão parcialmente “Em construção”. Este `README.md` documenta o que está implementado no código atual.
 
 ## Componentes
 
@@ -49,6 +67,15 @@ Usuário → QR Code → Express (/totem/:id)
 - **Cliente**: `/cliente/login`
   - Login: `totemId`
   - Senha: **últimos 4 caracteres do ID + `2026`** (ex.: `TOTEM47` → `47472026`)
+
+## ⚠️ Segurança (importante)
+
+- A autenticação do Admin e Cliente é **simples** e baseada em senha fixa/regra (não é multiusuário).
+- Se você for expor isso publicamente para terceiros, o recomendado é:
+  - trocar senha fixa por usuário/senha no Firestore
+  - habilitar rate limit
+  - proteger rotas sensíveis com autenticação real (JWT/OAuth)
+  - trocar o broker MQTT público por um broker privado e autenticado
 
 ## Estrutura do projeto (inventário real do repositório)
 
@@ -132,6 +159,15 @@ totem-server/
 - **`SERVER_URL`**: URL pública do servidor (default: `https://totem-server.onrender.com`).
 - **`FIREBASE_CREDENTIALS`**: JSON string com service account (recomendado em produção).
 
+Exemplo (.env):
+
+```bash
+PORT=3000
+SERVER_URL=http://localhost:3000
+SESSION_SECRET=change-me
+FIREBASE_CREDENTIALS=
+```
+
 ### Firebase / Firestore
 
 Coleção esperada:
@@ -152,6 +188,17 @@ totens/{ID_DO_TOTEM}
   }
 ```
 
+Requisitos no Firebase:
+
+- **Service Account**
+  - Em produção, prefira setar **`FIREBASE_CREDENTIALS`** como env var.
+  - Localmente, você também pode colocar:
+    - `firebase-credentials.json` (preferível)
+    - `firebase-credentials.json.json` (suportado por compatibilidade)
+- **Storage**
+  - O código usa o bucket padrão: `${project_id}.appspot.com`.
+  - O upload tenta `makePublic()` no arquivo, então você precisa permitir isso no seu projeto/bucket.
+
 ## MQTT
 
 - **Broker**: `broker.hivemq.com`
@@ -159,6 +206,30 @@ totens/{ID_DO_TOTEM}
 - **Tópicos**:
   - `totem/{ID}`: recebe `play` (acionamento)
   - `totem/{ID}/audio`: notificação JSON para “atualizar”
+  - `totem/{ID}/configUpdate`: atualização de configuração (retained)
+
+### Nota importante sobre compatibilidade de tópicos (firmware)
+
+Existem **duas referências de firmware** neste repositório:
+
+- **Firmware modular (em `firmware/`)**
+  - Usa tópicos do tipo:
+    - `totem/{id}/trigger` (play)
+    - `totem/{id}/audioUpdate`
+    - `totem/{id}/configUpdate`
+    - `totem/{id}/firmwareUpdate`
+    - `totem/{id}/status`
+- **Exemplo legado (em `docs/ESP32.txt`)**
+  - Escuta `totem/{id}` e `totem/{id}/audio`
+
+O **backend atual** publica:
+
+- `totem/{id}` com payload `play`
+- `totem/{id}` com payload `atualizar_audio`
+- `totem/{id}/audio` com JSON `{"comando":"atualizar", ...}`
+- `totem/{id}/configUpdate` com JSON de config
+
+Se você estiver usando o firmware modular, ajuste os tópicos (no firmware ou no backend) para ficarem iguais.
 
 ## Áudio (upload/gravação) — compatibilidade
 
@@ -167,15 +238,20 @@ totens/{ID_DO_TOTEM}
   - **gravação no navegador** (ex.: `.webm/.ogg`) e envio ao backend
 - O backend converte automaticamente formatos gravados para **MP3** via `ffmpeg-static` + `fluent-ffmpeg`.
 
+Limites atuais:
+
+- **10MB** por upload
+- Tipos aceitos: MP3, WebM, OGG, WAV, M4A/MP4, AAC (por mimetype e/ou extensão)
+
 ## Rotas HTTP (implementadas no `server/server.js`)
 
 ### Públicas
 
 - **`GET /`**: redireciona para `/admin/login`.
 - **`GET /totem/:id`**:
-  - Busca dados do totem (Firestore; fallback `server/clientes/<id>.txt`).
-  - Se `dataExpiracao` expirou: redireciona para `/expirado`.
-  - Se ativo: publica MQTT e redireciona para o Instagram.
+  - Busca dados do totem (Firestore; ou fallback local em `server/clientes/<id>.txt`)
+  - Se `dataExpiracao` expirou: redireciona para `/expirado`
+  - Se ativo: publica um comando via MQTT e redireciona para o link configurado (Instagram)
 - **`GET /expirado`**: página `views/expirado.html`.
 
 ### Admin
@@ -197,13 +273,22 @@ totens/{ID_DO_TOTEM}
   - Upload/gravação de áudio.
   - Limite atual: **10MB**.
   - Tipos aceitos: por mimetype e/ou extensão (MP3 e alguns formatos comuns).
+- **`POST /cliente/config/:id`**: salva configuração de LEDs/efeitos no Firestore e publica via MQTT (`totem/{id}/configUpdate`).
 
 ### API (ESP32)
 
 - **`GET /api/audio/:id`**: retorna JSON com `url`, `nome`, `versao`, `tamanho`.
 - **`DELETE /api/audio/:id`**: remove áudio personalizado (autorização por sessão).
+- **`GET /api/config/:id`**: consulta configuração atual no Firestore (debug).
 
 ## ▶️ Como rodar localmente
+
+Pré-requisitos:
+
+- Node.js **>= 18**
+- Git
+
+Passos:
 
 ```bash
 npm install
@@ -216,14 +301,24 @@ Para desenvolvimento com reload automático:
 npm run dev
 ```
 
-Admin local:
+URLs úteis (local):
 
-- `http://localhost:3000/admin/login`
+- Admin: `http://localhost:3000/admin/login`
+- Cliente: `http://localhost:3000/cliente/login`
+
+> O arquivo `server.js` na raiz apenas faz `require('./server/server.js')`.
 
 ## Deploy
 
 - `deploy.bat`: automatiza `git add/commit/push`.
 - Em produção (Render), prefira `FIREBASE_CREDENTIALS` via env var.
+
+Checklist rápido (Render/outro PaaS):
+
+- Definir `PORT` (se necessário)
+- Definir `SERVER_URL` com o domínio final
+- Definir `SESSION_SECRET`
+- Definir `FIREBASE_CREDENTIALS` (JSON em uma linha)
 
 ## ESP32 (hardware) — pinagem e ligações
 
@@ -292,3 +387,57 @@ GPIO35  Reset WiFi (botão físico; ao pressionar conecta ao GND — ativo em LO
 - **Credenciais Firebase**: nunca versionar service account.
 - **Recomendação**: manter credenciais fora do Git e fornecer via `FIREBASE_CREDENTIALS` (env var). O `server/server.js` aceita `firebase-credentials.json` e também `firebase-credentials.json.json`.
 - **Script `migrate`**: o `package.json` referencia `migrate_to_v4.js`, mas este arquivo não está no repositório no momento.
+
+## 🧩 Firmware ESP32 (PlatformIO) — como compilar e gravar
+
+Pré-requisitos:
+
+- VS Code + extensão PlatformIO
+  - ou `pio` instalado
+
+Comandos (dentro de `firmware/`):
+
+```bash
+pio run
+pio run -t upload
+pio device monitor
+```
+
+Arquivos relevantes:
+
+- `firmware/platformio.ini`: define libs (`FastLED`, `ESP32-audioI2S`, `ESP Async WebServer`, etc.)
+- `firmware/include/Config.h`: pinos, URL do servidor, MQTT, watchdog, HTTPS CA
+- `firmware/src/main.cpp`: integra state machine, WiFi/AP, MQTT, áudio, LEDs, botões, OTA
+
+## 🔐 HTTPS no ESP32 (CA raiz)
+
+O backend de produção e URLs do Storage normalmente são **HTTPS**.
+
+- Se você não configurar o CA em `ROOT_CA_PEM` (em `firmware/include/Config.h`), downloads podem falhar.
+- O arquivo `docs/ESP32.txt` usa `setInsecure()` (menos seguro) apenas como exemplo/atalho.
+
+## 🧯 Troubleshooting
+
+### Firebase não conecta
+
+- Verifique se você forneceu `FIREBASE_CREDENTIALS`.
+- Verifique se o JSON é válido (sem quebras de linha).
+- Se você usa arquivo local, confira se ele está com o nome correto:
+  - `firebase-credentials.json` (preferível)
+  - `firebase-credentials.json.json` (compat)
+
+### Upload de áudio falha / conversão não roda
+
+- O backend depende de `ffmpeg-static`.
+- Se você ver erro “FFmpeg não encontrado”, rode `npm install` novamente.
+
+### ESP32 não toca ou não atualiza áudio
+
+- Confirme que o tópico MQTT do firmware bate com o tópico publicado pelo backend (ver seção MQTT).
+- Confirme que `SERVER_URL` no firmware aponta para o servidor correto.
+- Se o download for HTTPS:
+  - configure `ROOT_CA_PEM`, ou (apenas para teste) use abordagem insegura.
+
+### Cliente não consegue logar
+
+- A senha é **últimos 4 caracteres do ID + `2026`**.
