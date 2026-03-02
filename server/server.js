@@ -28,7 +28,7 @@ require('dotenv').config({ path: path.join(projectRoot, '.env') });
 
 // ========== CONFIGURAÇÕES ==========
 const PORT = process.env.PORT || 3000;
-const SENHA_ADMIN = '159268';
+const SENHA_ADMIN_FALLBACK = '159268';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'totem-secret-key-v4';
 const MQTT_BROKER = 'broker.hivemq.com';
 const MQTT_PORT = 1883;
@@ -261,6 +261,20 @@ async function buscarTotem(id) {
     }
     
     return null;
+}
+
+async function buscarSenhaAdmin() {
+    if (firebaseInicializado && db) {
+        try {
+            const doc = await db.collection('config').doc('admin').get();
+            if (doc.exists && doc.data().senha) {
+                return doc.data().senha;
+            }
+        } catch (error) {
+            console.error('Erro ao buscar senha admin do Firebase:', error.message);
+        }
+    }
+    return SENHA_ADMIN_FALLBACK;
 }
 
 async function listarTotens() {
@@ -749,10 +763,12 @@ app.get('/admin/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'login.html'));
 });
 
-app.post('/admin/login', (req, res) => {
+app.post('/admin/login', async (req, res) => {
     const { senha } = req.body;
     
-    if (senha === SENHA_ADMIN) {
+    const senhaCorreta = await buscarSenhaAdmin();
+    
+    if (senha === senhaCorreta) {
         req.session.adminAutenticado = true;
         res.redirect('/admin/dashboard');
     } else {
@@ -776,12 +792,28 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
         const statusText = expirada ? 'Expirado' : 'Ativo';
         const temAudio = totem.audio ? '🎵' : '';
         
+        let audioCell = '';
+        if (totem.audio && totem.audio.url) {
+            audioCell = `
+                <div class="audio-player">
+                    <audio controls preload="metadata">
+                        <source src="${totem.audio.url}" type="audio/mpeg">
+                        Seu navegador não suporta áudio.
+                    </audio>
+                    <div style="font-size: 11px; color: #999; margin-top: 3px;">${totem.audio.nome || 'audio.mp3'}</div>
+                </div>
+            `;
+        } else {
+            audioCell = '<span class="sem-audio">Sem áudio personalizado</span>';
+        }
+        
         linhasTabela += `
             <tr>
                 <td>${totem.id} ${temAudio}</td>
                 <td><a href="${totem.link}" target="_blank">${totem.link}</a></td>
                 <td>${formatarData(totem.dataExpiracao)}</td>
-                <td>${statusIcon} ${statusText}</td>
+                <td class="${expirada ? 'status-bloqueado' : 'status-ativo'}">${statusIcon} ${statusText}</td>
+                <td>${audioCell}</td>
                 <td>
                     <a href="/admin/editar/${totem.id}">✏️ Editar</a> | 
                     <a href="/admin/excluir/${totem.id}" onclick="return confirm('Excluir totem?')">🗑️ Excluir</a>
