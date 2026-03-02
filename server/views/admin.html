@@ -176,22 +176,6 @@
             color: #999;
             font-size: 13px;
         }
-        .btn-play {
-            background: #28a745;
-            color: #fff;
-            padding: 5px 10px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.3s;
-        }
-        .btn-play:hover {
-            background: #218838;
-        }
-        .btn-play:active {
-            background: #1e7e34;
-        }
     </style>
 </head>
 <body>
@@ -277,27 +261,6 @@
                     }
                 }
             });
-        }
-        
-        async function dispararTotem(id) {
-            try {
-                const response = await fetch(`/admin/disparar/${id}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert('✅ ' + data.message);
-                } else {
-                    alert('❌ ' + data.message);
-                }
-            } catch (error) {
-                alert('❌ Erro ao disparar totem: ' + error.message);
-            }
         }
     </script>
 </body>

@@ -836,7 +836,6 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
                 <td class="${expirada ? 'status-bloqueado' : 'status-ativo'}">${statusIcon} ${statusText}</td>
                 <td>${audioCell}</td>
                 <td>
-                    <button onclick="dispararTotem('${totem.id}')" class="btn-play" title="Disparar totem">▶️ Play</button> | 
                     <a href="/admin/editar/${totem.id}">✏️ Editar</a> | 
                     <a href="/admin/excluir/${totem.id}" onclick="return confirm('Excluir totem?')">🗑️ Excluir</a>
                 </td>
