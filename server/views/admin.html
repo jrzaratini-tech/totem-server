@@ -262,6 +262,14 @@
                 }
             });
         }
+
+        function playAudio(audioUrl) {
+            const audio = new Audio(audioUrl);
+            audio.play().catch(error => {
+                console.error('Erro ao reproduzir áudio:', error);
+                alert('Erro ao reproduzir áudio. Tente novamente.');
+            });
+        }
     </script>
 </body>
 </html>

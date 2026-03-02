@@ -823,12 +823,17 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
             }
             
             audioCell = `
-                <div class="audio-player">
-                    <audio controls preload="metadata">
-                        <source src="${audioUrl}" type="audio/mpeg">
-                        Seu navegador não suporta áudio.
-                    </audio>
-                    <div style="font-size: 11px; color: #999; margin-top: 3px;">${totem.audio.nome || 'audio.mp3'}</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: #ccc; font-size: 13px;">${totem.audio.nome || 'audio.mp3'}</span>
+                    <button onclick="playAudio('${audioUrl}')" style="
+                        background: #28a745;
+                        color: white;
+                        border: none;
+                        padding: 5px 10px;
+                        border-radius: 3px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">▶️ Play</button>
                 </div>
             `;
         } else {
