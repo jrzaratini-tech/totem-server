@@ -54,6 +54,7 @@ app.use(session({
 // ========== FIREBASE ADMIN ==========
 let db = null;
 let bucket = null;
+let storageDisponivel = null;
 let firebaseInicializado = false;
 
 try {
@@ -88,7 +89,21 @@ try {
     bucket = admin.storage().bucket();
     firebaseInicializado = true;
     console.log('✅ Firebase conectado com sucesso!');
-    
+
+    bucket.exists()
+        .then(([exists]) => {
+            storageDisponivel = !!exists;
+            if (storageDisponivel) {
+                console.log(`✅ Firebase Storage disponível (bucket: ${bucket.name})`);
+            } else {
+                console.error(`❌ Firebase Storage indisponível: bucket não existe (${bucket.name})`);
+            }
+        })
+        .catch((err) => {
+            storageDisponivel = false;
+            console.error(`❌ Falha ao verificar bucket do Firebase Storage (${bucket.name}):`, err && err.message ? err.message : err);
+        });
+     
 } catch (error) {
     console.error('❌ Erro ao inicializar Firebase:', error.message);
     console.warn('⚠️ Sistema continuará sem Firebase - apenas compatibilidade');
@@ -554,14 +569,49 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     console.log(`📏 Tamanho: ${file.size} bytes`);
     console.log(`🏷️ Tipo: ${file.mimetype}`);
     
+    let finalFilePath = null;
+    let finalFileName = null;
+
     try {
         if (!bucket) {
-            throw new Error('Firebase Storage não está disponível');
+            const msg = 'Firebase Storage indisponível (bucket não inicializado).';
+            console.error(`❌ Upload bloqueado: ${msg}`);
+            try {
+                if (file && file.path && fs.existsSync(file.path)) fs.removeSync(file.path);
+            } catch (e) {
+                console.warn('Erro ao limpar arquivo temporário após Storage indisponível:', e);
+            }
+            return res.status(500).json({ error: msg });
+        }
+
+        if (storageDisponivel === null) {
+            try {
+                const [exists] = await bucket.exists();
+                storageDisponivel = !!exists;
+                if (!storageDisponivel) {
+                    console.error(`❌ Firebase Storage indisponível: bucket não existe (${bucket.name})`);
+                }
+            } catch (e) {
+                storageDisponivel = false;
+                console.error(`❌ Falha ao verificar bucket do Firebase Storage (${bucket.name}):`, e && e.message ? e.message : e);
+            }
+        }
+
+        if (!storageDisponivel) {
+            const bucketName = bucket && bucket.name ? bucket.name : '(bucket não inicializado)';
+            const msg = `Firebase Storage indisponível. Bucket: ${bucketName}. Verifique se o Storage está habilitado e se o bucket padrão existe.`;
+            console.error(`❌ Upload bloqueado: ${msg}`);
+            try {
+                if (file && file.path && fs.existsSync(file.path)) fs.removeSync(file.path);
+            } catch (e) {
+                console.warn('Erro ao limpar arquivo temporário após Storage indisponível:', e);
+            }
+            return res.status(500).json({ error: msg });
         }
         
         const ext = path.extname(file.filename).toLowerCase();
-        let finalFilePath = file.path;
-        let finalFileName = file.filename;
+        finalFilePath = file.path;
+        finalFileName = file.filename;
 
         // Se não for MP3, converte para MP3 (mantém compatibilidade com ESP32)
         if (ext !== '.mp3') {
@@ -659,6 +709,19 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
         
     } catch (error) {
         console.error('❌ Erro no upload:', error);
+        if (error && error.code === 404 && String(error.message || '').toLowerCase().includes('bucket')) {
+            console.error(`❌ Firebase Storage retornou 404 (bucket não existe). Bucket configurado: ${bucket && bucket.name ? bucket.name : 'desconhecido'}`);
+        }
+        try {
+            if (file && file.path && fs.existsSync(file.path)) fs.removeSync(file.path);
+        } catch (e) {
+            console.warn('Erro ao limpar arquivo temporário (file.path) após falha:', e);
+        }
+        try {
+            if (typeof finalFilePath === 'string' && fs.existsSync(finalFilePath)) fs.removeSync(finalFilePath);
+        } catch (e) {
+            console.warn('Erro ao limpar arquivo temporário (finalFilePath) após falha:', e);
+        }
         return res.status(500).json({ 
             error: 'Erro interno: ' + error.message 
         });
@@ -666,6 +729,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
 });
 
 // ========== API PARA ESP32 ==========
+
 app.get('/api/audio/:id', async (req, res) => {
     const id = req.params.id;
     
