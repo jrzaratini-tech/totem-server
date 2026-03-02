@@ -3,7 +3,7 @@ node_modules/
 
 # Firebase credentials
 firebase-credentials.json
-*.json
+firebase-credentials.*.json
 
 # Environment files
 .env
@@ -19,3 +19,8 @@ Thumbs.db
 
 # pasta clientes (mantida para compatibilidade, mas não essencial)
 clientes/
+server/clientes/
+
+# uploads em runtime
+uploads/
+server/uploads/

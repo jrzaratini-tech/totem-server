@@ -425,7 +425,7 @@
                 <p><strong>🎵 Áudio em uso:</strong></p>
                 <div class="audio-name" id="audioAtual">📁 {{AUDIO_NOME}}</div>
                 <p style="margin-top: 15px;">
-                    <small>✅ Formatos aceitos: MP3 (até 10MB)</small><br>
+                    <small>✅ Formatos aceitos: MP3 (até 10MB) ou gravação pelo navegador</small><br>
                     <small>⏱️ O totem levará alguns segundos para atualizar após o upload</small>
                 </p>
             </div>
@@ -436,7 +436,7 @@
                 <input type="file" 
                        id="audioFile" 
                        name="audio" 
-                       accept=".mp3,audio/mpeg"
+                       accept=".mp3,.webm,.ogg,.wav,.m4a,audio/*"
                        required>
                 
                 <label for="audioFile" class="upload-label" id="fileLabel">
@@ -457,6 +457,18 @@
                 <div class="button-group">
                     <button type="submit" class="btn-upload" id="btnUpload">
                         ⬆️ Enviar Áudio
+                    </button>
+                    
+                    <button type="button" class="btn-test" id="btnStartRec" style="background:#17a2b8;color:#fff;">
+                        ⏺️ Gravar
+                    </button>
+
+                    <button type="button" class="btn-test" id="btnStopRec" style="background:#6c757d;color:#fff;display:none;">
+                        ⏹️ Parar
+                    </button>
+
+                    <button type="button" class="btn-upload" id="btnSendRec" style="display:none;">
+                        ⬆️ Enviar Gravação
                     </button>
                     
                     <button type="button" class="btn-remove" id="btnRemove" style="display: none;">
@@ -497,6 +509,14 @@
         const audioAtualDisplay = document.getElementById('audioAtual');
         const audioDataDisplay = document.getElementById('audioDataDisplay');
 
+        const btnStartRec = document.getElementById('btnStartRec');
+        const btnStopRec = document.getElementById('btnStopRec');
+        const btnSendRec = document.getElementById('btnSendRec');
+
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordedBlob = null;
+
         // Mostra botão remover se tiver áudio personalizado
         if (audioAtualNome !== 'Nenhum áudio personalizado' && 
             audioAtualNome !== 'padrao.mp3') {
@@ -529,14 +549,129 @@
             }
         });
 
+        async function enviarBlobComoUpload(blob, filename) {
+            const formData = new FormData();
+            formData.append('audio', blob, filename);
+
+            loading.classList.add('active');
+            showAlert('', '');
+
+            try {
+                const response = await fetch(`/cliente/audio/${totemId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                console.log('Resposta:', result);
+
+                if (response.ok && result.success) {
+                    showAlert('✅ Áudio enviado com sucesso! O totem será atualizado em alguns segundos.', 'success');
+                    btnRemove.style.display = 'inline-block';
+
+                    audioAtualDisplay.textContent = '📁 ' + (filename || 'gravacao.mp3');
+                    const data = new Date().toLocaleDateString('pt-BR');
+                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
+
+                    setTimeout(() => {
+                        if (confirm('Áudio enviado! Quer testar o totem agora? (isso vai disparar o QR Code)')) {
+                            testarTotem();
+                        }
+                    }, 10000);
+                } else {
+                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        btnStartRec.addEventListener('click', async function() {
+            recordedChunks = [];
+            recordedBlob = null;
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showAlert('❌ Seu navegador não suporta gravação de áudio.', 'error');
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                const options = {};
+                mediaRecorder = new MediaRecorder(stream, options);
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const mime = mediaRecorder.mimeType || 'audio/webm';
+                    recordedBlob = new Blob(recordedChunks, { type: mime });
+
+                    // preview
+                    const url = URL.createObjectURL(recordedBlob);
+                    audioPlayer.querySelector('source').src = url;
+                    audioPlayer.load();
+                    audioPreview.style.display = 'block';
+
+                    btnSendRec.style.display = 'inline-block';
+
+                    // stop tracks
+                    stream.getTracks().forEach(t => t.stop());
+                };
+
+                mediaRecorder.start();
+                btnStartRec.style.display = 'none';
+                btnStopRec.style.display = 'inline-block';
+                btnSendRec.style.display = 'none';
+                showAlert('🎙️ Gravando... clique em Parar quando terminar.', 'info');
+            } catch (e) {
+                console.error(e);
+                showAlert('❌ Não foi possível acessar o microfone. Verifique as permissões do navegador.', 'error');
+            }
+        });
+
+        btnStopRec.addEventListener('click', function() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            btnStopRec.style.display = 'none';
+            btnStartRec.style.display = 'inline-block';
+        });
+
+        btnSendRec.addEventListener('click', async function() {
+            if (!recordedBlob) {
+                showAlert('❌ Nenhuma gravação disponível.', 'error');
+                return;
+            }
+
+            if (recordedBlob.size > 10 * 1024 * 1024) {
+                showAlert('❌ Gravação muito grande! Máximo 10MB.', 'error');
+                return;
+            }
+
+            // tenta manter extensão coerente com o mime
+            const mime = recordedBlob.type || 'audio/webm';
+            let ext = 'webm';
+            if (mime.includes('ogg')) ext = 'ogg';
+            if (mime.includes('wav')) ext = 'wav';
+
+            const filename = `gravacao_${totemId}.${ext}`;
+            await enviarBlobComoUpload(recordedBlob, filename);
+        });
+
         uploadForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             if (!fileInput.files[0]) {
                 showAlert('❌ Selecione um arquivo MP3', 'error');
                 return;
             }
-            
+
             const formData = new FormData();
             formData.append('audio', fileInput.files[0]);
             

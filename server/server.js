@@ -12,9 +12,21 @@ const admin = require('firebase-admin');
 const fs = require('fs-extra');
 const path = require('path');
 const multer = require('multer');
+const ffmpeg = require('fluent-ffmpeg');
+let ffmpegPath = null;
+try {
+    ffmpegPath = require('ffmpeg-static');
+} catch (e) {
+    ffmpegPath = null;
+}
+
+if (ffmpegPath) {
+    ffmpeg.setFfmpegPath(ffmpegPath);
+}
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
-require('dotenv').config();
+const projectRoot = path.resolve(__dirname, '..');
+require('dotenv').config({ path: path.join(projectRoot, '.env') });
 
 // ========== CONFIGURAÇÕES ==========
 const PORT = process.env.PORT || 3000;
@@ -31,7 +43,7 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cors());
-app.use(express.static('public'));
+app.use(express.static(path.join(projectRoot, 'public')));
 
 // Sessões
 app.use(session({
@@ -50,12 +62,15 @@ try {
     let credentials;
     
     // CORREÇÃO: Verifica ambas as extensões possíveis
-    if (fs.existsSync('./firebase-credentials.json')) {
-        credentials = JSON.parse(fs.readFileSync('./firebase-credentials.json', 'utf8'));
+    const firebaseCredsPath = path.join(projectRoot, 'firebase-credentials.json');
+    const firebaseCredsPathAlt = path.join(projectRoot, 'firebase-credentials.json.json');
+
+    if (fs.existsSync(firebaseCredsPath)) {
+        credentials = JSON.parse(fs.readFileSync(firebaseCredsPath, 'utf8'));
         console.log('✅ Firebase: Credenciais carregadas do arquivo (firebase-credentials.json)');
     } 
-    else if (fs.existsSync('./firebase-credentials.json.json')) {
-        credentials = JSON.parse(fs.readFileSync('./firebase-credentials.json.json', 'utf8'));
+    else if (fs.existsSync(firebaseCredsPathAlt)) {
+        credentials = JSON.parse(fs.readFileSync(firebaseCredsPathAlt, 'utf8'));
         console.log('✅ Firebase: Credenciais carregadas do arquivo (firebase-credentials.json.json)');
     }
     else if (process.env.FIREBASE_CREDENTIALS) {
@@ -147,15 +162,25 @@ const storage = multer.diskStorage({
         const totemId = req.params.id || req.body.totemId || 'temp';
         const uniqueId = uuidv4().slice(0, 8);
         const ext = path.extname(file.originalname).toLowerCase();
-        // Garante extensão .mp3
-        const finalExt = ext === '.mp3' ? '.mp3' : '.mp3';
+        const finalExt = ext || '.bin';
         cb(null, `${totemId}_${uniqueId}${finalExt}`);
     }
 });
 
 const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/mpeg3'];
-    const allowedExt = ['.mp3'];
+    const allowedTypes = [
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/mpeg3',
+        'audio/webm',
+        'audio/ogg',
+        'audio/wav',
+        'audio/x-wav',
+        'audio/mp4',
+        'audio/x-m4a',
+        'audio/aac'
+    ];
+    const allowedExt = ['.mp3', '.webm', '.ogg', '.wav', '.m4a', '.mp4', '.aac'];
     
     const ext = path.extname(file.originalname).toLowerCase();
     const mimetype = file.mimetype.toLowerCase();
@@ -163,7 +188,7 @@ const fileFilter = (req, file, cb) => {
     if (allowedTypes.includes(mimetype) || allowedExt.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error('Apenas arquivos MP3 são permitidos!'), false);
+        cb(new Error('Apenas arquivos de áudio são permitidos!'), false);
     }
 };
 
@@ -272,7 +297,7 @@ app.locals.bucket = bucket;
 app.locals.firebaseInicializado = firebaseInicializado;
 app.locals.mqttClient = mqttClient;
 
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ========== ROTAS PÚBLICAS ==========
 
@@ -414,25 +439,61 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     console.log(`🏷️ Tipo: ${file.mimetype}`);
     
     try {
+        const ext = path.extname(file.filename).toLowerCase();
+        let finalFilePath = file.path;
+        let finalFileName = file.filename;
+
+        // Se não for MP3, converte para MP3 (mantém compatibilidade com ESP32)
+        if (ext !== '.mp3') {
+            const mp3Name = file.filename.replace(new RegExp(`${ext}$`, 'i'), '') + '.mp3';
+            const mp3Path = path.join(uploadDir, mp3Name);
+
+            console.log(`🎛️ Convertendo para MP3: ${file.filename} -> ${mp3Name}`);
+
+            await new Promise((resolve, reject) => {
+                ffmpeg(file.path)
+                    .outputOptions([
+                        '-vn',
+                        '-acodec', 'libmp3lame',
+                        '-b:a', '128k',
+                        '-ac', '2',
+                        '-ar', '44100'
+                    ])
+                    .toFormat('mp3')
+                    .on('end', resolve)
+                    .on('error', reject)
+                    .save(mp3Path);
+            });
+
+            try {
+                fs.removeSync(file.path);
+            } catch (e) {
+                console.warn('Erro ao remover arquivo original após conversão:', e);
+            }
+
+            finalFilePath = mp3Path;
+            finalFileName = mp3Name;
+        }
+
         let audioUrl = null;
         let versao = new Date().toISOString();
         let audioData = {
             nome: file.originalname,
-            tamanho: file.size,
+            tamanho: fs.existsSync(finalFilePath) ? fs.statSync(finalFilePath).size : file.size,
             dataUpload: versao,
-            filename: file.filename,
-            mimetype: file.mimetype
+            filename: finalFileName,
+            mimetype: 'audio/mpeg'
         };
         
         if (bucket) {
             try {
-                const destination = `audios/${id}/${file.filename}`;
+                const destination = `audios/${id}/${finalFileName}`;
                 console.log(`📤 Enviando para Firebase Storage: ${destination}`);
                 
-                await bucket.upload(file.path, { 
+                await bucket.upload(finalFilePath, { 
                     destination,
                     metadata: {
-                        contentType: file.mimetype || 'audio/mpeg',
+                        contentType: 'audio/mpeg',
                         metadata: {
                             totemId: id,
                             originalName: file.originalname,
@@ -451,7 +512,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                 console.log(`✅ Áudio público em: ${audioUrl}`);
                 
                 try {
-                    fs.removeSync(file.path);
+                    fs.removeSync(finalFilePath);
                     console.log('🗑️ Arquivo temporário removido');
                 } catch (e) {
                     console.warn('Erro ao remover temporário:', e);
@@ -460,12 +521,12 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             } catch (storageError) {
                 console.error('❌ Erro no Firebase Storage:', storageError);
                 console.log('⚠️ Usando fallback local');
-                audioUrl = `${SERVER_URL}/uploads/${file.filename}`;
+                audioUrl = `${SERVER_URL}/uploads/${finalFileName}`;
                 audioData.url = audioUrl;
             }
         } else {
             console.log('⚠️ Firebase Storage não disponível, servindo localmente');
-            audioUrl = `${SERVER_URL}/uploads/${file.filename}`;
+            audioUrl = `${SERVER_URL}/uploads/${finalFileName}`;
             audioData.url = audioUrl;
         }
         

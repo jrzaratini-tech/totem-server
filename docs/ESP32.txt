@@ -1,0 +1,695 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <Audio.h>
+#include <Adafruit_NeoPixel.h>
+#include <Preferences.h>
+#include <HTTPClient.h>
+#include <FS.h>
+
+#include <SD_MMC.h>
+
+// HTTPS
+#include <WiFiClientSecure.h>
+
+#include <WiFiManager.h>
+
+// ==================== CONFIGURAÇÕES ====================
+// Identificação do Totem (FIXO)
+const char* totem_id = "printpixel";
+
+// Servidor
+const char* server_url = "https://totem-server.onrender.com";
+
+// MQTT
+const char* mqtt_server = "broker.hivemq.com";
+const int mqtt_port = 1883;
+
+// ==================== PINAGEM ====================
+// Botões
+#define BTN_COR     15
+#define BTN_MAIS    4
+#define BTN_MENOS   5
+#define BTN_CORACAO 18
+#define BTN_WIFI_RESET 0
+
+// LEDs
+#define LED_PRINCIPAL_PIN    12
+#define LED_CARDIACO_PIN     13
+#define NUM_LEDS_PRINCIPAL   100
+#define NUM_LEDS_CARDIACO    15
+
+// I2S - Áudio
+#define I2S_BCLK   26
+#define I2S_LRC    25
+#define I2S_DIN    22
+
+// Potenciômetro
+#define POT_PIN    34
+
+// ==================== OBJETOS ====================
+WiFiClient espClient;
+WiFiClientSecure espClientSecure;
+PubSubClient client(espClient);
+Audio audio;
+Preferences preferences;
+HTTPClient http;
+
+WiFiManager wm;
+
+Adafruit_NeoPixel fitaPrincipal = Adafruit_NeoPixel(NUM_LEDS_PRINCIPAL, LED_PRINCIPAL_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel fitaCardiaca = Adafruit_NeoPixel(NUM_LEDS_CARDIACO, LED_CARDIACO_PIN, NEO_GRB + NEO_KHZ800);
+
+// ==================== VARIÁVEIS GLOBAIS ====================
+// Estados
+typedef enum {
+  MODO_NORMAL,
+  MODO_EFEITO_ESPECIAL
+} ModoOperacao;
+
+ModoOperacao modoAtual = MODO_NORMAL;
+unsigned long efeitoInicio = 0;
+const unsigned long DURACAO_EFEITO = 10000; // 10 segundos
+
+// Cores disponíveis (6 cores + branco quente + branco frio + desligado)
+const int numCores = 9;
+uint32_t cores[numCores] = {
+  fitaPrincipal.Color(255, 0, 0),     // 0: Vermelho
+  fitaPrincipal.Color(0, 0, 255),      // 1: Azul
+  fitaPrincipal.Color(0, 255, 0),      // 2: Verde
+  fitaPrincipal.Color(255, 255, 0),    // 3: Amarelo
+  fitaPrincipal.Color(128, 0, 128),    // 4: Roxo
+  fitaPrincipal.Color(255, 165, 0),    // 5: Laranja
+  fitaPrincipal.Color(255, 200, 150),  // 6: Branco Quente
+  fitaPrincipal.Color(255, 255, 255),  // 7: Branco Frio
+  fitaPrincipal.Color(0, 0, 0)         // 8: Desligado
+};
+
+int corAtual = 0;
+int brilhoAtual = 128;
+unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 200;
+
+// Controle batimento cardíaco
+unsigned long lastHeartBeat = 0;
+bool heartState = false;
+const int heartInterval = 600; // ms (100 BPM)
+
+// Efeito arco-íris lento
+unsigned long lastRainbowUpdate = 0;
+int rainbowPosition = 0;
+const int rainbowDelay = 50;
+
+// Efeito arco-íris rápido
+unsigned long lastFastRainbowUpdate = 0;
+int fastRainbowPosition = 0;
+const int fastRainbowDelay = 10;
+
+// Controle de áudio
+String audioFileName = "/audio.mp3";
+String audioVersao = "";
+unsigned long lastAudioCheck = 0;
+const unsigned long audioCheckInterval = 60000; // 1 minuto
+
+// MQTT reconnect (não-bloqueante)
+unsigned long lastMqttReconnectAttempt = 0;
+const unsigned long mqttReconnectInterval = 5000; // 5 segundos
+
+void tentarReconectarMQTT();
+void verificarBotoes();
+void setCorFitaPrincipal(int indiceCor);
+void efeitoArcoIrisLento();
+void efeitoArcoIrisRapido();
+uint32_t Wheel(byte WheelPos);
+void atualizarBatimentoCardiaco();
+void verificarAudioServidor();
+bool baixarAudioServidor(String url);
+void dispararEfeitoEspecial();
+void finalizarEfeitoEspecial();
+void resetWiFi();
+void salvarConfiguracoes();
+void carregarConfiguracoes();
+void listarArquivosSD();
+
+// ==================== SETUP ====================
+void setup() {
+  Serial.begin(115200);
+  Serial.println("\n\n=== TOTEM PRINT PIXEL v4.0 ===");
+  Serial.println("ID: printpixel");
+  
+  // Inicializar botões
+  pinMode(BTN_COR, INPUT_PULLUP);
+  pinMode(BTN_MAIS, INPUT_PULLUP);
+  pinMode(BTN_MENOS, INPUT_PULLUP);
+  pinMode(BTN_CORACAO, INPUT_PULLUP);
+  pinMode(BTN_WIFI_RESET, INPUT_PULLUP);
+  
+  // Inicializar NeoPixels
+  fitaPrincipal.begin();
+  fitaPrincipal.setBrightness(brilhoAtual);
+  fitaPrincipal.show();
+  
+  fitaCardiaca.begin();
+  fitaCardiaca.setBrightness(255);
+  fitaCardiaca.show();
+  
+  // Inicializar SD Card
+  if (!SD_MMC.begin()) {
+    Serial.println("Falha ao montar SD Card!");
+  } else {
+    Serial.println("SD Card montado com sucesso!");
+    listarArquivosSD();
+  }
+  
+  // Inicializar I2S para áudio
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DIN);
+  audio.setVolume(15);
+  
+  // Carregar configurações salvas
+  carregarConfiguracoes();
+
+  WiFi.mode(WIFI_STA);
+
+  if (digitalRead(BTN_WIFI_RESET) == LOW) {
+    delay(5000);
+    if (digitalRead(BTN_WIFI_RESET) == LOW) {
+      wm.resetSettings();
+      ESP.restart();
+    }
+  }
+
+  wm.autoConnect("TOTEM_SETUP", "12345678");
+  Serial.println("\nWiFi conectado!");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+
+  // Configurar MQTT
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+
+  // Verificar áudio inicial
+  verificarAudioServidor();
+  
+  // Aplicar cor inicial
+  setCorFitaPrincipal(corAtual);
+  
+  Serial.println("Setup completo!");
+}
+
+// ==================== LOOP PRINCIPAL ====================
+void loop() {
+  // Manter conexões se WiFi estiver conectado
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      tentarReconectarMQTT();
+    } else {
+      client.loop();
+    }
+    
+    // Verificar atualizações de áudio periodicamente
+    if (millis() - lastAudioCheck > audioCheckInterval) {
+      lastAudioCheck = millis();
+      verificarAudioServidor();
+    }
+  }
+  
+  // Ler potenciômetro para volume
+  if (modoAtual == MODO_NORMAL) {
+    int potValue = analogRead(POT_PIN);
+    int volume = map(potValue, 0, 4095, 0, 21);
+    audio.setVolume(volume);
+  }
+  
+  // Verificar botões
+  verificarBotoes();
+  
+  // Verificar se efeito especial terminou
+  if (modoAtual == MODO_EFEITO_ESPECIAL) {
+    if (millis() - efeitoInicio >= DURACAO_EFEITO) {
+      finalizarEfeitoEspecial();
+    } else {
+      // Manter efeito arco-íris rápido durante o efeito especial
+      unsigned long currentMillis = millis();
+      if (currentMillis - lastFastRainbowUpdate >= fastRainbowDelay) {
+        lastFastRainbowUpdate = currentMillis;
+        efeitoArcoIrisRapido();
+      }
+    }
+  } else {
+    // Modo normal
+    unsigned long currentMillis = millis();
+    
+    // Efeito arco-íris lento (se for a cor selecionada)
+    if (corAtual == 9) { // Se modo arco-íris estiver ativo (precisa implementar essa opção)
+      if (currentMillis - lastRainbowUpdate >= rainbowDelay) {
+        lastRainbowUpdate = currentMillis;
+        efeitoArcoIrisLento();
+      }
+    }
+    
+    // Batimento cardíaco (sempre ativo)
+    if (currentMillis - lastHeartBeat >= heartInterval) {
+      lastHeartBeat = currentMillis;
+      atualizarBatimentoCardiaco();
+    }
+  }
+  
+  // Verificar reset WiFi (segurando por 5 segundos)
+  static unsigned long wifiResetPressStart = 0;
+  if (digitalRead(BTN_WIFI_RESET) == LOW) {
+    if (wifiResetPressStart == 0) {
+      wifiResetPressStart = millis();
+    } else if (millis() - wifiResetPressStart > 5000) {
+      Serial.println("Reset WiFi acionado!");
+      resetWiFi();
+    }
+  } else {
+    wifiResetPressStart = 0;
+  }
+  
+  // Pequeno delay para não sobrecarregar
+  delay(10);
+  
+  // IMPORTANTÍSSIMO: mantém o áudio rodando (sem isso, não toca)
+  audio.loop();
+}
+
+// Reconexão MQTT sem travar o loop (para não matar botões/efeitos)
+void tentarReconectarMQTT() {
+  unsigned long agora = millis();
+  if (agora - lastMqttReconnectAttempt < mqttReconnectInterval) {
+    return;
+  }
+  lastMqttReconnectAttempt = agora;
+
+  Serial.print("Conectando ao MQTT...");
+  String clientId = "ESP32-";
+  clientId += String(totem_id);
+  clientId += "-";
+  clientId += String(random(0xffff), HEX);
+
+  if (client.connect(clientId.c_str())) {
+    Serial.println("conectado!");
+    String topicoBase = String("totem/") + String(totem_id);
+    client.subscribe(topicoBase.c_str());
+    client.subscribe((topicoBase + "/audio").c_str());
+    client.publish((topicoBase + "/status").c_str(), "online");
+  } else {
+    Serial.print("falhou, rc=");
+    Serial.println(client.state());
+  }
+}
+
+// ==================== FUNÇÕES DOS BOTÕES ====================
+void verificarBotoes() {
+  if (modoAtual != MODO_NORMAL) return;
+  
+  unsigned long currentMillis = millis();
+  
+  // Botão COR
+  if (digitalRead(BTN_COR) == LOW && currentMillis - lastDebounceTime > debounceDelay) {
+    lastDebounceTime = currentMillis;
+    corAtual = (corAtual + 1) % numCores;
+    setCorFitaPrincipal(corAtual);
+    salvarConfiguracoes();
+    Serial.printf("Cor alterada para índice: %d\n", corAtual);
+    
+    // Feedback visual rápido
+    for(int i = 0; i < 3; i++) {
+      fitaPrincipal.setBrightness(255);
+      fitaPrincipal.show();
+      delay(50);
+      fitaPrincipal.setBrightness(brilhoAtual);
+      fitaPrincipal.show();
+      delay(50);
+    }
+  }
+  
+  // Botão MAIS
+  if (digitalRead(BTN_MAIS) == LOW && currentMillis - lastDebounceTime > debounceDelay) {
+    lastDebounceTime = currentMillis;
+    brilhoAtual = min(255, brilhoAtual + 15);
+    fitaPrincipal.setBrightness(brilhoAtual);
+    fitaPrincipal.show();
+    salvarConfiguracoes();
+    Serial.printf("Brilho aumentado para: %d\n", brilhoAtual);
+  }
+  
+  // Botão MENOS
+  if (digitalRead(BTN_MENOS) == LOW && currentMillis - lastDebounceTime > debounceDelay) {
+    lastDebounceTime = currentMillis;
+    brilhoAtual = max(0, brilhoAtual - 15);
+    fitaPrincipal.setBrightness(brilhoAtual);
+    fitaPrincipal.show();
+    salvarConfiguracoes();
+    Serial.printf("Brilho diminuído para: %d\n", brilhoAtual);
+  }
+  
+  // Botão CORAÇÃO (disparo manual)
+  if (digitalRead(BTN_CORACAO) == LOW && currentMillis - lastDebounceTime > debounceDelay) {
+    lastDebounceTime = currentMillis;
+    dispararEfeitoEspecial();
+  }
+}
+
+void setCorFitaPrincipal(int indiceCor) {
+  if (indiceCor < numCores) {
+    uint32_t cor = cores[indiceCor];
+    for (int i = 0; i < NUM_LEDS_PRINCIPAL; i++) {
+      fitaPrincipal.setPixelColor(i, cor);
+    }
+    fitaPrincipal.show();
+  }
+}
+
+void efeitoArcoIrisLento() {
+  for (int i = 0; i < NUM_LEDS_PRINCIPAL; i++) {
+    int pos = (i + rainbowPosition) & 255;
+    fitaPrincipal.setPixelColor(i, Wheel(pos));
+  }
+  fitaPrincipal.show();
+  rainbowPosition = (rainbowPosition + 1) & 255;
+}
+
+void efeitoArcoIrisRapido() {
+  for (int i = 0; i < NUM_LEDS_PRINCIPAL; i++) {
+    int pos = (i + fastRainbowPosition) & 255;
+    fitaPrincipal.setPixelColor(i, Wheel(pos));
+  }
+  fitaPrincipal.show();
+  fastRainbowPosition = (fastRainbowPosition + 5) & 255;
+}
+
+uint32_t Wheel(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if (WheelPos < 85) {
+    return fitaPrincipal.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if (WheelPos < 170) {
+    WheelPos -= 85;
+    return fitaPrincipal.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return fitaPrincipal.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+void atualizarBatimentoCardiaco() {
+  if (heartState) {
+    for (int i = 0; i < NUM_LEDS_CARDIACO; i++) {
+      fitaCardiaca.setPixelColor(i, fitaCardiaca.Color(0, 0, 0));
+    }
+  } else {
+    for (int i = 0; i < NUM_LEDS_CARDIACO; i++) {
+      fitaCardiaca.setPixelColor(i, fitaCardiaca.Color(255, 0, 0));
+    }
+  }
+  fitaCardiaca.show();
+  heartState = !heartState;
+}
+
+// ==================== ÁUDIO DO SERVIDOR ====================
+void verificarAudioServidor() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi não conectado, pulando verificação de áudio");
+    return;
+  }
+  
+  Serial.println("Verificando áudio no servidor...");
+  
+  String url = String(server_url) + "/api/audio/" + String(totem_id);
+
+  // Render / Google Storage usam HTTPS. Sem isso, o ESP32 costuma falhar no TLS.
+  espClientSecure.setInsecure();
+  http.begin(espClientSecure, url);
+  int httpCode = http.GET();
+  
+  if (httpCode == 200) {
+    String payload = http.getString();
+    Serial.println("Resposta do servidor: " + payload);
+    
+    // Parse simples (em produção, usar ArduinoJson)
+    int versaoIndex = payload.indexOf("\"versao\":\"");
+    String novaVersao = "";
+    if (versaoIndex > 0) {
+      versaoIndex += 10;
+      int versaoEnd = payload.indexOf("\"", versaoIndex);
+      if (versaoEnd > versaoIndex) {
+        novaVersao = payload.substring(versaoIndex, versaoEnd);
+      }
+    }
+
+    // url pode ser string ou null ("url":null). Só tenta baixar se for string.
+    int urlIndex = payload.indexOf("\"url\":\"");
+    if (urlIndex > 0) {
+      urlIndex += 7;
+      int urlEnd = payload.indexOf("\"", urlIndex);
+      String audioUrl = payload.substring(urlIndex, urlEnd);
+
+      if (novaVersao.length() > 0 && novaVersao != audioVersao) {
+        Serial.println("Nova versão de áudio detectada: " + novaVersao);
+        bool ok = baixarAudioServidor(audioUrl);
+        if (ok) {
+          audioVersao = novaVersao;
+          salvarConfiguracoes();
+        } else {
+          Serial.println("Falha ao baixar áudio; mantendo versão atual");
+        }
+      }
+    } else {
+      Serial.println("Servidor não retornou URL de áudio (provavelmente usando padrão)");
+      if (novaVersao.length() > 0 && audioVersao.length() == 0) {
+        audioVersao = novaVersao;
+        salvarConfiguracoes();
+      }
+    }
+  } else {
+    Serial.printf("Erro ao consultar servidor: %d\n", httpCode);
+  }
+  
+  http.end();
+}
+
+bool baixarAudioServidor(String url) {
+  Serial.println("Baixando áudio do servidor: " + url);
+  
+  String tempFile = "/audio_temp.mp3";
+  
+  if (SD_MMC.exists(tempFile.c_str())) {
+    SD_MMC.remove(tempFile.c_str());
+  }
+  
+  espClientSecure.setInsecure();
+  http.begin(espClientSecure, url);
+  int httpCode = http.GET();
+  
+  if (httpCode == 200) {
+    File file = SD_MMC.open(tempFile.c_str(), FILE_WRITE);
+    if (!file) {
+      Serial.println("Erro ao criar arquivo temporário");
+      http.end();
+      return false;
+    }
+    
+    WiFiClient *stream = http.getStreamPtr();
+    int totalLen = http.getSize();
+    size_t totalBytes = 0;
+    uint8_t buffer[1024];
+
+    // Leitura robusta: não depende de available() estar >0 sempre
+    while (http.connected() && (totalLen > 0 || stream->available())) {
+      size_t avail = stream->available();
+      if (avail) {
+        int toRead = (avail > sizeof(buffer)) ? sizeof(buffer) : avail;
+        int bytesRead = stream->readBytes(buffer, toRead);
+        if (bytesRead > 0) {
+          file.write(buffer, bytesRead);
+          totalBytes += bytesRead;
+          if (totalLen > 0) {
+            totalLen -= bytesRead;
+          }
+          Serial.print(".");
+        }
+      } else {
+        delay(1);
+      }
+    }
+    
+    file.close();
+    Serial.printf("\nDownload completo: %d bytes\n", totalBytes);
+
+    if (totalBytes == 0) {
+      Serial.println("Download retornou 0 bytes (provável falha de HTTPS/stream). Abortando update.");
+      http.end();
+      SD_MMC.remove(tempFile.c_str());
+      return false;
+    }
+    
+    // Substituir arquivo
+    if (SD_MMC.exists(audioFileName.c_str())) {
+      SD_MMC.remove(audioFileName.c_str());
+    }
+    
+    if (SD_MMC.rename(tempFile.c_str(), audioFileName.c_str())) {
+      Serial.println("Áudio atualizado com sucesso!");
+      http.end();
+      return true;
+    } else {
+      Serial.println("Erro ao renomear arquivo");
+      http.end();
+      return false;
+    }
+  } else {
+    Serial.printf("Erro no download: %d\n", httpCode);
+    http.end();
+    return false;
+  }
+}
+
+// ==================== EFEITO ESPECIAL ====================
+void dispararEfeitoEspecial() {
+  if (modoAtual == MODO_EFEITO_ESPECIAL) return;
+  
+  Serial.println("=== DISPARANDO EFEITO ESPECIAL ===");
+  
+  modoAtual = MODO_EFEITO_ESPECIAL;
+  efeitoInicio = millis();
+  
+  // Salvar estado atual
+  int brilhoAnterior = brilhoAtual;
+  
+  // Brilho máximo para o efeito
+  fitaPrincipal.setBrightness(255);
+  
+  // Reproduzir áudio do SD
+  if (SD_MMC.exists(audioFileName.c_str())) {
+    audio.connecttoFS(SD_MMC, audioFileName.c_str());
+    Serial.println("Reproduzindo áudio: " + audioFileName);
+  } else {
+    Serial.println("Arquivo de áudio não encontrado!");
+  }
+  
+  // Publicar no MQTT
+  if (client.connected()) {
+    String topico = String("totem/") + String(totem_id) + "/status";
+    client.publish(topico.c_str(), "triggered");
+  }
+}
+
+void finalizarEfeitoEspecial() {
+  Serial.println("Finalizando efeito especial");
+  
+  modoAtual = MODO_NORMAL;
+  
+  // Para a biblioteca ESP32-audioI2S, não existe stop()
+  // O áudio para automaticamente quando chega ao fim
+  // Se precisar parar antes, podemos desconectar
+  audio.stopSong(); // Algumas versões têm este método
+  
+  fitaPrincipal.setBrightness(brilhoAtual);
+  setCorFitaPrincipal(corAtual);
+}
+
+// ==================== MQTT ====================
+void callback(char* topic, byte* payload, unsigned int length) {
+  String mensagem;
+  for (int i = 0; i < length; i++) {
+    mensagem += (char)payload[i];
+  }
+  
+  Serial.printf("Mensagem MQTT recebida [%s]: %s\n", topic, mensagem.c_str());
+  
+  String topicoEsperado = String("totem/") + String(totem_id);
+  String topicoAudio = topicoEsperado + "/audio";
+  
+  if (String(topic) == topicoEsperado) {
+    if (mensagem == "play") {
+      dispararEfeitoEspecial();
+    } else if (mensagem == "atualizar_audio") {
+      verificarAudioServidor();
+    }
+  } else if (String(topic) == topicoAudio) {
+    if (mensagem.indexOf("\"comando\":\"atualizar\"") >= 0) {
+      verificarAudioServidor();
+    }
+  }
+}
+
+void reconectarMQTT() {
+  // Mantido por compatibilidade (caso algo chame), mas agora não bloqueia
+  tentarReconectarMQTT();
+}
+
+// ==================== WIFI ====================
+void resetWiFi() {
+  Serial.println("Resetando configurações WiFi...");
+  
+  // Feedback visual
+  for (int i = 0; i < 5; i++) {
+    fitaPrincipal.fill(fitaPrincipal.Color(255, 0, 0));
+    fitaPrincipal.show();
+    delay(200);
+    fitaPrincipal.fill(fitaPrincipal.Color(0, 0, 0));
+    fitaPrincipal.show();
+    delay(200);
+  }
+  
+  // Apagar credenciais
+  WiFi.disconnect(true, true);
+  
+  Serial.println("Configurações WiFi apagadas. Reiniciando em 3 segundos...");
+  delay(3000);
+  ESP.restart();
+}
+
+// ==================== PERSISTÊNCIA ====================
+void salvarConfiguracoes() {
+  preferences.begin("totem", false);
+  preferences.putInt("cor", corAtual);
+  preferences.putInt("brilho", brilhoAtual);
+  preferences.putString("audioVersao", audioVersao);
+  preferences.end();
+}
+
+void carregarConfiguracoes() {
+  preferences.begin("totem", true);
+  corAtual = preferences.getInt("cor", 0);
+  brilhoAtual = preferences.getInt("brilho", 128);
+  audioVersao = preferences.getString("audioVersao", "");
+  preferences.end();
+  
+  Serial.printf("Configurações carregadas: cor=%d, brilho=%d, audioVersao=%s\n", 
+                corAtual, brilhoAtual, audioVersao.c_str());
+}
+
+// ==================== UTILITÁRIOS ====================
+void listarArquivosSD() {
+  File root = SD_MMC.open("/");
+  if (!root) {
+    Serial.println("Falha ao abrir diretório raiz");
+    return;
+  }
+  
+  Serial.println("Arquivos no SD Card:");
+  File file = root.openNextFile();
+  while (file) {
+    if (!file.isDirectory()) {
+      Serial.print("  ");
+      Serial.print(file.name());
+      Serial.print(" - ");
+      Serial.print(file.size());
+      Serial.println(" bytes");
+    }
+    file = root.openNextFile();
+  }
+  root.close();
+}
+
+// ==================== CALLBACKS DE ÁUDIO ====================
+void audio_info(const char *info) {
+  Serial.print("audio_info: ");
+  Serial.println(info);
+}
+
+void audio_eof_mp3(const char *info) {
+  Serial.print("audio_eof_mp3: ");
+  Serial.println(info);
+}

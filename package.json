@@ -2,10 +2,10 @@
   "name": "totem-server",
   "version": "4.0.0",
   "description": "Servidor de Totens Interativos IoT com áudio personalizado",
-  "main": "server.js",
+  "main": "server/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
     "migrate": "node migrate_to_v4.js"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
     "axios": "^1.6.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "ffmpeg-static": "^5.2.0",
     "fluent-ffmpeg": "^2.1.2",
     "path": "^0.12.7"
   },
