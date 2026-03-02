@@ -878,7 +878,9 @@
                 }
                 fileInfo.textContent = `📁 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
                 const url = URL.createObjectURL(file);
-                audioPlayer.querySelector('source').src = url;
+                const sourceEl = audioPlayer.querySelector('source');
+                sourceEl.src = url;
+                sourceEl.type = file.type || sourceEl.type;
                 audioPlayer.load();
                 audioPreview.style.display = 'flex';
                 showAlert('', '');
@@ -978,7 +980,9 @@
                     recordedBlob = new Blob(recordedChunks, { type: mime });
 
                     const url = URL.createObjectURL(recordedBlob);
-                    audioPlayer.querySelector('source').src = url;
+                    const sourceEl = audioPlayer.querySelector('source');
+                    sourceEl.src = url;
+                    sourceEl.type = mime;
                     audioPlayer.load();
                     audioPreview.style.display = 'flex';
 
@@ -1138,7 +1142,14 @@
                 const response = await fetch(`/api/audio/${totemId}`);
                 const result = await response.json();
                 if (response.ok && result && result.url) {
-                    audioPlayer.querySelector('source').src = result.url;
+                    const sourceEl = audioPlayer.querySelector('source');
+                    sourceEl.src = result.url;
+                    const urlLower = String(result.url).toLowerCase();
+                    if (urlLower.includes('.webm')) sourceEl.type = 'audio/webm';
+                    else if (urlLower.includes('.ogg')) sourceEl.type = 'audio/ogg';
+                    else if (urlLower.includes('.wav')) sourceEl.type = 'audio/wav';
+                    else if (urlLower.includes('.m4a') || urlLower.includes('.mp4')) sourceEl.type = 'audio/mp4';
+                    else sourceEl.type = 'audio/mpeg';
                     audioPlayer.load();
                 }
             } catch (e) {
