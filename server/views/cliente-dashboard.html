@@ -3,641 +3,793 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Totem - Dashboard do Cliente</title>
+    <title>Meu Totem · Dashboard do Cliente</title>
+    <!-- Fontes e ícones -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         body {
-            background: #f5f5f5;
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            line-height: 1.5;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        
+
+        /* Navbar */
         .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
             color: white;
-            padding: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 1rem 0;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
         }
-        
+
         .navbar-content {
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
-            padding: 0 20px;
+            padding: 0 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .navbar h1 {
-            font-size: 24px;
+            font-size: 1.5rem;
+            font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
         }
-        
+
+        .navbar h1 i {
+            font-size: 1.8rem;
+        }
+
         .navbar h1 span {
-            font-size: 14px;
-            opacity: 0.8;
-            font-weight: normal;
+            font-size: 0.9rem;
+            font-weight: 400;
+            background: rgba(255,255,255,0.15);
+            padding: 4px 10px;
+            border-radius: 30px;
+            letter-spacing: 0.3px;
         }
-        
+
         .logout-btn {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.15);
             color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 500;
             text-decoration: none;
-            font-size: 14px;
-            transition: all 0.3s;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
+
         .logout-btn:hover {
-            background: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.25);
+            border-color: rgba(255,255,255,0.4);
         }
-        
+
+        /* Container principal */
         .container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 0 20px;
+            max-width: 1280px;
+            margin: 32px auto;
+            padding: 0 24px;
+            flex: 1;
         }
-        
-        .welcome-card {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-            border-left: 4px solid #667eea;
-        }
-        
-        .welcome-card h2 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        
-        .welcome-card p {
-            color: #666;
-            line-height: 1.6;
-        }
-        
-        .totem-info {
+
+        /* Cards de informações */
+        .info-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 32px;
         }
-        
+
         .info-card {
             background: white;
-            border-radius: 15px;
+            border-radius: 20px;
             padding: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.02);
+            border: 1px solid #f1f5f9;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        
+
+        .info-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 30px -10px rgba(79, 70, 229, 0.15);
+        }
+
         .info-card h3 {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
+            font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            color: #64748b;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        
+
         .info-card .value {
-            color: #333;
-            font-size: 18px;
-            font-weight: 600;
-            word-break: break-all;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #0f172a;
+            word-break: break-word;
         }
-        
-        .audio-section {
+
+        .info-card .meta {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 8px;
+        }
+
+        /* Seção de áudio e personalização */
+        .section-card {
             background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-radius: 28px;
+            padding: 28px;
+            margin-bottom: 32px;
+            box-shadow: 0 20px 35px -10px rgba(0,0,0,0.05);
+            border: 1px solid #f1f5f9;
         }
-        
-        .audio-section h2 {
-            color: #333;
-            margin-bottom: 20px;
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 24px;
             display: flex;
             align-items: center;
             gap: 10px;
+            color: #1e293b;
         }
-        
+
+        .section-title i {
+            color: #4f46e5;
+            font-size: 1.5rem;
+        }
+
         .current-audio {
-            background: #f8f9fa;
-            border-radius: 10px;
+            background: #f8fafc;
+            border-radius: 18px;
             padding: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 28px;
+            border: 1px solid #e2e8f0;
         }
-        
-        .current-audio p {
-            margin: 10px 0;
-            color: #555;
+
+        .audio-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
-        
-        .current-audio strong {
-            color: #333;
-        }
-        
+
         .audio-name {
-            font-size: 18px;
-            color: #0366d6;
-            padding: 10px;
             background: white;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
-            word-break: break-all;
+            padding: 10px 18px;
+            border-radius: 40px;
+            border: 1px solid #e2e8f0;
+            font-weight: 500;
+            color: #1e293b;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
         }
-        
-        .upload-form {
-            border: 2px dashed #ccc;
-            border-radius: 15px;
-            padding: 40px;
+
+        .audio-name i {
+            color: #4f46e5;
+        }
+
+        /* Upload area */
+        .upload-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: 24px;
+            padding: 36px 24px;
             text-align: center;
-            transition: all 0.3s;
+            transition: all 0.2s;
+            background: #f8fafc;
+            margin-bottom: 20px;
         }
-        
-        .upload-form:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+
+        .upload-area:hover {
+            border-color: #4f46e5;
+            background: #f5f3ff;
         }
-        
-        .upload-form input[type="file"] {
-            display: none;
+
+        .upload-area i {
+            font-size: 3rem;
+            color: #94a3b8;
+            margin-bottom: 16px;
         }
-        
+
         .upload-label {
-            background: #667eea;
+            background: #4f46e5;
             color: white;
-            padding: 15px 30px;
-            border-radius: 10px;
+            font-weight: 600;
+            padding: 12px 28px;
+            border-radius: 40px;
             cursor: pointer;
             display: inline-block;
-            margin: 20px 0;
-            transition: all 0.3s;
+            margin: 16px 0 12px;
+            transition: all 0.2s;
+            border: none;
+            font-size: 1rem;
+            box-shadow: 0 8px 16px -4px rgba(79, 70, 229, 0.3);
         }
-        
+
         .upload-label:hover {
-            background: #5a6fd8;
+            background: #4338ca;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102,126,234,0.3);
+            box-shadow: 0 12px 20px -8px rgba(79, 70, 229, 0.4);
         }
-        
+
         .file-info {
-            color: #666;
-            font-size: 14px;
-            margin: 10px 0;
+            color: #475569;
+            font-size: 0.95rem;
+            margin: 12px 0;
         }
-        
-        .btn-upload {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin: 10px;
-        }
-        
-        .btn-upload:hover {
-            background: #218838;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
-        }
-        
-        .btn-remove {
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin: 10px;
-        }
-        
-        .btn-remove:hover {
-            background: #c82333;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(220,53,69,0.3);
-        }
-        
-        .btn-remove:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .btn-test {
-            background: #ffc107;
-            color: #333;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin: 10px;
-        }
-        
-        .btn-test:hover {
-            background: #e0a800;
-            transform: translateY(-2px);
-        }
-        
+
+        /* Prévia do áudio */
         .preview-audio {
-            margin: 20px 0;
+            background: #f1f5f9;
+            border-radius: 40px;
             padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
+            margin: 20px 0;
         }
-        
+
         .preview-audio audio {
             width: 100%;
+            outline: none;
+            border-radius: 30px;
         }
-        
-        .grid-2 {
+
+        /* Grupo de botões */
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 24px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: white;
+            box-shadow: 0 8px 16px -4px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #64748b;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+        }
+
+        .btn-outline:hover {
+            background: #f1f5f9;
+        }
+
+        /* Gravação */
+        .recording-container {
+            background: #f1f5f9;
+            border-radius: 40px;
+            padding: 24px;
+            margin: 24px 0;
+            text-align: center;
+        }
+
+        .mic-icon {
+            font-size: 3.5rem;
+            color: #4f46e5;
+            animation: pulse 1.5s infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        .rec-timer {
+            font-size: 2.2rem;
+            font-weight: 700;
+            font-family: monospace;
+            color: #1e293b;
+            margin: 12px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 20px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .rec-hint {
+            color: #475569;
+            font-size: 0.9rem;
+            margin-top: 8px;
+        }
+
+        /* Personalização */
+        .customization-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 16px;
-            margin-top: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 24px;
+            margin-top: 20px;
         }
-        
-        .control {
+
+        .control-item {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            text-align: left;
         }
-        
-        .control label {
-            font-size: 13px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
+
+        .control-item label {
             font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        
-        .control input,
-        .control select {
-            padding: 10px;
+
+        .control-item input[type="color"] {
+            width: 100%;
+            height: 45px;
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            cursor: pointer;
+            background: white;
+            padding: 4px;
+        }
+
+        .control-item input[type="range"] {
+            width: 100%;
+            accent-color: #4f46e5;
+        }
+
+        .control-item select {
+            padding: 12px;
+            border-radius: 20px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .value-hint {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .color-preview {
+            width: 30px;
+            height: 30px;
             border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            background: #fff;
-            font-size: 14px;
+            border: 2px solid white;
+            box-shadow: 0 0 0 1px #cbd5e1;
+            background: #ff3366;
         }
-        
-        .hint {
-            color: #777;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-        
-        .rec-status {
-            margin-top: 10px;
-            padding: 12px 14px;
-            border-radius: 10px;
-            background: #f8f9fa;
-            border: 1px solid #e0e0e0;
+
+        /* Alertas */
+        .alert {
+            padding: 16px 20px;
+            border-radius: 40px;
+            margin: 20px 0;
             display: none;
-            text-align: left;
+            font-weight: 500;
         }
-        
-        .rec-status strong {
-            color: #333;
+
+        .alert.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        
+
+        .alert.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Loading */
         .loading {
-            display: none;
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(4px);
             z-index: 9999;
+            display: none;
             justify-content: center;
             align-items: center;
             flex-direction: column;
         }
-        
+
         .loading.active {
             display: flex;
         }
-        
+
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #4f46e5;
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             animation: spin 1s linear infinite;
             margin-bottom: 20px;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
-        .alert {
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-            display: none;
-        }
-        
-        .alert.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-            display: block;
-        }
-        
-        .alert.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-            display: block;
-        }
-        
-        .alert.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-            display: block;
-        }
-        
-        .button-group {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-        }
-        
+
+        /* Footer / instruções */
         .instructions {
-            background: #e8f4fd;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 30px;
+            background: #f1f5f9;
+            border-radius: 20px;
+            padding: 24px;
+            margin-top: 20px;
         }
-        
+
         .instructions h3 {
-            color: #0366d6;
-            margin-bottom: 15px;
+            font-size: 1.2rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #0f172a;
         }
-        
+
         .instructions ul {
             list-style: none;
-            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
         }
-        
+
         .instructions li {
-            margin: 10px 0;
-            color: #555;
             display: flex;
             align-items: center;
             gap: 10px;
+            color: #334155;
+            font-size: 0.95rem;
         }
-        
-        .instructions li:before {
-            content: "✓";
-            color: #28a745;
-            font-weight: bold;
+
+        .instructions li i {
+            color: #10b981;
+            font-size: 1.1rem;
+        }
+
+        /* Responsividade */
+        @media (max-width: 640px) {
+            .button-group {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        <p>Processando...</p>
+        <p style="color: #1e293b; font-weight: 500;">Processando...</p>
     </div>
-    
+
     <nav class="navbar">
         <div class="navbar-content">
             <h1>
-                🎛️ Meu Totem 
+                <i class="fas fa-sliders-h"></i> Meu Totem
                 <span>ID: {{ID}}</span>
             </h1>
-            <a href="/cliente/logout" class="logout-btn">🚪 Sair</a>
+            <a href="/cliente/logout" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Sair
+            </a>
         </div>
     </nav>
-    
+
     <div class="container">
-        <div class="welcome-card">
-            <h2>👋 Bem-vindo ao seu Dashboard!</h2>
-            <p>Aqui você pode gerenciar o áudio personalizado do seu totem. 
-               Envie um arquivo MP3 e o totem será atualizado automaticamente.</p>
-        </div>
-        
-        <div class="totem-info">
+        <!-- Cards de informações -->
+        <div class="info-grid">
             <div class="info-card">
-                <h3>📌 ID do Totem</h3>
+                <h3><i class="fas fa-hashtag"></i> ID do Totem</h3>
                 <div class="value">{{ID}}</div>
+                <div class="meta">Identificador único</div>
             </div>
-            
             <div class="info-card">
-                <h3>🔗 Link do Instagram</h3>
+                <h3><i class="fab fa-instagram"></i> Link do Instagram</h3>
                 <div class="value">{{LINK}}</div>
+                <div class="meta">Redirecionamento do QR</div>
             </div>
-            
             <div class="info-card">
-                <h3>📅 Expira em</h3>
+                <h3><i class="far fa-calendar-alt"></i> Expira em</h3>
                 <div class="value">{{DATA_EXPIRACAO}}</div>
+                <div class="meta">Data de validade</div>
             </div>
-            
             <div class="info-card">
-                <h3>🎵 Áudio Atual</h3>
+                <h3><i class="fas fa-music"></i> Áudio Atual</h3>
                 <div class="value" id="audioAtualDisplay">{{AUDIO_NOME}}</div>
-                <div style="font-size: 12px; color: #999; margin-top: 5px;" id="audioDataDisplay">
-                    Atualizado em: {{AUDIO_DATA}}
-                </div>
+                <div class="meta" id="audioDataDisplay">Atualizado em: {{AUDIO_DATA}}</div>
             </div>
         </div>
-        
-        <div class="audio-section">
-            <h2>⬆️ Upload de Áudio MP3</h2>
-            
-            <div class="current-audio">
-                <p><strong>🎵 Áudio em uso:</strong></p>
-                <div class="audio-name" id="audioAtual">📁 {{AUDIO_NOME}}</div>
-                <p style="margin-top: 15px;">
-                    <small>✅ Formatos aceitos: MP3 (até 10MB) ou gravação pelo navegador</small><br>
-                    <small>⏱️ O totem levará alguns segundos para atualizar após o upload</small>
-                </p>
+
+        <!-- Seção de áudio -->
+        <div class="section-card">
+            <div class="section-title">
+                <i class="fas fa-microphone-alt"></i>
+                <span>Gerenciar áudio do totem</span>
             </div>
-            
+
+            <div class="current-audio">
+                <div class="audio-badge">
+                    <span class="audio-name"><i class="fas fa-file-audio"></i> {{AUDIO_NOME}}</span>
+                    <span style="color: #475569;"><i class="far fa-clock"></i> O totem atualiza em até 10s</span>
+                </div>
+            </div>
+
             <div id="alert" class="alert"></div>
-            
-            <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
-                <input type="file" 
-                       id="audioFile" 
-                       name="audio" 
-                       accept=".mp3,.webm,.ogg,.wav,.m4a,audio/*"
-                       required>
-                
+
+            <!-- Upload de arquivo -->
+            <div class="upload-area" id="uploadArea">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <h3 style="margin-bottom: 8px;">Envie um arquivo MP3</h3>
+                <p style="color: #64748b; margin-bottom: 16px;">Arraste ou clique para selecionar (máx. 10MB)</p>
+                <input type="file" id="audioFile" name="audio" accept=".mp3,.webm,.ogg,.wav,.m4a,audio/*" style="display: none;">
                 <label for="audioFile" class="upload-label" id="fileLabel">
-                    📂 Escolher arquivo MP3
+                    <i class="fas fa-folder-open"></i> Escolher arquivo
                 </label>
-                
-                <div class="file-info" id="fileInfo">
-                    Nenhum arquivo selecionado
+                <div class="file-info" id="fileInfo">Nenhum arquivo selecionado</div>
+            </div>
+
+            <!-- Prévia do áudio -->
+            <div id="audioPreview" style="display: none;" class="preview-audio">
+                <p style="margin-bottom: 10px; font-weight: 500;"><i class="fas fa-headphones"></i> Prévia:</p>
+                <audio controls>
+                    <source src="" type="audio/mpeg">
+                </audio>
+            </div>
+
+            <!-- Gravação ao vivo -->
+            <div class="recording-container" id="recordingContainer" style="display: none;">
+                <div class="mic-icon">
+                    <i class="fas fa-microphone"></i>
                 </div>
-                
-                <div id="audioPreview" style="display: none;" class="preview-audio">
-                    <p><strong>🔊 Prévia:</strong></p>
-                    <audio controls>
-                        <source src="" type="audio/mpeg">
-                    </audio>
+                <div class="rec-timer" id="recTimer">00:00</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="recProgress" style="width: 0%;"></div>
                 </div>
-                
-                <div class="rec-status" id="recStatus">
-                    <div><strong>Status:</strong> <span id="recStatusText">---</span></div>
-                    <div><strong>Tempo:</strong> <span id="recTimer">00:00</span></div>
-                    <div class="hint" id="recHint" style="margin-top:8px;"></div>
-                </div>
-                
-                <div class="button-group">
-                    <button type="submit" class="btn-upload" id="btnUpload">
-                        ⬆️ Enviar Áudio
-                    </button>
-                    
-                    <button type="button" class="btn-test" id="btnStartRec" style="background:#17a2b8;color:#fff;">
-                        ⏺️ Gravar
-                    </button>
+                <div class="rec-hint" id="recHint">Gravando... limite de 60 segundos (~3MB)</div>
+            </div>
 
-                    <button type="button" class="btn-test" id="btnStopRec" style="background:#6c757d;color:#fff;display:none;">
-                        ⏹️ Parar
-                    </button>
-
-                    <button type="button" class="btn-upload" id="btnSendRec" style="display:none;">
-                        ⬆️ Enviar Gravação
-                    </button>
-                    
-                    <button type="button" class="btn-remove" id="btnRemove" style="display: none;">
-                        🗑️ Remover Áudio Personalizado
-                    </button>
-                    
-                    <button type="button" class="btn-test" id="btnTestPlay" onclick="testarTotem()">
-                        🔄 Testar Totem
-                    </button>
-
-                    <button type="button" class="btn-test" id="btnTestAudio" style="background:#0d6efd;color:#fff;">
-                        🔊 Testar Áudio
-                    </button>
-                </div>
-            </form>
-        </div>
-        
-        <div class="audio-section">
-            <h2>🎨 Personalização do Totem</h2>
-
-            <div class="current-audio">
-                <p><strong>💡 Luzes e Efeitos:</strong></p>
-                <p class="hint">Você pode alterar cor, efeito, brilho e tempo. As alterações são enviadas via MQTT e aplicadas quando o totem estiver online.</p>
-
-                <div class="grid-2">
-                    <div class="control">
-                        <label for="cfgMode">Efeito</label>
-                        <select id="cfgMode">
-                            <option value="BREATH">Breath (suave)</option>
-                            <option value="SOLID">Sólido</option>
-                            <option value="RAINBOW">Arco-íris</option>
-                            <option value="BLINK">Piscar</option>
-                            <option value="RUNNING">Corrida</option>
-                            <option value="HEART">Coração</option>
-                        </select>
-                    </div>
-
-                    <div class="control">
-                        <label for="cfgColor">Cor</label>
-                        <input id="cfgColor" type="color" value="#ff3366" />
-                    </div>
-
-                    <div class="control">
-                        <label for="cfgBrightness">Brilho</label>
-                        <input id="cfgBrightness" type="range" min="0" max="180" value="120" />
-                        <div class="hint">Atual: <span id="cfgBrightnessVal">120</span></div>
-                    </div>
-
-                    <div class="control">
-                        <label for="cfgSpeed">Velocidade</label>
-                        <input id="cfgSpeed" type="range" min="1" max="100" value="50" />
-                        <div class="hint">Atual: <span id="cfgSpeedVal">50</span></div>
-                    </div>
-
-                    <div class="control">
-                        <label for="cfgDuration">Duração (segundos)</label>
-                        <input id="cfgDuration" type="number" min="1" max="600" value="30" />
-                        <div class="hint">Tempo do efeito ao tocar (botão/mqtt).</div>
-                    </div>
-                </div>
-
-                <div class="button-group" style="margin-top: 12px;">
-                    <button type="button" class="btn-upload" id="btnApplyConfig" style="background:#6f42c1;">
-                        ✅ Aplicar Personalização
-                    </button>
-
-                    <button type="button" class="btn-test" id="btnTriggerTotem" style="background:#ffc107;color:#333;">
-                        📲 Disparar Totem (QR)
-                    </button>
-                </div>
+            <!-- Botões de ação -->
+            <div class="button-group">
+                <button type="button" class="btn btn-primary" id="btnUpload">
+                    <i class="fas fa-upload"></i> Enviar arquivo
+                </button>
+                <button type="button" class="btn btn-success" id="btnStartRec">
+                    <i class="fas fa-microphone"></i> Gravar áudio
+                </button>
+                <button type="button" class="btn btn-warning" id="btnStopRec" style="display: none;">
+                    <i class="fas fa-stop"></i> Parar gravação
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSendRec" style="display: none;">
+                    <i class="fas fa-paper-plane"></i> Enviar gravação
+                </button>
+                <button type="button" class="btn btn-danger" id="btnRemove" style="display: none;">
+                    <i class="fas fa-trash-alt"></i> Remover personalizado
+                </button>
+                <button type="button" class="btn btn-outline" id="btnTestPlay">
+                    <i class="fas fa-qrcode"></i> Testar totem (QR)
+                </button>
+                <button type="button" class="btn btn-secondary" id="btnTestAudio">
+                    <i class="fas fa-play"></i> Testar áudio
+                </button>
             </div>
         </div>
-        
+
+        <!-- Seção de personalização (LEDs) -->
+        <div class="section-card">
+            <div class="section-title">
+                <i class="fas fa-paint-brush"></i>
+                <span>Personalizar iluminação do totem</span>
+            </div>
+
+            <div class="customization-grid">
+                <div class="control-item">
+                    <label><i class="fas fa-lightbulb"></i> Efeito</label>
+                    <select id="cfgMode">
+                        <option value="BREATH">Breath (suave)</option>
+                        <option value="SOLID">Sólido</option>
+                        <option value="RAINBOW">Arco-íris</option>
+                        <option value="BLINK">Piscar</option>
+                        <option value="RUNNING">Corrida</option>
+                        <option value="HEART">Coração</option>
+                    </select>
+                </div>
+                <div class="control-item">
+                    <label><i class="fas fa-palette"></i> Cor</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="color" id="cfgColor" value="#ff3366">
+                        <span class="color-preview" id="colorPreview" style="background: #ff3366;"></span>
+                    </div>
+                </div>
+                <div class="control-item">
+                    <label><i class="fas fa-sun"></i> Brilho</label>
+                    <input type="range" id="cfgBrightness" min="0" max="180" value="120">
+                    <div class="value-hint"><span id="cfgBrightnessVal">120</span> / 180</div>
+                </div>
+                <div class="control-item">
+                    <label><i class="fas fa-tachometer-alt"></i> Velocidade</label>
+                    <input type="range" id="cfgSpeed" min="1" max="100" value="50">
+                    <div class="value-hint"><span id="cfgSpeedVal">50</span> / 100</div>
+                </div>
+                <div class="control-item">
+                    <label><i class="fas fa-hourglass-half"></i> Duração (segundos)</label>
+                    <input type="number" id="cfgDuration" min="1" max="600" value="30">
+                    <div class="value-hint">Tempo do efeito ao tocar</div>
+                </div>
+            </div>
+
+            <div class="button-group" style="margin-top: 16px;">
+                <button type="button" class="btn btn-primary" id="btnApplyConfig">
+                    <i class="fas fa-check"></i> Aplicar personalização
+                </button>
+                <button type="button" class="btn btn-outline" id="btnTriggerTotem">
+                    <i class="fas fa-bolt"></i> Disparar totem (QR)
+                </button>
+            </div>
+        </div>
+
+        <!-- Instruções -->
         <div class="instructions">
-            <h3>📋 Instruções:</h3>
+            <h3><i class="fas fa-info-circle"></i> Instruções rápidas</h3>
             <ul>
-                <li>O arquivo deve ser MP3 (qualquer bitrate)</li>
-                <li>Tamanho máximo: 10MB</li>
-                <li>Após o upload, aguarde 10 segundos e teste o totem</li>
-                <li>O áudio será substituído automaticamente no cartão SD</li>
-                <li>O totem precisa estar ligado e com WiFi para receber a atualização</li>
+                <li><i class="fas fa-check-circle"></i> MP3 até 10MB ou gravação de até 60s</li>
+                <li><i class="fas fa-check-circle"></i> Após upload, aguarde 10s e teste</li>
+                <li><i class="fas fa-check-circle"></i> O totem precisa estar online para atualizar</li>
+                <li><i class="fas fa-check-circle"></i> A personalização é aplicada via MQTT</li>
             </ul>
         </div>
     </div>
-    
+
     <script>
         const totemId = '{{ID}}';
         const audioAtualNome = '{{AUDIO_NOME}}';
-        
+
+        // Elementos DOM
         const fileInput = document.getElementById('audioFile');
         const fileInfo = document.getElementById('fileInfo');
-        const uploadForm = document.getElementById('uploadForm');
+        const uploadForm = document.getElementById('uploadForm'); // Não existe mais como form, mas mantemos referência?
         const loading = document.getElementById('loading');
-        const alert = document.getElementById('alert');
+        const alertDiv = document.getElementById('alert');
         const audioPreview = document.getElementById('audioPreview');
         const audioPlayer = audioPreview.querySelector('audio');
         const btnRemove = document.getElementById('btnRemove');
-        const audioAtualDisplay = document.getElementById('audioAtual');
+        const audioAtualDisplay = document.getElementById('audioAtualDisplay');
         const audioDataDisplay = document.getElementById('audioDataDisplay');
 
         const btnStartRec = document.getElementById('btnStartRec');
         const btnStopRec = document.getElementById('btnStopRec');
         const btnSendRec = document.getElementById('btnSendRec');
-
         const btnTestAudio = document.getElementById('btnTestAudio');
+        const btnTestPlay = document.getElementById('btnTestPlay');
         const btnTriggerTotem = document.getElementById('btnTriggerTotem');
+        const btnUpload = document.getElementById('btnUpload');
 
-        const recStatus = document.getElementById('recStatus');
-        const recStatusText = document.getElementById('recStatusText');
+        const recordingContainer = document.getElementById('recordingContainer');
         const recTimer = document.getElementById('recTimer');
+        const recProgress = document.getElementById('recProgress');
         const recHint = document.getElementById('recHint');
 
+        // Configuração
         const cfgMode = document.getElementById('cfgMode');
         const cfgColor = document.getElementById('cfgColor');
         const cfgBrightness = document.getElementById('cfgBrightness');
@@ -646,22 +798,37 @@
         const cfgSpeedVal = document.getElementById('cfgSpeedVal');
         const cfgDuration = document.getElementById('cfgDuration');
         const btnApplyConfig = document.getElementById('btnApplyConfig');
+        const colorPreview = document.getElementById('colorPreview');
 
+        // Variáveis de gravação
         let mediaRecorder = null;
         let recordedChunks = [];
         let recordedBlob = null;
         let recTimerInterval = null;
         let recStartedAt = 0;
+        const MAX_RECORD_TIME = 60; // segundos (para ~3MB)
 
-        // Mostra botão remover se tiver áudio personalizado
-        if (audioAtualNome !== 'Nenhum áudio personalizado' && 
-            audioAtualNome !== 'padrao.mp3') {
-            btnRemove.style.display = 'inline-block';
+        // Mostra botão remover se houver áudio personalizado
+        if (audioAtualNome !== 'Nenhum áudio personalizado' && audioAtualNome !== 'padrao.mp3') {
+            btnRemove.style.display = 'inline-flex';
         }
 
+        // Atualiza preview da cor
+        cfgColor.addEventListener('input', function() {
+            colorPreview.style.background = this.value;
+        });
+
+        // Atualiza valores dos ranges
+        cfgBrightness.addEventListener('input', () => {
+            cfgBrightnessVal.textContent = cfgBrightness.value;
+        });
+        cfgSpeed.addEventListener('input', () => {
+            cfgSpeedVal.textContent = cfgSpeed.value;
+        });
+
+        // Seleção de arquivo
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
-            
             if (file) {
                 if (file.size > 10 * 1024 * 1024) {
                     showAlert('❌ Arquivo muito grande! Máximo 10MB.', 'error');
@@ -670,14 +837,11 @@
                     audioPreview.style.display = 'none';
                     return;
                 }
-                
                 fileInfo.textContent = `📁 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-                
                 const url = URL.createObjectURL(file);
                 audioPlayer.querySelector('source').src = url;
                 audioPlayer.load();
                 audioPreview.style.display = 'block';
-                
                 showAlert('', '');
             } else {
                 fileInfo.textContent = 'Nenhum arquivo selecionado';
@@ -685,24 +849,249 @@
             }
         });
 
-        function formatTimer(ms) {
-            const totalSec = Math.max(0, Math.floor(ms / 1000));
-            const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
-            const s = String(totalSec % 60).padStart(2, '0');
-            return `${m}:${s}`;
+        // Upload via botão
+        btnUpload.addEventListener('click', async function() {
+            if (!fileInput.files[0]) {
+                showAlert('❌ Selecione um arquivo MP3', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('audio', fileInput.files[0]);
+
+            loading.classList.add('active');
+            showAlert('', '');
+
+            try {
+                const response = await fetch(`/cliente/audio/${totemId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showAlert('✅ Áudio enviado com sucesso! O totem será atualizado em alguns segundos.', 'success');
+                    btnRemove.style.display = 'inline-flex';
+                    audioAtualDisplay.textContent = fileInput.files[0].name;
+                    const data = new Date().toLocaleDateString('pt-BR');
+                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
+
+                    fileInput.value = '';
+                    fileInfo.textContent = 'Nenhum arquivo selecionado';
+                    audioPreview.style.display = 'none';
+
+                    setTimeout(() => {
+                        if (confirm('Áudio enviado! Quer testar o totem agora? (isso vai disparar o QR Code)')) {
+                            testarTotem();
+                        }
+                    }, 10000);
+                } else {
+                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
+
+        // Gravação
+        btnStartRec.addEventListener('click', async function() {
+            recordedChunks = [];
+            recordedBlob = null;
+
+            if (!window.isSecureContext) {
+                showAlert('❌ A gravação exige HTTPS (ou localhost). Acesse via HTTPS.', 'error');
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showAlert('❌ Seu navegador não suporta gravação de áudio.', 'error');
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                let options = {};
+                const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+                for (const t of preferred) {
+                    if (MediaRecorder.isTypeSupported(t)) {
+                        options = { mimeType: t };
+                        break;
+                    }
+                }
+
+                mediaRecorder = new MediaRecorder(stream, options);
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const mime = mediaRecorder.mimeType || 'audio/webm';
+                    recordedBlob = new Blob(recordedChunks, { type: mime });
+
+                    const url = URL.createObjectURL(recordedBlob);
+                    audioPlayer.querySelector('source').src = url;
+                    audioPlayer.load();
+                    audioPreview.style.display = 'block';
+
+                    btnSendRec.style.display = 'inline-flex';
+                    recordingContainer.style.display = 'none';
+                    btnStartRec.style.display = 'inline-flex';
+                    btnStopRec.style.display = 'none';
+
+                    if (recTimerInterval) {
+                        clearInterval(recTimerInterval);
+                        recTimerInterval = null;
+                    }
+                    recTimer.textContent = '00:00';
+                    recProgress.style.width = '0%';
+                    recHint.textContent = 'Gravação concluída! Clique em "Enviar gravação".';
+
+                    stream.getTracks().forEach(t => t.stop());
+                };
+
+                mediaRecorder.start();
+                btnStartRec.style.display = 'none';
+                btnStopRec.style.display = 'inline-flex';
+                btnSendRec.style.display = 'none';
+                recordingContainer.style.display = 'block';
+                recStartedAt = Date.now();
+                recTimer.textContent = '00:00';
+                recProgress.style.width = '0%';
+
+                if (recTimerInterval) clearInterval(recTimerInterval);
+                recTimerInterval = setInterval(() => {
+                    const elapsed = (Date.now() - recStartedAt) / 1000;
+                    if (elapsed >= MAX_RECORD_TIME) {
+                        // Parar automaticamente
+                        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                            mediaRecorder.stop();
+                        }
+                        showAlert('⏱️ Tempo máximo de gravação atingido (60s).', 'info');
+                    } else {
+                        const mins = Math.floor(elapsed / 60);
+                        const secs = Math.floor(elapsed % 60);
+                        recTimer.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                        recProgress.style.width = `${(elapsed / MAX_RECORD_TIME) * 100}%`;
+                    }
+                }, 250);
+
+                recHint.textContent = 'Gravando... clique em Parar quando terminar.';
+                showAlert('🎙️ Gravando...', 'info');
+            } catch (e) {
+                console.error(e);
+                showAlert('❌ Não foi possível acessar o microfone. Verifique as permissões.', 'error');
+            }
+        });
+
+        btnStopRec.addEventListener('click', function() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        });
+
+        btnSendRec.addEventListener('click', async function() {
+            if (!recordedBlob) {
+                showAlert('❌ Nenhuma gravação disponível.', 'error');
+                return;
+            }
+            if (recordedBlob.size > 10 * 1024 * 1024) {
+                showAlert('❌ Gravação muito grande! Máximo 10MB.', 'error');
+                return;
+            }
+
+            const mime = recordedBlob.type || 'audio/webm';
+            let ext = 'webm';
+            if (mime.includes('ogg')) ext = 'ogg';
+            if (mime.includes('wav')) ext = 'wav';
+
+            const filename = `gravacao_${totemId}.${ext}`;
+            await enviarBlobComoUpload(recordedBlob, filename);
+        });
+
+        async function enviarBlobComoUpload(blob, filename) {
+            const formData = new FormData();
+            formData.append('audio', blob, filename);
+
+            loading.classList.add('active');
+            showAlert('', '');
+
+            try {
+                const response = await fetch(`/cliente/audio/${totemId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showAlert('✅ Gravação enviada com sucesso! O totem será atualizado.', 'success');
+                    btnRemove.style.display = 'inline-flex';
+                    audioAtualDisplay.textContent = filename;
+                    const data = new Date().toLocaleDateString('pt-BR');
+                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
+
+                    setTimeout(() => {
+                        if (confirm('Áudio enviado! Quer testar o totem agora?')) {
+                            testarTotem();
+                        }
+                    }, 10000);
+                } else {
+                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
         }
 
-        function setRecStatus(text, hint) {
-            recStatus.style.display = 'block';
-            recStatusText.textContent = text || '---';
-            recHint.textContent = hint || '';
-        }
+        // Remover áudio
+        btnRemove.addEventListener('click', async function() {
+            if (!confirm('Tem certeza que deseja remover o áudio personalizado? O totem voltará a usar o áudio padrão.')) return;
+
+            loading.classList.add('active');
+            try {
+                const response = await fetch(`/api/audio/${totemId}`, { method: 'DELETE' });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showAlert('✅ Áudio removido! Totem usará áudio padrão.', 'success');
+                    btnRemove.style.display = 'none';
+                    audioAtualDisplay.textContent = 'padrao.mp3';
+                    audioDataDisplay.textContent = `Atualizado em: ${new Date().toLocaleDateString('pt-BR')}`;
+                } else {
+                    showAlert('❌ Erro: ' + (result.error || 'Falha ao remover'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
+
+        // Testar áudio no navegador
+        btnTestAudio.addEventListener('click', async function() {
+            if (audioPreview.style.display === 'none') {
+                await carregarAudioAtual();
+            }
+            try {
+                await audioPlayer.play();
+                showAlert('🔊 Reproduzindo áudio no navegador...', 'info');
+            } catch (e) {
+                console.error(e);
+                showAlert('❌ Não foi possível reproduzir. Verifique o console.', 'error');
+            }
+        });
 
         async function carregarAudioAtual() {
             try {
                 const response = await fetch(`/api/audio/${totemId}`);
                 const result = await response.json();
-
                 if (response.ok && result && result.url) {
                     audioPlayer.querySelector('source').src = result.url;
                     audioPlayer.load();
@@ -713,33 +1102,14 @@
             }
         }
 
-        async function testarAudioNoNavegador() {
-            if (audioPreview.style.display === 'none') {
-                await carregarAudioAtual();
-            }
-
-            try {
-                await audioPlayer.play();
-                showAlert('🔊 Reproduzindo áudio no navegador...', 'info');
-            } catch (e) {
-                console.error(e);
-                showAlert('❌ Não foi possível reproduzir o áudio. Tente clicar novamente ou verifique o volume/permissões do navegador.', 'error');
-            }
+        // Testar totem (abrir URL)
+        function testarTotem() {
+            window.open(`/totem/${totemId}`, '_blank');
         }
+        btnTestPlay.addEventListener('click', testarTotem);
+        btnTriggerTotem.addEventListener('click', testarTotem);
 
-        btnTestAudio.addEventListener('click', testarAudioNoNavegador);
-
-        btnTriggerTotem.addEventListener('click', function() {
-            testarTotem();
-        });
-
-        cfgBrightness.addEventListener('input', () => {
-            cfgBrightnessVal.textContent = String(cfgBrightness.value);
-        });
-        cfgSpeed.addEventListener('input', () => {
-            cfgSpeedVal.textContent = String(cfgSpeed.value);
-        });
-
+        // Aplicar configuração
         btnApplyConfig.addEventListener('click', async function() {
             const payload = {
                 mode: cfgMode.value,
@@ -761,276 +1131,32 @@
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    showAlert('✅ Personalização enviada! Se o totem estiver online, ele aplicará em instantes.', 'success');
+                    showAlert('✅ Personalização enviada! O totem aplicará em instantes.', 'success');
                 } else {
                     showAlert('❌ Erro ao aplicar: ' + (result.error || 'Falha'), 'error');
                 }
             } catch (e) {
                 console.error(e);
-                showAlert('❌ Erro de conexão ao aplicar personalização.', 'error');
+                showAlert('❌ Erro de conexão.', 'error');
             } finally {
                 loading.classList.remove('active');
             }
         });
 
-        async function enviarBlobComoUpload(blob, filename) {
-            const formData = new FormData();
-            formData.append('audio', blob, filename);
-
-            loading.classList.add('active');
-            showAlert('', '');
-
-            try {
-                const response = await fetch(`/cliente/audio/${totemId}`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-                console.log('Resposta:', result);
-
-                if (response.ok && result.success) {
-                    showAlert('✅ Áudio enviado com sucesso! O totem será atualizado em alguns segundos.', 'success');
-                    btnRemove.style.display = 'inline-block';
-
-                    audioAtualDisplay.textContent = '📁 ' + (filename || 'gravacao.mp3');
-                    const data = new Date().toLocaleDateString('pt-BR');
-                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
-
-                    setTimeout(() => {
-                        if (confirm('Áudio enviado! Quer testar o totem agora? (isso vai disparar o QR Code)')) {
-                            testarTotem();
-                        }
-                    }, 10000);
-                } else {
-                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
-                }
-            } catch (error) {
-                console.error('Erro:', error);
-                showAlert('❌ Erro de conexão com o servidor', 'error');
-            } finally {
-                loading.classList.remove('active');
-            }
-        }
-
-        btnStartRec.addEventListener('click', async function() {
-            recordedChunks = [];
-            recordedBlob = null;
-
-            if (!window.isSecureContext) {
-                setRecStatus('Bloqueado', 'A gravação de microfone normalmente exige HTTPS (ou localhost). Acesse o dashboard em HTTPS para liberar o microfone.');
-                showAlert('❌ O navegador bloqueou o microfone. Use HTTPS (ou localhost) e permita o acesso ao microfone.', 'error');
-                return;
-            }
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showAlert('❌ Seu navegador não suporta gravação de áudio.', 'error');
-                return;
-            }
-
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-                // Escolhe um mimeType suportado para aumentar compatibilidade
-                let options = {};
-                const preferred = [
-                    'audio/webm;codecs=opus',
-                    'audio/webm',
-                    'audio/ogg;codecs=opus',
-                    'audio/ogg'
-                ];
-                for (const t of preferred) {
-                    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
-                        options = { mimeType: t };
-                        break;
-                    }
-                }
-
-                mediaRecorder = new MediaRecorder(stream, options);
-
-                mediaRecorder.ondataavailable = (e) => {
-                    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const mime = mediaRecorder.mimeType || 'audio/webm';
-                    recordedBlob = new Blob(recordedChunks, { type: mime });
-
-                    // preview
-                    const url = URL.createObjectURL(recordedBlob);
-                    audioPlayer.querySelector('source').src = url;
-                    audioPlayer.load();
-                    audioPreview.style.display = 'block';
-
-                    btnSendRec.style.display = 'inline-block';
-
-                    if (recTimerInterval) {
-                        clearInterval(recTimerInterval);
-                        recTimerInterval = null;
-                    }
-                    recTimer.textContent = '00:00';
-                    setRecStatus('Gravação pronta', 'Clique em "Enviar Gravação" para salvar no seu totem.');
-
-                    // stop tracks
-                    stream.getTracks().forEach(t => t.stop());
-                };
-
-                mediaRecorder.start();
-                btnStartRec.style.display = 'none';
-                btnStopRec.style.display = 'inline-block';
-                btnSendRec.style.display = 'none';
-                recStartedAt = Date.now();
-                recTimer.textContent = '00:00';
-                if (recTimerInterval) clearInterval(recTimerInterval);
-                recTimerInterval = setInterval(() => {
-                    recTimer.textContent = formatTimer(Date.now() - recStartedAt);
-                }, 250);
-
-                setRecStatus('Gravando', 'Clique em "Parar" quando terminar.');
-                showAlert('🎙️ Gravando... clique em Parar quando terminar.', 'info');
-            } catch (e) {
-                console.error(e);
-                showAlert('❌ Não foi possível acessar o microfone. Verifique as permissões do navegador.', 'error');
-                setRecStatus('Erro', 'Verifique as permissões do microfone no navegador.');
-            }
-        });
-
-        btnStopRec.addEventListener('click', function() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-            btnStopRec.style.display = 'none';
-            btnStartRec.style.display = 'inline-block';
-        });
-
-        btnSendRec.addEventListener('click', async function() {
-            if (!recordedBlob) {
-                showAlert('❌ Nenhuma gravação disponível.', 'error');
-                return;
-            }
-
-            if (recordedBlob.size > 10 * 1024 * 1024) {
-                showAlert('❌ Gravação muito grande! Máximo 10MB.', 'error');
-                return;
-            }
-
-            // tenta manter extensão coerente com o mime
-            const mime = recordedBlob.type || 'audio/webm';
-            let ext = 'webm';
-            if (mime.includes('ogg')) ext = 'ogg';
-            if (mime.includes('wav')) ext = 'wav';
-
-            const filename = `gravacao_${totemId}.${ext}`;
-            await enviarBlobComoUpload(recordedBlob, filename);
-        });
-
-        uploadForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            if (!fileInput.files[0]) {
-                showAlert('❌ Selecione um arquivo MP3', 'error');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('audio', fileInput.files[0]);
-            
-            loading.classList.add('active');
-            showAlert('', '');
-            
-            try {
-                const response = await fetch(`/cliente/audio/${totemId}`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                console.log('Resposta:', result);
-                
-                if (response.ok && result.success) {
-                    showAlert('✅ Áudio enviado com sucesso! O totem será atualizado em alguns segundos.', 'success');
-                    btnRemove.style.display = 'inline-block';
-                    
-                    // Atualiza display
-                    audioAtualDisplay.textContent = '📁 ' + fileInput.files[0].name;
-                    
-                    const data = new Date().toLocaleDateString('pt-BR');
-                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
-                    
-                    // Limpa o form
-                    fileInput.value = '';
-                    fileInfo.textContent = 'Nenhum arquivo selecionado';
-                    audioPreview.style.display = 'none';
-                    
-                    // Aguarda 10 segundos e pergunta se quer testar
-                    setTimeout(() => {
-                        if (confirm('Áudio enviado! Quer testar o totem agora? (isso vai disparar o QR Code)')) {
-                            testarTotem();
-                        }
-                    }, 10000);
-                    
-                } else {
-                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
-                }
-            } catch (error) {
-                console.error('Erro:', error);
-                showAlert('❌ Erro de conexão com o servidor', 'error');
-            } finally {
-                loading.classList.remove('active');
-            }
-        });
-
-        btnRemove.addEventListener('click', async function() {
-            if (!confirm('Tem certeza que deseja remover o áudio personalizado? O totem voltará a usar o áudio padrão.')) {
-                return;
-            }
-            
-            loading.classList.add('active');
-            
-            try {
-                const response = await fetch(`/api/audio/${totemId}`, {
-                    method: 'DELETE'
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok && result.success) {
-                    showAlert('✅ Áudio removido! Totem usará áudio padrão.', 'success');
-                    btnRemove.style.display = 'none';
-                    audioAtualDisplay.textContent = '📁 padrao.mp3';
-                    
-                    const data = new Date().toLocaleDateString('pt-BR');
-                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
-                } else {
-                    showAlert('❌ Erro: ' + (result.error || 'Falha ao remover'), 'error');
-                }
-            } catch (error) {
-                console.error('Erro:', error);
-                showAlert('❌ Erro de conexão com o servidor', 'error');
-            } finally {
-                loading.classList.remove('active');
-            }
-        });
-
-        function testarTotem() {
-            // Abre a URL do totem em nova aba (simula QR Code)
-            window.open(`/totem/${totemId}`, '_blank');
-        }
-
+        // Utilitários
         function showAlert(message, type) {
             if (!message) {
-                alert.style.display = 'none';
-                alert.className = 'alert';
+                alertDiv.style.display = 'none';
+                alertDiv.className = 'alert';
                 return;
             }
-            
-            alert.textContent = message;
-            alert.className = 'alert ' + type;
+            alertDiv.textContent = message;
+            alertDiv.className = 'alert ' + type;
         }
 
-        // Inicializa UI
-        cfgBrightnessVal.textContent = String(cfgBrightness.value);
-        cfgSpeedVal.textContent = String(cfgSpeed.value);
+        // Inicialização
+        cfgBrightnessVal.textContent = cfgBrightness.value;
+        cfgSpeedVal.textContent = cfgSpeed.value;
         carregarAudioAtual();
     </script>
 </body>
