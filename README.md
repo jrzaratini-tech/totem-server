@@ -160,6 +160,13 @@ totens/{ID_DO_TOTEM}
   - `totem/{ID}`: recebe `play` (acionamento)
   - `totem/{ID}/audio`: notificação JSON para “atualizar”
 
+## Áudio (upload/gravação) — compatibilidade
+
+- O **Dashboard do Cliente** permite:
+  - upload de arquivo (ex.: `.mp3`)
+  - **gravação no navegador** (ex.: `.webm/.ogg`) e envio ao backend
+- O backend converte automaticamente formatos gravados para **MP3** via `ffmpeg-static` + `fluent-ffmpeg`.
+
 ## Rotas HTTP (implementadas no `server/server.js`)
 
 ### Públicas
@@ -278,7 +285,10 @@ GPIO35  Reset WiFi (botão físico; ao pressionar conecta ao GND — ativo em LO
 
 ## 📌 Observações importantes
 
-- **Firmware/ESP32**: o código do firmware **não está neste repositório** (este repo é do servidor).
+- **Firmware/ESP32**: o firmware **está neste repositório** em `firmware/`.
+  - O `Totem ID` e o `token` podem ser **provisionados via portal AP/NVS** (não precisa recompilar por cliente).
+  - Downloads (áudio/OTA) exigem **HTTPS** e `ROOT_CA_PEM` configurado no `firmware/include/Config.h`.
+  - O ESP32 envia `X-Device-Token` (quando configurado) nas requisições HTTP para permitir validação no backend.
 - **Credenciais Firebase**: nunca versionar service account.
 - **Recomendação**: manter credenciais fora do Git e fornecer via `FIREBASE_CREDENTIALS` (env var). O `server/server.js` aceita `firebase-credentials.json` e também `firebase-credentials.json.json`.
 - **Script `migrate`**: o `package.json` referencia `migrate_to_v4.js`, mas este arquivo não está no repositório no momento.
