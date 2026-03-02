@@ -345,17 +345,7 @@ app.locals.bucket = bucket;
 app.locals.firebaseInicializado = firebaseInicializado;
 app.locals.mqttClient = mqttClient;
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-    setHeaders: (res, path) => {
-        if (path.endsWith('.mp3') || path.endsWith('.wav') || path.endsWith('.ogg') || path.endsWith('.webm')) {
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'GET');
-            res.setHeader('Access-Control-Allow-Headers', 'Range');
-            res.setHeader('Accept-Ranges', 'bytes');
-            res.setHeader('Content-Type', 'audio/mpeg');
-        }
-    }
-}));
+// REMOVIDO: express.static('/uploads') - não usar mais filesystem local em produção
 
 // ========== ROTAS PÚBLICAS ==========
 
@@ -467,6 +457,7 @@ app.get('/cliente/logout', (req, res) => {
 });
 
 // ========== ROTA DE CONFIGURAÇÃO (ILUMINAÇÃO / EFEITOS) ==========
+
 app.post('/cliente/config/:id', async (req, res) => {
     if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
         return res.status(401).json({ error: 'Não autorizado' });
@@ -534,7 +525,7 @@ app.get('/api/config/:id', async (req, res) => {
             return res.status(404).json({ error: 'Totem não encontrado' });
         }
 
-        const data = doc.data() || {};
+        const data = doc.data();
         return res.json({
             config: data.config || null,
             updatedAt: data.ultimaAtualizacaoConfig || null
@@ -564,6 +555,10 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     console.log(`🏷️ Tipo: ${file.mimetype}`);
     
     try {
+        if (!bucket) {
+            throw new Error('Firebase Storage não está disponível');
+        }
+        
         const ext = path.extname(file.filename).toLowerCase();
         let finalFilePath = file.path;
         let finalFileName = file.filename;
@@ -600,66 +595,44 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             finalFileName = mp3Name;
         }
 
-        let audioUrl = null;
-        let versao = new Date().toISOString();
         let audioData = {
             nome: file.originalname,
             tamanho: fs.existsSync(finalFilePath) ? fs.statSync(finalFilePath).size : file.size,
-            dataUpload: versao,
+            dataUpload: new Date().toISOString(),
             filename: finalFileName,
             mimetype: 'audio/mpeg'
         };
         
-        if (bucket) {
-            try {
-                const destination = `audios/${id}/${finalFileName}`;
-                console.log(`📤 Enviando para Firebase Storage: ${destination}`);
-                
-                await bucket.upload(finalFilePath, { 
-                    destination,
-                    metadata: {
-                        contentType: 'audio/mpeg',
-                        metadata: {
-                            totemId: id,
-                            originalName: file.originalname,
-                            uploadDate: audioData.dataUpload
-                        }
-                    }
-                });
-                
-                const fileRef = bucket.file(destination);
-                await fileRef.makePublic();
-                
-                audioUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-                audioData.url = audioUrl;
-                audioData.storagePath = destination;
-                
-                console.log(`✅ Áudio público em: ${audioUrl}`);
-                
-                try {
-                    fs.removeSync(finalFilePath);
-                    console.log('🗑️ Arquivo temporário removido');
-                } catch (e) {
-                    console.warn('Erro ao remover temporário:', e);
+        const destination = `audios/${id}/${finalFileName}`;
+        console.log(`📤 Enviando para Firebase Storage: ${destination}`);
+        
+        await bucket.upload(finalFilePath, { 
+            destination,
+            metadata: {
+                contentType: 'audio/mpeg',
+                metadata: {
+                    totemId: id,
+                    originalName: file.originalname,
+                    uploadDate: audioData.dataUpload
                 }
-                
-            } catch (storageError) {
-                console.error('❌ Erro no Firebase Storage:', storageError);
-                console.log('⚠️ Firebase Storage falhou, tentando gerar URL direta do servidor...');
-                
-                // Em vez de fallback local, vamos servir o arquivo diretamente do servidor
-                // Vamos manter o arquivo e criar uma rota para servi-lo
-                audioUrl = `/uploads/${finalFileName}`;
-                audioData.url = audioUrl;
-                audioData.localFile = true; // Marcar como arquivo local
-                
-                console.log(`📁 Áudio será servido localmente: ${audioUrl}`);
             }
-        } else {
-            console.log('⚠️ Firebase Storage não disponível, servindo localmente');
-            audioUrl = `/uploads/${finalFileName}`;
-            audioData.url = audioUrl;
-            audioData.localFile = true;
+        });
+        
+        const fileRef = bucket.file(destination);
+        await fileRef.makePublic();
+        
+        const audioUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
+        audioData.url = audioUrl;
+        audioData.storagePath = destination;
+        
+        console.log(`✅ Áudio público em: ${audioUrl}`);
+        
+        // Limpa arquivo temporário após upload bem-sucedido
+        try {
+            fs.removeSync(finalFilePath);
+            console.log('🗑️ Arquivo temporário removido');
+        } catch (e) {
+            console.warn('Erro ao remover temporário:', e);
         }
         
         if (db) {
@@ -671,7 +644,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
         }
         
         // NOTIFICA O ESP32 IMEDIATAMENTE
-        notificarAtualizacaoAudio(id, versao);
+        notificarAtualizacaoAudio(id, audioData.dataUpload);
         
         return res.json({
             success: true,
@@ -680,7 +653,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                 nome: file.originalname,
                 tamanho: file.size,
                 url: audioUrl,
-                versao: versao
+                versao: audioData.dataUpload
             }
         });
         
@@ -714,16 +687,10 @@ app.get('/api/audio/:id', async (req, res) => {
             const audio = data.audio || {};
             
             if (audio.url) {
-                let urlFinal = audio.url;
-                
-                if (urlFinal.startsWith('/uploads/')) {
-                    urlFinal = `${SERVER_URL}${urlFinal}`;
-                }
-                
-                console.log(`✅ Retornando URL: ${urlFinal}`);
+                console.log(`✅ Retornando URL: ${audio.url}`);
                 
                 return res.json({
-                    url: urlFinal,
+                    url: audio.url,
                     nome: audio.nome || 'audio.mp3',
                     versao: audio.dataUpload || data.ultimaRenovacao || '1.0',
                     tamanho: audio.tamanho || 0
@@ -832,16 +799,10 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
         
         let audioCell = '';
         if (totem.audio && totem.audio.url) {
-            let audioUrl = totem.audio.url;
-            
-            // Converter URLs relativas em absolutas
-            if (audioUrl.startsWith('/uploads/')) {
-                audioUrl = `${SERVER_URL}${audioUrl}`;
-            }
+            const audioUrl = totem.audio.url;
             
             // Adicionar logging para debugging
             console.log(`🎵 Áudio para ${totem.id}: ${audioUrl}`);
-            console.log(`📁 Local file: ${totem.audio.localFile || false}`);
             
             audioCell = `
                 <div style="display: flex; align-items: center; gap: 10px;">
