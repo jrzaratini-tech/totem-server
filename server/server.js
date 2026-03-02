@@ -148,6 +148,21 @@ function notificarAtualizacaoAudio(totemId, versao) {
     return false;
 }
 
+// Função para notificar ESP32 sobre nova configuração (efeito/LED)
+function notificarAtualizacaoConfig(totemId, payload) {
+    if (mqttClient && mqttClient.connected) {
+        const topico = `totem/${totemId}/configUpdate`;
+        const mensagem = JSON.stringify(payload);
+
+        // Retained para o ESP32 receber ao reconectar
+        mqttClient.publish(topico, mensagem, { retain: true });
+        console.log(`📤 Config MQTT publicada: ${topico} = ${mensagem}`);
+        return true;
+    }
+    console.warn(`⚠️ MQTT não disponível para publicar config em ${totemId}`);
+    return false;
+}
+
 // ========== CONFIGURAÇÃO DE UPLOAD (MULTER) ==========
 const uploadDir = path.join(__dirname, 'uploads');
 fs.ensureDirSync(uploadDir);
@@ -416,6 +431,85 @@ app.get('/cliente/logout', (req, res) => {
     req.session.destroy(() => {
         res.redirect('/cliente/login');
     });
+});
+
+// ========== ROTA DE CONFIGURAÇÃO (ILUMINAÇÃO / EFEITOS) ==========
+app.post('/cliente/config/:id', async (req, res) => {
+    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
+        return res.status(401).json({ error: 'Não autorizado' });
+    }
+
+    const id = req.params.id;
+    const body = req.body || {};
+
+    const payload = {
+        mode: String(body.mode || 'BREATH').toUpperCase(),
+        color: String(body.color || '#FF3366'),
+        speed: Number(body.speed ?? 50),
+        duration: Number(body.duration ?? 30),
+        maxBrightness: Number(body.maxBrightness ?? 120)
+    };
+
+    // Sanitização básica (mantém compatível com ConfigManager.updateFromJson do firmware)
+    if (!Number.isFinite(payload.speed)) payload.speed = 50;
+    if (!Number.isFinite(payload.duration)) payload.duration = 30;
+    if (!Number.isFinite(payload.maxBrightness)) payload.maxBrightness = 120;
+
+    payload.speed = Math.max(1, Math.trunc(payload.speed));
+    payload.duration = Math.max(1, Math.trunc(payload.duration));
+    payload.maxBrightness = Math.max(0, Math.min(180, Math.trunc(payload.maxBrightness)));
+
+    try {
+        if (db) {
+            await db.collection('totens').doc(id).set({
+                config: payload,
+                ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        // Envia pro ESP32 via MQTT (canal que o firmware já escuta)
+        notificarAtualizacaoConfig(id, payload);
+
+        return res.json({
+            success: true,
+            message: 'Configuração enviada com sucesso',
+            config: payload
+        });
+    } catch (error) {
+        console.error('❌ Erro ao salvar/enviar config:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Erro interno: ' + error.message
+        });
+    }
+});
+
+// Endpoint para consulta/debug da configuração atual
+app.get('/api/config/:id', async (req, res) => {
+    const id = req.params.id;
+
+    if (!db) {
+        return res.json({
+            config: null,
+            message: 'Firebase não disponível'
+        });
+    }
+
+    try {
+        const doc = await db.collection('totens').doc(id).get();
+        if (!doc.exists) {
+            return res.status(404).json({ error: 'Totem não encontrado' });
+        }
+
+        const data = doc.data() || {};
+        return res.json({
+            config: data.config || null,
+            updatedAt: data.ultimaAtualizacaoConfig || null
+        });
+    } catch (error) {
+        console.error('Erro ao buscar config:', error);
+        return res.status(500).json({ error: 'Erro interno no servidor' });
+    }
 });
 
 // ========== ROTA DE UPLOAD CORRIGIDA ==========
