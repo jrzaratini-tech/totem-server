@@ -264,16 +264,37 @@ async function buscarTotem(id) {
 }
 
 async function buscarSenhaAdmin() {
+    console.log('🔍 Buscando senha admin...');
+    console.log('Firebase inicializado:', firebaseInicializado);
+    console.log('DB disponível:', !!db);
+    
     if (firebaseInicializado && db) {
         try {
             const doc = await db.collection('config').doc('admin').get();
-            if (doc.exists && doc.data().senha) {
-                return doc.data().senha;
+            console.log('Documento admin existe:', doc.exists);
+            
+            if (doc.exists) {
+                const data = doc.data();
+                console.log('Dados do documento admin:', JSON.stringify(data));
+                
+                if (data && data.senha) {
+                    console.log('✅ Senha encontrada no Firebase:', data.senha);
+                    return data.senha;
+                } else {
+                    console.log('⚠️ Documento existe mas não tem campo "senha"');
+                }
+            } else {
+                console.log('⚠️ Documento config/admin NÃO EXISTE no Firestore');
+                console.log('💡 Crie o documento: Firestore > config > admin > senha: "sua_senha"');
             }
         } catch (error) {
-            console.error('Erro ao buscar senha admin do Firebase:', error.message);
+            console.error('❌ Erro ao buscar senha admin do Firebase:', error.message);
         }
+    } else {
+        console.log('⚠️ Firebase não está inicializado');
     }
+    
+    console.log('⚠️ Usando senha fallback:', SENHA_ADMIN_FALLBACK);
     return SENHA_ADMIN_FALLBACK;
 }
 
@@ -815,6 +836,7 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
                 <td class="${expirada ? 'status-bloqueado' : 'status-ativo'}">${statusIcon} ${statusText}</td>
                 <td>${audioCell}</td>
                 <td>
+                    <button onclick="dispararTotem('${totem.id}')" class="btn-play" title="Disparar totem">▶️ Play</button> | 
                     <a href="/admin/editar/${totem.id}">✏️ Editar</a> | 
                     <a href="/admin/excluir/${totem.id}" onclick="return confirm('Excluir totem?')">🗑️ Excluir</a>
                 </td>
@@ -933,7 +955,24 @@ app.get('/admin/excluir/:id', adminAuth, async (req, res) => {
     res.redirect('/admin/dashboard');
 });
 
+app.post('/admin/disparar/:id', adminAuth, async (req, res) => {
+    const id = req.params.id;
+    
+    console.log(`🎯 Admin disparando totem ${id}`);
+    
+    if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(`totem/${id}`, 'play');
+        console.log(`📤 MQTT publicado: totem/${id} = play`);
+        
+        return res.json({ success: true, message: 'Totem disparado!' });
+    } else {
+        console.log('❌ MQTT não conectado');
+        return res.status(500).json({ success: false, message: 'MQTT não conectado' });
+    }
+});
+
 // ========== INICIAR SERVIDOR ==========
+
 app.listen(PORT, () => {
     console.log('\n' + '='.repeat(50));
     console.log('🚀 TOTEM SERVER v4.0 CORRIGIDO rodando!');
