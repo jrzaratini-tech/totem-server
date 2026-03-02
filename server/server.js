@@ -645,14 +645,21 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                 
             } catch (storageError) {
                 console.error('❌ Erro no Firebase Storage:', storageError);
-                console.log('⚠️ Usando fallback local');
-                audioUrl = `${SERVER_URL}/uploads/${finalFileName}`;
+                console.log('⚠️ Firebase Storage falhou, tentando gerar URL direta do servidor...');
+                
+                // Em vez de fallback local, vamos servir o arquivo diretamente do servidor
+                // Vamos manter o arquivo e criar uma rota para servi-lo
+                audioUrl = `/uploads/${finalFileName}`;
                 audioData.url = audioUrl;
+                audioData.localFile = true; // Marcar como arquivo local
+                
+                console.log(`📁 Áudio será servido localmente: ${audioUrl}`);
             }
         } else {
             console.log('⚠️ Firebase Storage não disponível, servindo localmente');
-            audioUrl = `${SERVER_URL}/uploads/${finalFileName}`;
+            audioUrl = `/uploads/${finalFileName}`;
             audioData.url = audioUrl;
+            audioData.localFile = true;
         }
         
         if (db) {
@@ -831,6 +838,10 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
             if (audioUrl.startsWith('/uploads/')) {
                 audioUrl = `${SERVER_URL}${audioUrl}`;
             }
+            
+            // Adicionar logging para debugging
+            console.log(`🎵 Áudio para ${totem.id}: ${audioUrl}`);
+            console.log(`📁 Local file: ${totem.audio.localFile || false}`);
             
             audioCell = `
                 <div style="display: flex; align-items: center; gap: 10px;">
