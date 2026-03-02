@@ -13,16 +13,14 @@ const fs = require('fs-extra');
 const path = require('path');
 const multer = require('multer');
 const ffmpeg = require('fluent-ffmpeg');
-let ffmpegPath = null;
-try {
-    ffmpegPath = require('ffmpeg-static');
-} catch (e) {
-    ffmpegPath = null;
+const ffmpegPath = require('ffmpeg-static');
+
+if (!ffmpegPath) {
+    throw new Error('FFmpeg não encontrado. Instale ffmpeg-static corretamente.');
 }
 
-if (ffmpegPath) {
-    ffmpeg.setFfmpegPath(ffmpegPath);
-}
+ffmpeg.setFfmpegPath(ffmpegPath);
+console.log('✅ FFmpeg configurado:', ffmpegPath);
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
 const projectRoot = path.resolve(__dirname, '..');
