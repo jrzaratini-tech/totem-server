@@ -24,13 +24,18 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
         updating = false;
         return false;
     }
-    if (String(ROOT_CA_PEM).length() == 0) {
-        updating = false;
-        return false;
-    }
 
     WiFiClientSecure secure;
-    secure.setCACert(ROOT_CA_PEM);
+    if (String(ROOT_CA_PEM).length() > 0) {
+        secure.setCACert(ROOT_CA_PEM);
+    } else {
+        #if defined(ALLOW_INSECURE_HTTPS) && (ALLOW_INSECURE_HTTPS == 1)
+        secure.setInsecure();
+        #else
+        updating = false;
+        return false;
+        #endif
+    }
 
     HTTPClient http;
     if (!http.begin(secure, url)) {

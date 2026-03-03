@@ -27,9 +27,7 @@ bool StateMachine::setState(SystemState newState) {
     }
 
     if (newState == DOWNLOADING_AUDIO) {
-        if (currentState == PLAYING) return false;
-        if (currentState == UPDATING_FIRMWARE) return false;
-        if (currentState != IDLE && currentState != UPDATING_CONFIG) return false;
+        if (currentState != IDLE) return false;
     }
 
     if (newState == UPDATING_FIRMWARE) {

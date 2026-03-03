@@ -98,40 +98,68 @@ static void setupMQTTCallbacks() {
         Serial.printf("[MAIN] MQTT callback - Topic: %s, Payload: %s\n", topic.c_str(), payload.c_str());
         
         if (topic.endsWith("/trigger")) {
-            Serial.println("[MAIN] Trigger command received");
+            Serial.println("[MAIN] ========================================");
+            Serial.println("[MAIN] TRIGGER COMMAND RECEIVED");
+            Serial.printf("[MAIN] Payload: '%s'\n", payload.c_str());
+            Serial.println("[MAIN] ========================================");
+            
             if (payload == "play") {
-                Serial.println("[MAIN] Play command detected");
+                Serial.println("[MAIN] ✓ Play command detected");
+                Serial.printf("[MAIN] Current state: %s\n", stateMachine.getStateName());
                 
                 if (!stateMachine.canPlay()) {
-                    Serial.printf("[MAIN] Cannot play - current state: %s\n", stateMachine.getStateName());
+                    Serial.printf("[MAIN] ✗ Cannot play - current state: %s\n", stateMachine.getStateName());
                     return;
                 }
+                
+                Serial.println("[MAIN] ✓ State allows playback");
                 
                 if (!stateMachine.setState(PLAYING)) {
-                    Serial.println("[MAIN] Failed to set PLAYING state");
+                    Serial.println("[MAIN] ✗ Failed to set PLAYING state");
                     return;
                 }
                 
-                Serial.println("[MAIN] State changed to PLAYING");
-                ledEngine.startEffect(configManager.getEffectConfig());
+                Serial.println("[MAIN] ✓ State changed to PLAYING");
+                
+                // Verificar configuração de efeito
+                ConfigData cfg = configManager.getEffectConfig();
+                Serial.printf("[MAIN] Effect config - Mode: %d, Color: 0x%06X, Speed: %d, Duration: %d, Brightness: %d\n",
+                             cfg.mode, cfg.color, cfg.speed, cfg.duration, cfg.maxBrightness);
+                
+                Serial.println("[MAIN] Starting LED effect...");
+                ledEngine.startEffect(cfg);
+                Serial.println("[MAIN] ✓ LED effect started");
 
+                // Verificar se arquivo de áudio existe
+                Serial.printf("[MAIN] Checking for audio file: %s\n", AUDIO_FILENAME);
                 if (!SPIFFS.exists(AUDIO_FILENAME)) {
-                    Serial.println("[MAIN] Audio file missing, attempting download...");
+                    Serial.println("[MAIN] ✗ Audio file missing, attempting download...");
                     String err;
                     bool ok = audioManager.checkAndDownloadFromServer(&err);
                     if (!ok) {
-                        Serial.printf("[MAIN] Download failed: %s\n", err.c_str());
+                        Serial.printf("[MAIN] ✗ Download failed: %s\n", err.c_str());
                         safeEnterError("audio_missing_and_download_failed:" + err);
                         return;
                     }
                     storageManager.setAudioVersion(audioManager.getVersion());
                     configManager.setAudioVersion(audioManager.getVersion());
-                    Serial.println("[MAIN] Audio downloaded successfully");
+                    Serial.println("[MAIN] ✓ Audio downloaded successfully");
+                } else {
+                    File f = SPIFFS.open(AUDIO_FILENAME, FILE_READ);
+                    if (f) {
+                        Serial.printf("[MAIN] ✓ Audio file exists - Size: %d bytes\n", f.size());
+                        f.close();
+                    }
                 }
 
                 Serial.println("[MAIN] Starting audio playback...");
                 audioManager.play();
-                playEndMs = millis() + (unsigned long)configManager.getEffectConfig().duration * 1000UL;
+                playEndMs = millis() + (unsigned long)cfg.duration * 1000UL;
+                Serial.printf("[MAIN] ✓ Playback started - Will end at: %lu ms (duration: %d sec)\n", 
+                             playEndMs, cfg.duration);
+                Serial.println("[MAIN] ========================================");
+            } else {
+                Serial.printf("[MAIN] ✗ Unknown trigger payload: '%s'\n", payload.c_str());
             }
             return;
         }
@@ -268,11 +296,21 @@ void loop() {
     otaManager.loop();
 
     if (stateMachine.getState() == PLAYING) {
+        static unsigned long lastPlayingLog = 0;
+        if (millis() - lastPlayingLog > 5000) {
+            unsigned long remaining = (playEndMs > millis()) ? (playEndMs - millis()) / 1000 : 0;
+            Serial.printf("[LOOP] PLAYING - Audio: %s, Remaining: %lu sec\n", 
+                         audioManager.isPlaying() ? "YES" : "NO", remaining);
+            lastPlayingLog = millis();
+        }
+        
         if ((playEndMs != 0 && millis() > playEndMs) || !audioManager.isPlaying()) {
+            Serial.println("[LOOP] Playback finished - stopping LED and audio");
             ledEngine.stop();
             audioManager.stop();
             playEndMs = 0;
             stateMachine.setState(IDLE);
+            Serial.println("[LOOP] Returned to IDLE state");
         }
     }
 

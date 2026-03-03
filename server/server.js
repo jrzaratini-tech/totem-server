@@ -383,8 +383,11 @@ app.get('/totem/:id', async (req, res) => {
     
     publicarPlay(id);
     
-    console.log(`✅ Totem ativo: ${id} → ${totem.link}`);
-    res.redirect(totem.link);
+    // Aguardar 500ms para garantir que o MQTT seja processado pelo ESP32
+    setTimeout(() => {
+        console.log(`✅ Totem ativo: ${id} → ${totem.link}`);
+        res.redirect(totem.link);
+    }, 500);
 });
 
 app.get('/expirado', (req, res) => {

@@ -61,14 +61,16 @@
 
 // ========== HARDWARE - ÁUDIO I2S ==========
 // ESP32-Audio-Kit A1S com ES8388
+// Pinos I2S corretos para ESP32-Audio-Kit V2.2 A1S
 #define I2S_BCLK                27
 #define I2S_LRC                 25
 #define I2S_DOUT                26
 #define I2S_DIN                 35
+// Pinos I2C para ES8388 codec
 #define I2C_SDA                 33
 #define I2C_SCL                 32
-#define AUDIO_VOLUME_PIN        34
-#define DEFAULT_VOLUME          10
+// Volume padrão (0-21)
+#define DEFAULT_VOLUME          15
 
 // ========== HARDWARE - SD CARD (opcional) ==========
 #define SD_CS                   5
@@ -79,9 +81,9 @@
 // ========== COMPORTAMENTO ==========
 #define EFEITO_TEMPO_PADRAO     30
 #define STATUS_INTERVAL         60000
-#define DOWNLOAD_TIMEOUT        30000
-#define OTA_TIMEOUT             120000
-#define MAX_AUDIO_SIZE          (10 * 1024 * 1024)
+#define DOWNLOAD_TIMEOUT        300000
+#define OTA_TIMEOUT             300000
+#define MAX_AUDIO_SIZE          (8 * 1024 * 1024)
 
 // ========== TOPICS MQTT ==========
 // Os tópicos são montados em runtime com o TOTEM_ID provisionado.
