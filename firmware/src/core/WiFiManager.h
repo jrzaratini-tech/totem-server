@@ -3,34 +3,26 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <DNSServer.h>
-#include <ESPAsyncWebServer.h>
-#include <Preferences.h>
 
-class WiFiManager {
+class WiFiManager;
+
+class TotemWiFiManager {
 private:
-    AsyncWebServer server;
-    DNSServer dnsServer;
-    Preferences preferences;
+    WiFiManager *wm;
 
     bool apMode;
     bool connected;
-    unsigned long lastReconnectAttempt;
-
-    bool connecting;
-    unsigned long connectStartMs;
-    String pendingSsid;
-    String pendingPass;
+    bool restartOnSave;
 
     String totemId;
 
-    void startAPMode();
-    void setupWebServer();
-
-    void startConnect(const String &ssid, const String &password);
+    bool startPortalIfNeeded();
+    void processResetButton();
+    void applyWiFiTuning();
 
 public:
-    WiFiManager();
+    TotemWiFiManager();
+    ~TotemWiFiManager();
 
     void begin(const String &totemId);
     void loop();

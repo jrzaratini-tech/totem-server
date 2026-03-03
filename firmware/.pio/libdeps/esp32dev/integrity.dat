@@ -1,6 +1,7 @@
+esp32async/ESPAsyncWebServer
+esp32async/AsyncTCP
+FastLED
+ArduinoJson
+tzapu/WiFiManager
 ESP32-audioI2S
 PubSubClient
-FastLED
-esp32async/ESPAsyncWebServer
-ArduinoJson
-esp32async/AsyncTCP

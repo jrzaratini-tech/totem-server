@@ -23,10 +23,15 @@ private:
     void load();
     void save();
 
+    uint32_t hashPayload(const String &json) const;
+
 public:
     ConfigManager();
 
     void begin();
+
+    bool isDuplicateConfigUpdate(const String &json);
+    void rememberConfigUpdate(const String &json);
 
     bool updateFromJson(const String &json);
 

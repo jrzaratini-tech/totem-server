@@ -15,7 +15,9 @@ void ConfigManager::begin() {
 }
 
 void ConfigManager::load() {
-    prefs.begin("cfg", true);
+    if (!prefs.begin("cfg", true)) {
+        prefs.begin("cfg", false);
+    }
     cfg.mode = (EffectMode)prefs.getUChar("mode", (uint8_t)BREATH);
     cfg.color = prefs.getUInt("color", 0xFF3366);
     cfg.speed = prefs.getInt("speed", 50);
@@ -33,6 +35,32 @@ void ConfigManager::save() {
     prefs.putInt("dur", cfg.duration);
     prefs.putInt("bri", cfg.maxBrightness);
     prefs.putInt("av", audioVersion);
+    prefs.end();
+}
+
+uint32_t ConfigManager::hashPayload(const String &json) const {
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < json.length(); i++) {
+        h ^= (uint8_t)json[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+bool ConfigManager::isDuplicateConfigUpdate(const String &json) {
+    const uint32_t cur = hashPayload(json);
+    if (!prefs.begin("cfg", true)) {
+        prefs.begin("cfg", false);
+    }
+    const uint32_t last = prefs.getUInt("lcrc", 0);
+    prefs.end();
+    return (last != 0) && (last == cur);
+}
+
+void ConfigManager::rememberConfigUpdate(const String &json) {
+    const uint32_t cur = hashPayload(json);
+    prefs.begin("cfg", false);
+    prefs.putUInt("lcrc", cur);
     prefs.end();
 }
 

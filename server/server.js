@@ -133,7 +133,7 @@ conectarMQTT();
 // Função para publicar no MQTT
 function publicarPlay(totemId) {
     if (mqttClient && mqttClient.connected) {
-        const topico = `totem/${totemId}`;
+        const topico = `totem/${totemId}/trigger`;
         mqttClient.publish(topico, 'play');
         console.log(`📤 MQTT publicado: ${topico} = play`);
         return true;
@@ -146,18 +146,15 @@ function publicarPlay(totemId) {
 // Função para notificar ESP32 sobre novo áudio
 function notificarAtualizacaoAudio(totemId, versao) {
     if (mqttClient && mqttClient.connected) {
-        const topicoAudio = `totem/${totemId}/audio`;
+        const topicoAudio = `totem/${totemId}/audioUpdate`;
         const mensagem = JSON.stringify({
-            comando: 'atualizar',
+            comando: 'audioUpdate',
             timestamp: Date.now(),
             versao: versao
         });
-        mqttClient.publish(topicoAudio, mensagem);
+        mqttClient.publish(topicoAudio, mensagem, { retain: true });
         
-        const topicoPlay = `totem/${totemId}`;
-        mqttClient.publish(topicoPlay, 'atualizar_audio');
-        
-        console.log(`📤 Notificações MQTT enviadas para ${totemId}`);
+        console.log(`📤 MQTT publicado: ${topicoAudio} = ${mensagem}`);
         return true;
     }
     return false;
@@ -1009,8 +1006,8 @@ app.post('/admin/disparar/:id', adminAuth, async (req, res) => {
     console.log(`🎯 Admin disparando totem ${id}`);
     
     if (mqttClient && mqttClient.connected) {
-        mqttClient.publish(`totem/${id}`, 'play');
-        console.log(`📤 MQTT publicado: totem/${id} = play`);
+        mqttClient.publish(`totem/${id}/trigger`, 'play');
+        console.log(`📤 MQTT publicado: totem/${id}/trigger = play`);
         
         return res.json({ success: true, message: 'Totem disparado!' });
     } else {

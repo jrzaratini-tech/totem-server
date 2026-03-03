@@ -16,7 +16,7 @@
 #include "core/OTAManager.h"
 
 static StateMachine stateMachine;
-static WiFiManager wifiManager;
+static TotemWiFiManager wifiManager;
 static MQTTManager mqttManager;
 static ConfigManager configManager;
 static StorageManager storageManager;
@@ -24,6 +24,8 @@ static AudioManager audioManager;
 static LEDEngine ledEngine;
 static ButtonManager buttonManager;
 static OTAManager otaManager;
+
+static bool gWdtStarted = false;
 
 static String gTotemId;
 static String gDeviceToken;
@@ -93,12 +95,41 @@ static void setupButtonCallbacks() {
 
 static void setupMQTTCallbacks() {
     mqttManager.onMessage([](const String &topic, const String &payload) {
+        Serial.printf("[MAIN] MQTT callback - Topic: %s, Payload: %s\n", topic.c_str(), payload.c_str());
+        
         if (topic.endsWith("/trigger")) {
+            Serial.println("[MAIN] Trigger command received");
             if (payload == "play") {
-                if (!stateMachine.canPlay()) return;
-                if (!stateMachine.setState(PLAYING)) return;
-
+                Serial.println("[MAIN] Play command detected");
+                
+                if (!stateMachine.canPlay()) {
+                    Serial.printf("[MAIN] Cannot play - current state: %s\n", stateMachine.getStateName());
+                    return;
+                }
+                
+                if (!stateMachine.setState(PLAYING)) {
+                    Serial.println("[MAIN] Failed to set PLAYING state");
+                    return;
+                }
+                
+                Serial.println("[MAIN] State changed to PLAYING");
                 ledEngine.startEffect(configManager.getEffectConfig());
+
+                if (!SPIFFS.exists(AUDIO_FILENAME)) {
+                    Serial.println("[MAIN] Audio file missing, attempting download...");
+                    String err;
+                    bool ok = audioManager.checkAndDownloadFromServer(&err);
+                    if (!ok) {
+                        Serial.printf("[MAIN] Download failed: %s\n", err.c_str());
+                        safeEnterError("audio_missing_and_download_failed:" + err);
+                        return;
+                    }
+                    storageManager.setAudioVersion(audioManager.getVersion());
+                    configManager.setAudioVersion(audioManager.getVersion());
+                    Serial.println("[MAIN] Audio downloaded successfully");
+                }
+
+                Serial.println("[MAIN] Starting audio playback...");
                 audioManager.play();
                 playEndMs = millis() + (unsigned long)configManager.getEffectConfig().duration * 1000UL;
             }
@@ -106,6 +137,9 @@ static void setupMQTTCallbacks() {
         }
 
         if (topic.endsWith("/configUpdate")) {
+            if (configManager.isDuplicateConfigUpdate(payload)) {
+                return;
+            }
             if (!stateMachine.setState(UPDATING_CONFIG)) return;
 
             bool ok = configManager.updateFromJson(payload);
@@ -113,6 +147,8 @@ static void setupMQTTCallbacks() {
                 safeEnterError("json_invalid_config");
                 return;
             }
+
+            configManager.rememberConfigUpdate(payload);
 
             ledEngine.setBrightness(configManager.getBrightness());
             ledEngine.setColor(configManager.getColor());
@@ -153,47 +189,76 @@ static void setupMQTTCallbacks() {
 
 void setup() {
     Serial.begin(115200);
+    delay(100);
+    Serial.println();
+    Serial.println("[BOOT] app start");
+    Serial.printf("[BOOT] reset_reason=%d\n", (int)esp_reset_reason());
+    Serial.printf("[BOOT] fw=%s\n", FIRMWARE_VERSION);
+    Serial.printf("[BOOT] totem_id=%s\n", TOTEM_ID);
+    Serial.flush();
 
-    // Watchdog
-    esp_task_wdt_init(WDT_TIMEOUT_SECONDS, true);
-    esp_task_wdt_add(NULL);
-
-    // Rollback OTA: se firmware está em modo de verificação, marca como válido no boot
-    // (evita ficar preso em loop de rollback quando o app está saudável)
     esp_ota_mark_app_valid_cancel_rollback();
+    Serial.println("[BOOT] OTA rollback cancelled");
 
     stateMachine.setState(BOOT);
+    Serial.println("[BOOT] State machine initialized");
 
     storageManager.begin();
+    Serial.println("[BOOT] Storage initialized");
+    
     configManager.begin();
+    Serial.println("[BOOT] Config initialized");
+
+    if (String(FORCE_TOTEM_ID).length() > 0) {
+        storageManager.setTotemId(String(FORCE_TOTEM_ID));
+    }
 
     gTotemId = storageManager.getTotemId();
     gDeviceToken = storageManager.getDeviceToken();
+    Serial.printf("[BOOT] TotemID=%s\n", gTotemId.c_str());
 
     audioManager.setVersion(storageManager.getAudioVersion());
+    Serial.println("[BOOT] Audio version set");
 
     ledEngine.begin(NUM_LEDS_MAIN, NUM_LEDS_HEART);
     ledEngine.setBrightness(configManager.getBrightness());
     ledEngine.setColor(configManager.getColor());
+    Serial.println("[BOOT] LED engine initialized");
 
     buttonManager.begin();
     setupButtonCallbacks();
+    Serial.println("[BOOT] Button manager initialized");
 
+    Serial.println("[BOOT] Starting audio manager...");
     audioManager.begin(gTotemId, gDeviceToken);
+    Serial.println("[BOOT] Audio manager initialized");
 
+    Serial.println("[BOOT] Starting WiFi manager...");
     wifiManager.begin(gTotemId);
+    Serial.println("[BOOT] WiFi manager initialized");
 
+    Serial.println("[BOOT] Initializing watchdog...");
+    esp_task_wdt_init(WDT_TIMEOUT_SECONDS, true);
+    esp_task_wdt_add(NULL);
+    gWdtStarted = true;
+    Serial.println("[BOOT] Watchdog started");
+
+    Serial.println("[BOOT] Starting MQTT manager...");
     mqttManager.begin(gTotemId, gDeviceToken);
     setupMQTTCallbacks();
+    Serial.println("[BOOT] MQTT manager initialized");
 
     otaManager.begin();
+    Serial.println("[BOOT] OTA manager initialized");
 
     stateMachine.setState(IDLE);
     lastStatusMs = 0;
+    Serial.println("[BOOT] Setup complete - entering IDLE state");
+    Serial.flush();
 }
 
 void loop() {
-    esp_task_wdt_reset();
+    if (gWdtStarted) esp_task_wdt_reset();
 
     wifiManager.loop();
     mqttManager.loop();

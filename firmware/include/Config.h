@@ -4,7 +4,9 @@
 #include <Arduino.h>
 
 // ========== IDENTIFICAÇÃO DO TOTEM ==========
-#define DEFAULT_TOTEM_ID        "TOTEM001"
+#define TOTEM_ID                "printpixel"
+#define DEFAULT_TOTEM_ID        TOTEM_ID
+#define FORCE_TOTEM_ID          TOTEM_ID
 #define FIRMWARE_VERSION        "4.0.0"
 #define SERVER_URL              "https://totem-server.onrender.com"
 
@@ -23,8 +25,15 @@
 // Recomenda-se inserir o CA correto do domínio/bucket.
 #define ROOT_CA_PEM             ""
 
+// Se ROOT_CA_PEM estiver vazio, permite HTTPS sem validação de certificado (insecure).
+// Útil para testes e ambientes onde não foi provisionado o CA.
+#define ALLOW_INSECURE_HTTPS    1
+
 // Watchdog
 #define WDT_TIMEOUT_SECONDS     8
+
+// Debug/segurança: evita loop de reboot por chamadas de ESP.restart() em callbacks
+#define DISABLE_AUTO_RESTART    1
 
 // Failsafe
 #define FAILSAFE_BRIGHTNESS     30
@@ -40,19 +49,24 @@
 #define DEFAULT_BRIGHTNESS      120
 
 // ========== HARDWARE - BOTÕES ==========
+// NOTA: Pinos ajustados para não conflitar com I2S/I2C do Audio-Kit
 #define PIN_BTN_COR             15
 #define PIN_BTN_MAIS            4
-#define PIN_BTN_MENOS           33
-#define PIN_BTN_CORACAO         32
-#define PIN_BTN_RESET_WIFI      35
+#define PIN_BTN_MENOS           16
+#define PIN_BTN_CORACAO         17
+#define PIN_BTN_RESET_WIFI      5
 #define DEBOUNCE_DELAY          50
 #define LONG_PRESS_TIME         1000
 #define MIN_CLICK_INTERVAL      150
 
 // ========== HARDWARE - ÁUDIO I2S ==========
-#define I2S_BCLK                26
+// ESP32-Audio-Kit A1S com ES8388
+#define I2S_BCLK                27
 #define I2S_LRC                 25
-#define I2S_DIN                 22
+#define I2S_DOUT                26
+#define I2S_DIN                 35
+#define I2C_SDA                 33
+#define I2C_SCL                 32
 #define AUDIO_VOLUME_PIN        34
 #define DEFAULT_VOLUME          10
 

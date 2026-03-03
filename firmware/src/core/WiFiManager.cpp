@@ -1,197 +1,171 @@
 #include "core/WiFiManager.h"
 #include "Config.h"
 
-WiFiManager::WiFiManager() : server(80) {
+#include <WiFiManager.h>
+
+TotemWiFiManager::TotemWiFiManager() {
+    wm = new WiFiManager();
     apMode = false;
     connected = false;
-    lastReconnectAttempt = 0;
-    connecting = false;
-    connectStartMs = 0;
+    restartOnSave = false;
 }
 
-void WiFiManager::begin(const String &totemId) {
-    this->totemId = totemId;
-    pinMode(PIN_BTN_RESET_WIFI, INPUT_PULLUP);
+TotemWiFiManager::~TotemWiFiManager() {
+    if (wm) {
+        delete wm;
+        wm = nullptr;
+    }
+}
 
-    WiFi.persistent(false);
+void TotemWiFiManager::applyWiFiTuning() {
+    WiFi.persistent(true);
     WiFi.setAutoReconnect(true);
+    WiFi.setSleep(false);
+}
 
-    if (!connectToSaved()) {
-        startAPMode();
+void TotemWiFiManager::begin(const String &totemId) {
+    this->totemId = totemId;
+
+    pinMode(PIN_BTN_RESET_WIFI, (PIN_BTN_RESET_WIFI >= 34) ? INPUT : INPUT_PULLUP);
+    applyWiFiTuning();
+
+    Serial.println("[WiFi] Configuring WiFiManager...");
+    wm->setDebugOutput(true);
+    wm->setCaptivePortalEnable(true);
+    wm->setConnectTimeout(WIFI_TIMEOUT / 1000);
+    wm->setConfigPortalTimeout(0);
+    wm->setBreakAfterConfig(true);
+
+    wm->setSaveConfigCallback([this]() {
+        Serial.println("[WiFi] Save config callback triggered");
+        this->restartOnSave = true;
+    });
+
+    wm->setAPCallback([this](WiFiManager *w) {
+        (void)w;
+        Serial.println("[WiFi] AP Mode activated - SSID: Totem Config");
+        this->apMode = true;
+        this->connected = false;
+    });
+
+    Serial.println("[WiFi] Starting autoConnect...");
+    if (!startPortalIfNeeded()) {
+        apMode = false;
+        connected = (WiFi.status() == WL_CONNECTED);
+        Serial.printf("[WiFi] AutoConnect completed - Connected: %s, IP: %s\n", 
+                     connected ? "YES" : "NO", 
+                     connected ? WiFi.localIP().toString().c_str() : "N/A");
+        return;
     }
 
-    if (apMode) {
-        dnsServer.start(53, "*", WiFi.softAPIP());
-        setupWebServer();
+    apMode = false;
+    connected = (WiFi.status() == WL_CONNECTED);
+    Serial.printf("[WiFi] Portal finished - Connected: %s\n", connected ? "YES" : "NO");
+
+    if (restartOnSave) {
+        Serial.println("[WiFi] Restarting after config save...");
+        delay(250);
+        #if !defined(DISABLE_AUTO_RESTART) || (DISABLE_AUTO_RESTART == 0)
+        ESP.restart();
+        #endif
     }
 }
 
-bool WiFiManager::connectToSaved() {
-    preferences.begin("wifi", true);
-    String ssid = preferences.getString("ssid", "");
-    String pass = preferences.getString("pass", "");
-    preferences.end();
+bool TotemWiFiManager::startPortalIfNeeded() {
+    const char *apName = "Totem Config";
 
-    if (ssid.length() == 0) return false;
-    startConnect(ssid, pass);
-    return true;
+    bool ok = wm->autoConnect(apName);
+    if (!ok) {
+        apMode = true;
+        connected = false;
+        return true;
+    }
+
+    return false;
 }
 
-bool WiFiManager::connect(const String &ssid, const String &password) {
-    startConnect(ssid, password);
-    return true;
+void TotemWiFiManager::processResetButton() {
+    if (PIN_BTN_RESET_WIFI >= 34) {
+        return;
+    }
+    static unsigned long pressStartMs = 0;
+    static bool fired = false;
+
+    const bool pressed = (digitalRead(PIN_BTN_RESET_WIFI) == LOW);
+    if (!pressed) {
+        pressStartMs = 0;
+        fired = false;
+        return;
+    }
+
+    if (pressStartMs == 0) {
+        pressStartMs = millis();
+        fired = false;
+        return;
+    }
+
+    if (!fired && (millis() - pressStartMs >= 5000UL)) {
+        fired = true;
+        resetWiFiSettings();
+    }
 }
 
-void WiFiManager::startConnect(const String &ssid, const String &password) {
+void TotemWiFiManager::loop() {
+    processResetButton();
+    connected = (WiFi.status() == WL_CONNECTED);
+}
+
+bool TotemWiFiManager::connectToSaved() {
+    if (WiFi.status() == WL_CONNECTED) {
+        connected = true;
+        apMode = false;
+        return true;
+    }
+
+    return false;
+}
+
+bool TotemWiFiManager::connect(const String &ssid, const String &password) {
     apMode = false;
     connected = false;
-    connecting = true;
-    connectStartMs = millis();
-    pendingSsid = ssid;
-    pendingPass = password;
 
     WiFi.mode(WIFI_STA);
-    WiFi.begin(pendingSsid.c_str(), pendingPass.c_str());
-}
+    WiFi.begin(ssid.c_str(), password.c_str());
 
-void WiFiManager::startAPMode() {
-    WiFi.mode(WIFI_AP);
-    String apSsid = String("Totem-Config-") + totemId;
-    WiFi.softAP(apSsid.c_str(), "12345678");
-    apMode = true;
-    connected = false;
-    connecting = false;
-}
-
-void WiFiManager::setupWebServer() {
-    server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        String html;
-        html += "<html><head><meta name='viewport' content='width=device-width'>";
-        html += "<style>body{font-family:Arial;text-align:center;padding:20px}input{padding:10px;margin:6px;width:90%}</style>";
-        html += "</head><body>";
-        html += "<h2>Configurar WiFi do Totem</h2>";
-        html += "<form method='POST' action='/connect'>";
-        html += "<input name='ssid' placeholder='SSID'/>";
-        html += "<input type='password' name='password' placeholder='Senha'/>";
-        html += "<hr style='margin:16px 0; opacity:0.3'/>";
-        html += "<h3>Identificação do dispositivo</h3>";
-        html += "<input name='totemId' placeholder='Totem ID' value='" + totemId + "'/>";
-        html += "<input name='token' placeholder='Token (opcional)' value=''/>";
-        html += "<input type='submit' value='Conectar'/>";
-        html += "</form></body></html>";
-        request->send(200, "text/html", html);
-    });
-
-    server.on("/connect", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        String ssid = request->arg("ssid");
-        String password = request->arg("password");
-        String newTotemId = request->arg("totemId");
-        String token = request->arg("token");
-
-        newTotemId.trim();
-        token.trim();
-
-        if (newTotemId.length() > 0) {
-            // Salva o provisionamento do dispositivo
-            preferences.begin("device", false);
-            preferences.putString("id", newTotemId);
-            preferences.putString("token", token);
-            preferences.end();
-
-            totemId = newTotemId;
-        }
-        request->send(200, "text/html", "<html><body><h3>Conectando...</h3><p>Se conectar, o AP vai desligar.</p></body></html>");
-
-        startConnect(ssid, password);
-    });
-
-    server.begin();
-}
-
-void WiFiManager::loop() {
-    if (apMode) {
-        dnsServer.processNextRequest();
+    const unsigned long startMs = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < (unsigned long)WIFI_TIMEOUT) {
+        delay(25);
+        yield();
     }
 
-    // Máquina de estados de conexão (não-bloqueante)
-    if (connecting) {
-        if (WiFi.status() == WL_CONNECTED) {
-            connecting = false;
-            connected = true;
-
-            // Salva credenciais
-            preferences.begin("wifi", false);
-            preferences.putString("ssid", pendingSsid);
-            preferences.putString("pass", pendingPass);
-            preferences.end();
-
-            // Se estava em AP, encerra
-            if (apMode) {
-                apMode = false;
-                dnsServer.stop();
-                server.end();
-            }
-        } else if (millis() - connectStartMs > WIFI_TIMEOUT) {
-            connecting = false;
-            connected = false;
-            WiFi.disconnect(true);
-            startAPMode();
-            dnsServer.start(53, "*", WiFi.softAPIP());
-            setupWebServer();
-        }
-    }
-
-    if (!apMode) {
-        if (WiFi.status() != WL_CONNECTED) {
-            connected = false;
-            if (millis() - lastReconnectAttempt > WIFI_RECONNECT_INTERVAL) {
-                // tenta reconectar usando credenciais salvas
-                connectToSaved();
-                lastReconnectAttempt = millis();
-            }
-        } else {
-            connected = true;
-        }
-    }
-
-    // Reset WiFi por botão (sem delay)
-    static unsigned long resetPressStart = 0;
-    const bool pressed = digitalRead(PIN_BTN_RESET_WIFI) == LOW;
-    if (pressed) {
-        if (resetPressStart == 0) resetPressStart = millis();
-        if (millis() - resetPressStart >= (unsigned long)DEBOUNCE_DELAY) {
-            resetWiFiSettings();
-            resetPressStart = 0;
-        }
-    } else {
-        resetPressStart = 0;
-    }
+    connected = (WiFi.status() == WL_CONNECTED);
+    apMode = !connected;
+    return connected;
 }
 
-void WiFiManager::resetWiFiSettings() {
-    preferences.begin("wifi", false);
-    preferences.clear();
-    preferences.end();
-
-    WiFi.disconnect(true);
-    startAPMode();
-
-    dnsServer.start(53, "*", WiFi.softAPIP());
-    setupWebServer();
+void TotemWiFiManager::resetWiFiSettings() {
+    wm->resetSettings();
+    WiFi.disconnect(true, true);
+    delay(250);
+    #if !defined(DISABLE_AUTO_RESTART) || (DISABLE_AUTO_RESTART == 0)
+    ESP.restart();
+    #endif
 }
 
-bool WiFiManager::isConnected() const {
+bool TotemWiFiManager::isConnected() const {
     return connected && WiFi.status() == WL_CONNECTED;
 }
 
-bool WiFiManager::isAPMode() const { return apMode; }
+bool TotemWiFiManager::isAPMode() const {
+    return apMode;
+}
 
-String WiFiManager::getIP() const {
+String TotemWiFiManager::getIP() const {
     if (WiFi.status() != WL_CONNECTED) return "0.0.0.0";
     return WiFi.localIP().toString();
 }
 
-int WiFiManager::getRSSI() const {
+int TotemWiFiManager::getRSSI() const {
     if (WiFi.status() != WL_CONNECTED) return -127;
     return WiFi.RSSI();
 }

@@ -20,6 +20,7 @@ void MQTTManager::begin(const String &totemId, const String &deviceToken) {
     this->totemId = totemId;
     this->deviceToken = deviceToken;
 
+    Serial.printf("[MQTT] Connecting to broker: %s:%d\n", MQTT_SERVER, MQTT_PORT);
     client.setServer(MQTT_SERVER, MQTT_PORT);
     client.setKeepAlive(60);
 
@@ -47,7 +48,8 @@ void MQTTManager::loop() {
 bool MQTTManager::connect() {
     String clientId = String("totem-") + totemId + "-" + String((uint32_t)esp_random(), HEX);
 
-    // Last Will: quando cair, broker publica offline
+    Serial.printf("[MQTT] Client ID: %s\n", clientId.c_str());
+
     const String willTopic = topicStatus();
     const char *willMessage = "{\"online\":false}";
     const int willQos = 0;
@@ -60,28 +62,34 @@ bool MQTTManager::connect() {
     if (hasUser) {
         ok = client.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD, willTopic.c_str(), willQos, willRetain, willMessage);
     } else if (hasToken) {
-        // usa token como username quando não há user/senha fixos
         ok = client.connect(clientId.c_str(), deviceToken.c_str(), "", willTopic.c_str(), willQos, willRetain, willMessage);
     } else {
         ok = client.connect(clientId.c_str(), nullptr, nullptr, willTopic.c_str(), willQos, willRetain, willMessage);
     }
 
     if (!ok) {
+        Serial.printf("[MQTT] Connection FAILED! State: %d\n", client.state());
         return false;
     }
 
+    Serial.println("[MQTT] Connected successfully!");
     connected = true;
     subscribeTopics();
 
-    // Publica online logo ao conectar
     publish(topicStatus(), "{\"online\":true}", true);
+    Serial.println("[MQTT] Published online status");
     return true;
 }
 
 void MQTTManager::subscribeTopics() {
+    Serial.println("[MQTT] Subscribing to topics:");
+    Serial.printf("  - %s\n", topicTrigger().c_str());
     client.subscribe(topicTrigger().c_str());
+    Serial.printf("  - %s\n", topicConfigUpdate().c_str());
     client.subscribe(topicConfigUpdate().c_str());
+    Serial.printf("  - %s\n", topicAudioUpdate().c_str());
     client.subscribe(topicAudioUpdate().c_str());
+    Serial.printf("  - %s\n", topicFirmwareUpdate().c_str());
     client.subscribe(topicFirmwareUpdate().c_str());
 }
 
@@ -95,6 +103,9 @@ void MQTTManager::internalCallback(char *topic, byte *payload, unsigned int leng
     String p;
     p.reserve(length);
     for (unsigned int i = 0; i < length; i++) p += (char)payload[i];
+
+    Serial.printf("[MQTT] Message received on topic: %s\n", t.c_str());
+    Serial.printf("[MQTT] Payload (%d bytes): %s\n", length, p.c_str());
 
     if (messageCallback) messageCallback(t, p);
 }

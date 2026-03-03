@@ -14,8 +14,11 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     this->deviceToken = deviceToken;
     SPIFFS.begin(true);
 
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DIN);
+    Serial.println("[Audio] Initializing I2S...");
+    Serial.printf("[Audio] BCLK=%d, LRC=%d, DOUT=%d\n", I2S_BCLK, I2S_LRC, I2S_DOUT);
+    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
     audio.setVolume(DEFAULT_VOLUME);
+    Serial.printf("[Audio] Volume set to %d\n", DEFAULT_VOLUME);
 }
 
 void AudioManager::loop() {
@@ -28,18 +31,31 @@ void AudioManager::loop() {
 }
 
 void AudioManager::play() {
-    if (playing) return;
+    Serial.println("[Audio] play() called");
+    
+    if (playing) {
+        Serial.println("[Audio] Already playing, ignoring");
+        return;
+    }
+    
     if (!SPIFFS.exists(AUDIO_FILENAME)) {
+        Serial.println("[Audio] ERROR: Audio file not found in SPIFFS!");
+        Serial.printf("[Audio] Looking for: %s\n", AUDIO_FILENAME);
         return;
     }
 
+    Serial.printf("[Audio] Attempting to play: %s\n", AUDIO_FILENAME);
     if (audio.connecttoFS(SPIFFS, AUDIO_FILENAME)) {
         playing = true;
+        Serial.println("[Audio] Playback started successfully!");
+    } else {
+        Serial.println("[Audio] ERROR: Failed to start playback!");
     }
 }
 
 void AudioManager::stop() {
     if (!playing) return;
+    Serial.println("[Audio] Stopping playback");
     audio.stopSong();
     playing = false;
 }
@@ -52,10 +68,17 @@ void AudioManager::setVersion(int v) { currentVersion = max(0, v); }
 
 bool AudioManager::downloadFileToTemp(const String &url) {
     if (!url.startsWith("https://")) return false;
-    if (String(ROOT_CA_PEM).length() == 0) return false;
 
     WiFiClientSecure secure;
-    secure.setCACert(ROOT_CA_PEM);
+    if (String(ROOT_CA_PEM).length() > 0) {
+        secure.setCACert(ROOT_CA_PEM);
+    } else {
+        #if defined(ALLOW_INSECURE_HTTPS) && (ALLOW_INSECURE_HTTPS == 1)
+        secure.setInsecure();
+        #else
+        return false;
+        #endif
+    }
 
     HTTPClient http;
     if (!http.begin(secure, url)) return false;
@@ -130,13 +153,17 @@ bool AudioManager::activateTempAsCurrent() {
 }
 
 bool AudioManager::checkAndDownloadFromServer(String *outError) {
+    Serial.println("[Audio] checkAndDownloadFromServer() called");
+    
     if (downloading) {
+        Serial.println("[Audio] Download already in progress");
         if (outError) *outError = "download_in_progress";
         return false;
     }
 
     downloading = true;
     downloadStartMs = millis();
+    Serial.println("[Audio] Starting download process...");
 
     String apiUrl = String(SERVER_URL) + "/api/audio/" + totemId;
 
@@ -145,14 +172,18 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         if (outError) *outError = "server_url_not_https";
         return false;
     }
-    if (String(ROOT_CA_PEM).length() == 0) {
+    WiFiClientSecure secure;
+    if (String(ROOT_CA_PEM).length() > 0) {
+        secure.setCACert(ROOT_CA_PEM);
+    } else {
+        #if defined(ALLOW_INSECURE_HTTPS) && (ALLOW_INSECURE_HTTPS == 1)
+        secure.setInsecure();
+        #else
         downloading = false;
         if (outError) *outError = "root_ca_missing";
         return false;
+        #endif
     }
-
-    WiFiClientSecure secure;
-    secure.setCACert(ROOT_CA_PEM);
 
     HTTPClient http;
     if (!http.begin(secure, apiUrl)) {

@@ -12,7 +12,9 @@ void StorageManager::begin() {
 bool StorageManager::hasSPIFFS() const { return spiffsOk; }
 
 String StorageManager::getTotemId() {
-    prefs.begin("device", true);
+    if (!prefs.begin("device", true)) {
+        prefs.begin("device", false);
+    }
     String v = prefs.getString("id", DEFAULT_TOTEM_ID);
     prefs.end();
     v.trim();
@@ -30,7 +32,9 @@ void StorageManager::setTotemId(const String &id) {
 }
 
 String StorageManager::getDeviceToken() {
-    prefs.begin("device", true);
+    if (!prefs.begin("device", true)) {
+        prefs.begin("device", false);
+    }
     String v = prefs.getString("token", DEVICE_TOKEN);
     prefs.end();
     v.trim();
@@ -46,7 +50,9 @@ void StorageManager::setDeviceToken(const String &token) {
 }
 
 int StorageManager::getAudioVersion() {
-    prefs.begin("audio", true);
+    if (!prefs.begin("audio", true)) {
+        prefs.begin("audio", false);
+    }
     int v = prefs.getInt("ver", 0);
     prefs.end();
     return v;
