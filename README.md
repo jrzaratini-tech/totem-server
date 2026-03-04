@@ -12,7 +12,9 @@ Este repositório concentra principalmente:
 - **Sistema Dual de Iluminação**: Configure dois modos independentes (espera e disparo)
 - **Controle de Volume**: Ajuste o volume do áudio de 0 (mudo) a 10 (máximo)
 - **Prévias Visuais**: Simuladores em tempo real para ambos os modos de LED
+- **Auto-Play**: Reprodução automática quando novo áudio é enviado ou configuração de trigger é atualizada
 - **Limite de Upload**: Reduzido para 5MB para melhor performance
+- **Otimização SPIFFS**: Firmware agora deleta áudio antigo antes de baixar novo, evitando erro de espaço
 
 ---
 
@@ -906,23 +908,44 @@ Conecta MQTT → Inicia Watchdog → IDLE
 ```
 IDLE → Recebe "play" em totem/{id}/trigger → 
 Verifica arquivo de áudio → (Se ausente: baixa do servidor) →
-PLAYING → Inicia efeito LED → Reproduz áudio → 
-Aguarda duração configurada → Para LED e áudio → IDLE
+PLAYING → Inicia efeito LED (trigger mode) → Reproduz áudio → 
+Aguarda duração configurada → Retorna ao modo IDLE (idle mode)
 ```
 
-#### 3. Atualização de Configuração
+#### 3. Atualização de Configuração (Sistema Dual v4.1.0)
+
+**Config Idle:**
 ```
-IDLE → Recebe JSON em totem/{id}/configUpdate → 
-UPDATING_CONFIG → Valida e aplica configuração → 
-Atualiza LED (cor/brilho) → IDLE
+IDLE → Recebe JSON em totem/{id}/config/idle → 
+Valida e salva idleConfig → 
+Aplica imediatamente se em estado IDLE → 
+Atualiza LED (cor/brilho/efeito)
 ```
 
-#### 4. Download de Áudio
+**Config Trigger:**
+```
+IDLE → Recebe JSON em totem/{id}/config/trigger → 
+Valida e salva triggerConfig → 
+🎵 AUTO-PLAY: Dispara efeito + áudio automaticamente → 
+PLAYING → Aguarda duração → Retorna ao modo IDLE
+```
+
+**Volume:**
+```
+Qualquer estado → Recebe valor em totem/{id}/config/volume → 
+Mapeia 0-10 para 0-21 (ES8388) → 
+Aplica volume imediatamente
+```
+
+#### 4. Download de Áudio (v4.1.0 com Auto-Play)
 ```
 IDLE → Recebe comando em totem/{id}/audioUpdate → 
 DOWNLOADING_AUDIO → Consulta API /api/audio/{id} → 
+Deleta áudio antigo (libera espaço SPIFFS) → 
 Baixa para /audio.tmp → Valida tamanho → 
-Renomeia para /audio.mp3 → Atualiza versão → IDLE
+Renomeia para /audio.mp3 → Atualiza versão → 
+🎵 AUTO-PLAY: Reproduz automaticamente → 
+PLAYING → Aguarda duração → Retorna ao modo IDLE
 ```
 
 #### 5. Atualização de Firmware (OTA)
@@ -1034,17 +1057,26 @@ O firmware gera logs detalhados via Serial (115200 baud):
 [LOOP] PLAYING - Audio: YES, Remaining: 25 sec
 ```
 
-### Compatibilidade com Backend
+### Compatibilidade com Backend v4.1.0
 
-**IMPORTANTE**: O firmware modular usa tópicos MQTT diferentes do backend atual:
+**Sistema Dual**: O firmware v4.1.0 está totalmente compatível com o backend v4.1.0:
 
-| Firmware Modular | Backend Atual | Compatível? |
-|-----------------|---------------|-------------|
-| `totem/{id}/trigger` | `totem/{id}` | ❌ Não |
-| `totem/{id}/configUpdate` | `totem/{id}/configUpdate` | ✅ Sim |
-| `totem/{id}/audioUpdate` | `totem/{id}/audio` | ❌ Não |
+| Tópico MQTT | Payload | Função |
+|-------------|---------|--------|
+| `totem/{id}/trigger` | `"play"` | Dispara reprodução (trigger mode) |
+| `totem/{id}/config/idle` | JSON | Configura modo espera (contínuo) |
+| `totem/{id}/config/trigger` | JSON | Configura modo disparo + AUTO-PLAY |
+| `totem/{id}/config/volume` | `0-10` | Ajusta volume do áudio |
+| `totem/{id}/audioUpdate` | JSON | Notifica novo áudio + AUTO-PLAY |
+| `totem/{id}/configUpdate` | JSON | ✅ Compatibilidade retroativa |
 
-**Solução**: Atualize o backend para publicar em `totem/{id}/trigger` com payload `"play"` ou modifique o firmware para subscrever `totem/{id}`.
+**Funcionalidades v4.1.0**:
+- ✅ Sistema dual de iluminação (idle + trigger)
+- ✅ Auto-play ao receber novo áudio
+- ✅ Auto-play ao atualizar config trigger
+- ✅ Controle de volume (0-10)
+- ✅ Otimização SPIFFS (deleta áudio antigo)
+- ✅ Retorno automático ao modo idle após playback
 
 ### Documentação Adicional
 
