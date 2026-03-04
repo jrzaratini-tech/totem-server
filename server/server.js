@@ -221,7 +221,7 @@ const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: { 
-        fileSize: 10 * 1024 * 1024 // 10MB
+        fileSize: 5 * 1024 * 1024 // 5MB
     }
 });
 
@@ -481,38 +481,83 @@ app.post('/cliente/config/:id', async (req, res) => {
     const id = req.params.id;
     const body = req.body || {};
 
-    const payload = {
-        mode: String(body.mode || 'BREATH').toUpperCase(),
-        color: String(body.color || '#FF3366'),
-        speed: Number(body.speed ?? 50),
-        duration: Number(body.duration ?? 30),
-        maxBrightness: Number(body.maxBrightness ?? 120)
-    };
+    // Suporta tanto o formato antigo (único config) quanto o novo (idle + trigger + volume)
+    let idleConfig, triggerConfig, volume;
 
-    // Sanitização básica (mantém compatível com ConfigManager.updateFromJson do firmware)
-    if (!Number.isFinite(payload.speed)) payload.speed = 50;
-    if (!Number.isFinite(payload.duration)) payload.duration = 30;
-    if (!Number.isFinite(payload.maxBrightness)) payload.maxBrightness = 120;
+    if (body.idle && body.trigger) {
+        // Novo formato: configurações duais
+        idleConfig = {
+            mode: String(body.idle.mode || 'BREATH').toUpperCase(),
+            color: String(body.idle.color || '#FF3366'),
+            speed: Number(body.idle.speed ?? 50),
+            maxBrightness: Number(body.idle.maxBrightness ?? 120),
+            updatedAt: new Date().toISOString()
+        };
 
-    payload.speed = Math.max(1, Math.trunc(payload.speed));
-    payload.duration = Math.max(1, Math.trunc(payload.duration));
-    payload.maxBrightness = Math.max(0, Math.min(180, Math.trunc(payload.maxBrightness)));
+        triggerConfig = {
+            mode: String(body.trigger.mode || 'RAINBOW').toUpperCase(),
+            color: String(body.trigger.color || '#00FF00'),
+            speed: Number(body.trigger.speed ?? 70),
+            duration: Number(body.trigger.duration ?? 30),
+            maxBrightness: Number(body.trigger.maxBrightness ?? 150),
+            updatedAt: new Date().toISOString()
+        };
+
+        volume = Number(body.volume ?? 8);
+
+        // Sanitização
+        idleConfig.speed = Math.max(1, Math.trunc(idleConfig.speed));
+        idleConfig.maxBrightness = Math.max(0, Math.min(180, Math.trunc(idleConfig.maxBrightness)));
+
+        triggerConfig.speed = Math.max(1, Math.trunc(triggerConfig.speed));
+        triggerConfig.duration = Math.max(1, Math.trunc(triggerConfig.duration));
+        triggerConfig.maxBrightness = Math.max(0, Math.min(180, Math.trunc(triggerConfig.maxBrightness)));
+
+        volume = Math.max(0, Math.min(10, Math.trunc(volume)));
+    } else {
+        // Formato antigo: compatibilidade retroativa (aplica ao trigger)
+        const payload = {
+            mode: String(body.mode || 'BREATH').toUpperCase(),
+            color: String(body.color || '#FF3366'),
+            speed: Number(body.speed ?? 50),
+            duration: Number(body.duration ?? 30),
+            maxBrightness: Number(body.maxBrightness ?? 120)
+        };
+
+        payload.speed = Math.max(1, Math.trunc(payload.speed));
+        payload.duration = Math.max(1, Math.trunc(payload.duration));
+        payload.maxBrightness = Math.max(0, Math.min(180, Math.trunc(payload.maxBrightness)));
+
+        // Usa o mesmo para idle e trigger (compatibilidade)
+        idleConfig = { ...payload, updatedAt: new Date().toISOString() };
+        triggerConfig = { ...payload, updatedAt: new Date().toISOString() };
+        volume = 8;
+    }
 
     try {
         if (db) {
             await db.collection('totens').doc(id).set({
-                config: payload,
+                idleConfig,
+                triggerConfig,
+                volume,
                 ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
         }
 
-        // Envia pro ESP32 via MQTT (canal que o firmware já escuta)
-        notificarAtualizacaoConfig(id, payload);
+        // Publica configurações via MQTT em tópicos separados (retained)
+        if (mqttClient && mqttClient.connected) {
+            mqttClient.publish(`totem/${id}/config/idle`, JSON.stringify(idleConfig), { retain: true });
+            mqttClient.publish(`totem/${id}/config/trigger`, JSON.stringify(triggerConfig), { retain: true });
+            mqttClient.publish(`totem/${id}/config/volume`, String(volume), { retain: true });
+            console.log(`📤 Config MQTT publicada: idle, trigger e volume para ${id}`);
+        }
 
         return res.json({
             success: true,
             message: 'Configuração enviada com sucesso',
-            config: payload
+            idleConfig,
+            triggerConfig,
+            volume
         });
     } catch (error) {
         console.error('❌ Erro ao salvar/enviar config:', error);

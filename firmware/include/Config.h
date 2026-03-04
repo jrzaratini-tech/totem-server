@@ -39,12 +39,12 @@
 #define FAILSAFE_BRIGHTNESS     30
 
 // ========== HARDWARE - LEDS ==========
-#define NUM_LEDS_MAIN           60
-#define NUM_LEDS_HEART          16
+#define NUM_LEDS_MAIN           220
+#define NUM_LEDS_HEART          15
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
-#define LED_MAIN_PIN            12
-#define LED_HEART_PIN           13
+#define LED_MAIN_PIN            19
+#define LED_HEART_PIN           18
 #define MAX_BRIGHTNESS          180
 #define DEFAULT_BRIGHTNESS      120
 
@@ -53,10 +53,10 @@
 #define PIN_BTN_COR             15
 #define PIN_BTN_MAIS            4
 #define PIN_BTN_MENOS           16
-#define PIN_BTN_CORACAO         17
-#define PIN_BTN_RESET_WIFI      5
+#define PIN_BTN_CORACAO         5
+#define PIN_BTN_RESET_WIFI      22
 #define DEBOUNCE_DELAY          50
-#define LONG_PRESS_TIME         1000
+#define LONG_PRESS_TIME         5000
 #define MIN_CLICK_INTERVAL      150
 
 // ========== HARDWARE - ÁUDIO I2S ==========
@@ -69,8 +69,11 @@
 // Pinos I2C para ES8388 codec
 #define I2C_SDA                 33
 #define I2C_SCL                 32
-// Volume padrão (0-21)
+#define PA_ENABLE_PIN           21  // Power Amplifier Enable
+// Volume padrão (0-21, mapeado de 0-10 do servidor)
 #define DEFAULT_VOLUME          15
+#define MIN_VOLUME              0
+#define MAX_VOLUME              21
 
 // ========== HARDWARE - SD CARD (opcional) ==========
 #define SD_CS                   5

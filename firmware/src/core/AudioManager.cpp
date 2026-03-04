@@ -2,6 +2,7 @@
 #include "Config.h"
 #include <WiFiClientSecure.h>
 #include <esp_task_wdt.h>
+#include "utils/ES8388.h"
 
 AudioManager::AudioManager() {
     playing = false;
@@ -25,6 +26,16 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
                      totalBytes, usedBytes, totalBytes - usedBytes);
     }
 
+    Serial.println("[Audio] Enabling Power Amplifier...");
+    pinMode(PA_ENABLE_PIN, OUTPUT);
+    digitalWrite(PA_ENABLE_PIN, HIGH);
+    Serial.printf("[Audio] PA_EN (GPIO %d) set to HIGH\n", PA_ENABLE_PIN);
+    
+    Serial.println("[Audio] Initializing ES8388 codec...");
+    Serial.printf("[Audio] I2C Pins - SDA=%d, SCL=%d\n", I2C_SDA, I2C_SCL);
+    ES8388::begin(I2C_SDA, I2C_SCL);
+    ES8388::setVolume(25); // Volume 0-33 (25 = alto)
+    
     Serial.println("[Audio] Initializing I2S audio...");
     Serial.printf("[Audio] I2S Pins - BCLK=%d, LRC=%d, DOUT=%d\n", I2S_BCLK, I2S_LRC, I2S_DOUT);
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
