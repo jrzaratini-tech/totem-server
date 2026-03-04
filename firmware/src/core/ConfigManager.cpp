@@ -123,3 +123,20 @@ void ConfigManager::setBrightness(int b) {
     cfg.maxBrightness = constrain(b, 0, MAX_BRIGHTNESS);
     save();
 }
+
+// Sistema Dual v4.1.0 - Métodos auxiliares
+EffectMode ConfigManager::modeFromString(const String &modeStr) {
+    String m = modeStr;
+    m.toUpperCase();
+    if (m == "SOLID") return SOLID;
+    if (m == "RAINBOW") return RAINBOW;
+    if (m == "BLINK") return BLINK;
+    if (m == "BREATH") return BREATH;
+    if (m == "RUNNING") return RUNNING;
+    if (m == "HEART" || m == "HEARTBEAT") return HEART;
+    return BREATH; // default
+}
+
+uint32_t ConfigManager::parseColor(const String &colorStr) {
+    return parseHexColor(colorStr, 0xFF3366); // usa helper existente
+}

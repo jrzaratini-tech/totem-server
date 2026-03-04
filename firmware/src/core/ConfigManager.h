@@ -45,6 +45,10 @@ public:
 
     int getBrightness() const;
     void setBrightness(int b);
+
+    // Sistema Dual v4.1.0 - Métodos auxiliares
+    EffectMode modeFromString(const String &modeStr);
+    uint32_t parseColor(const String &colorStr);
 };
 
 #endif
