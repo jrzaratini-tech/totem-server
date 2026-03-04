@@ -82,6 +82,14 @@ void AudioManager::stop() {
     playing = false;
 }
 
+void AudioManager::setVolume(int vol) {
+    // vol: 0-21 (ES8388 range)
+    int clampedVol = constrain(vol, 0, 21);
+    ES8388::setVolume(clampedVol);
+    audio.setVolume(clampedVol);
+    Serial.printf("[Audio] Volume set to %d\n", clampedVol);
+}
+
 bool AudioManager::isPlaying() const { return playing; }
 bool AudioManager::isDownloading() const { return downloading; }
 
@@ -95,6 +103,14 @@ bool AudioManager::downloadFileToTemp(const String &url) {
     if (SPIFFS.exists(AUDIO_TEMP_FILENAME)) {
         Serial.println("[Audio] Removing old temp file...");
         SPIFFS.remove(AUDIO_TEMP_FILENAME);
+    }
+
+    // CRÍTICO: Deletar áudio antigo ANTES de baixar o novo para liberar espaço
+    if (SPIFFS.exists(AUDIO_FILENAME)) {
+        Serial.println("[Audio] Removing old audio file to free space...");
+        SPIFFS.remove(AUDIO_FILENAME);
+        size_t freeBytes = SPIFFS.totalBytes() - SPIFFS.usedBytes();
+        Serial.printf("[Audio] SPIFFS free space after cleanup: %d bytes\n", freeBytes);
     }
 
     if (!url.startsWith("https://")) {

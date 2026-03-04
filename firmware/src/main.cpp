@@ -93,9 +93,77 @@ static void setupButtonCallbacks() {
     });
 }
 
+// Variáveis globais para configurações duais
+static ConfigData idleConfig;
+static ConfigData triggerConfig;
+static int currentVolume = 8; // 0-10
+
 static void setupMQTTCallbacks() {
     mqttManager.onMessage([](const String &topic, const String &payload) {
         Serial.printf("[MAIN] MQTT callback - Topic: %s, Payload: %s\n", topic.c_str(), payload.c_str());
+        
+        // Sistema Dual v4.1.0 - Config Idle
+        if (topic.endsWith("/config/idle")) {
+            Serial.println("[MAIN] Received IDLE config");
+            StaticJsonDocument<256> doc;
+            if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+                idleConfig.mode = configManager.modeFromString(doc["mode"] | "BREATH");
+                idleConfig.color = configManager.parseColor(doc["color"] | "#ff3366");
+                idleConfig.speed = doc["speed"] | 50;
+                idleConfig.maxBrightness = doc["maxBrightness"] | 120;
+                idleConfig.duration = 0; // Idle roda continuamente
+                Serial.printf("[MAIN] Idle config updated - Mode: %d, Color: 0x%06X, Brightness: %d\n",
+                             idleConfig.mode, idleConfig.color, idleConfig.maxBrightness);
+                
+                // Aplicar idle config se não estiver tocando
+                if (stateMachine.getState() == IDLE) {
+                    ledEngine.setBrightness(idleConfig.maxBrightness);
+                    ledEngine.setColor(idleConfig.color);
+                    ledEngine.startEffect(idleConfig);
+                }
+            }
+            return;
+        }
+        
+        // Sistema Dual v4.1.0 - Config Trigger
+        if (topic.endsWith("/config/trigger")) {
+            Serial.println("[MAIN] Received TRIGGER config");
+            StaticJsonDocument<256> doc;
+            if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+                triggerConfig.mode = configManager.modeFromString(doc["mode"] | "RAINBOW");
+                triggerConfig.color = configManager.parseColor(doc["color"] | "#00ff00");
+                triggerConfig.speed = doc["speed"] | 70;
+                triggerConfig.maxBrightness = doc["maxBrightness"] | 150;
+                triggerConfig.duration = doc["duration"] | 30;
+                Serial.printf("[MAIN] Trigger config updated - Mode: %d, Color: 0x%06X, Duration: %d\n",
+                             triggerConfig.mode, triggerConfig.color, triggerConfig.duration);
+                
+                // AUTO-PLAY: Disparar efeito automaticamente quando configuração de trigger é atualizada
+                if (stateMachine.canPlay() && SPIFFS.exists(AUDIO_FILENAME)) {
+                    Serial.println("[MAIN] *** AUTO-PLAY: Trigger config updated, playing automatically ***");
+                    if (stateMachine.setState(PLAYING)) {
+                        ledEngine.startEffect(triggerConfig);
+                        audioManager.play();
+                        playEndMs = millis() + (unsigned long)triggerConfig.duration * 1000UL;
+                    }
+                }
+            }
+            return;
+        }
+        
+        // Sistema Dual v4.1.0 - Volume
+        if (topic.endsWith("/config/volume")) {
+            Serial.println("[MAIN] Received VOLUME config");
+            int vol = payload.toInt();
+            if (vol >= 0 && vol <= 10) {
+                currentVolume = vol;
+                // Mapear 0-10 para 0-21 (escala do ES8388)
+                int es8388Vol = map(vol, 0, 10, 0, 21);
+                audioManager.setVolume(es8388Vol);
+                Serial.printf("[MAIN] Volume set to %d (ES8388: %d)\n", vol, es8388Vol);
+            }
+            return;
+        }
         
         if (topic.endsWith("/trigger")) {
             Serial.println("[MAIN] ========================================");
@@ -121,12 +189,12 @@ static void setupMQTTCallbacks() {
                 
                 Serial.println("[MAIN] ✓ State changed to PLAYING");
                 
-                // Verificar configuração de efeito
-                ConfigData cfg = configManager.getEffectConfig();
-                Serial.printf("[MAIN] Effect config - Mode: %d, Color: 0x%06X, Speed: %d, Duration: %d, Brightness: %d\n",
+                // Usar triggerConfig se disponível, senão usar config padrão
+                ConfigData cfg = (triggerConfig.duration > 0) ? triggerConfig : configManager.getEffectConfig();
+                Serial.printf("[MAIN] Trigger config - Mode: %d, Color: 0x%06X, Speed: %d, Duration: %d, Brightness: %d\n",
                              cfg.mode, cfg.color, cfg.speed, cfg.duration, cfg.maxBrightness);
                 
-                Serial.println("[MAIN] Starting LED effect...");
+                Serial.println("[MAIN] Starting LED effect (trigger mode)...");
                 ledEngine.startEffect(cfg);
                 Serial.println("[MAIN] ✓ LED effect started");
 
@@ -198,7 +266,17 @@ static void setupMQTTCallbacks() {
             storageManager.setAudioVersion(audioManager.getVersion());
             configManager.setAudioVersion(audioManager.getVersion());
 
-            stateMachine.setState(IDLE);
+            // AUTO-PLAY: Reproduzir automaticamente quando novo áudio é baixado
+            Serial.println("[MAIN] *** AUTO-PLAY: New audio downloaded, playing automatically ***");
+            if (stateMachine.setState(PLAYING)) {
+                ConfigData cfg = (triggerConfig.duration > 0) ? triggerConfig : configManager.getEffectConfig();
+                ledEngine.startEffect(cfg);
+                audioManager.play();
+                playEndMs = millis() + (unsigned long)cfg.duration * 1000UL;
+                Serial.printf("[MAIN] Auto-play started - Duration: %d sec\n", cfg.duration);
+            } else {
+                stateMachine.setState(IDLE);
+            }
             return;
         }
 
@@ -305,11 +383,20 @@ void loop() {
         }
         
         if ((playEndMs != 0 && millis() > playEndMs) || !audioManager.isPlaying()) {
-            Serial.println("[LOOP] Playback finished - stopping LED and audio");
-            ledEngine.stop();
+            Serial.println("[LOOP] Playback finished - stopping audio and returning to idle mode");
             audioManager.stop();
             playEndMs = 0;
             stateMachine.setState(IDLE);
+            
+            // Retornar ao modo idle
+            if (idleConfig.maxBrightness > 0) {
+                Serial.println("[LOOP] Switching to IDLE LED mode");
+                ledEngine.setBrightness(idleConfig.maxBrightness);
+                ledEngine.setColor(idleConfig.color);
+                ledEngine.startEffect(idleConfig);
+            } else {
+                ledEngine.stop();
+            }
             Serial.println("[LOOP] Returned to IDLE state");
         }
     }

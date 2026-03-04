@@ -38,6 +38,9 @@ public:
 
     String topicTrigger() const;
     String topicConfigUpdate() const;
+    String topicConfigIdle() const;
+    String topicConfigTrigger() const;
+    String topicConfigVolume() const;
     String topicAudioUpdate() const;
     String topicFirmwareUpdate() const;
     String topicStatus() const;

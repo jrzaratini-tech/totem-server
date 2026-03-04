@@ -12,6 +12,9 @@ String MQTTManager::topicBase() const {
 
 String MQTTManager::topicTrigger() const { return topicBase() + "/trigger"; }
 String MQTTManager::topicConfigUpdate() const { return topicBase() + "/configUpdate"; }
+String MQTTManager::topicConfigIdle() const { return topicBase() + "/config/idle"; }
+String MQTTManager::topicConfigTrigger() const { return topicBase() + "/config/trigger"; }
+String MQTTManager::topicConfigVolume() const { return topicBase() + "/config/volume"; }
 String MQTTManager::topicAudioUpdate() const { return topicBase() + "/audioUpdate"; }
 String MQTTManager::topicFirmwareUpdate() const { return topicBase() + "/firmwareUpdate"; }
 String MQTTManager::topicStatus() const { return topicBase() + "/status"; }
@@ -85,8 +88,19 @@ void MQTTManager::subscribeTopics() {
     Serial.println("[MQTT] Subscribing to topics:");
     Serial.printf("  - %s\n", topicTrigger().c_str());
     client.subscribe(topicTrigger().c_str());
+    
+    // Sistema Dual v4.1.0 - Novos tópicos
+    Serial.printf("  - %s\n", topicConfigIdle().c_str());
+    client.subscribe(topicConfigIdle().c_str());
+    Serial.printf("  - %s\n", topicConfigTrigger().c_str());
+    client.subscribe(topicConfigTrigger().c_str());
+    Serial.printf("  - %s\n", topicConfigVolume().c_str());
+    client.subscribe(topicConfigVolume().c_str());
+    
+    // Manter compatibilidade com formato antigo
     Serial.printf("  - %s\n", topicConfigUpdate().c_str());
     client.subscribe(topicConfigUpdate().c_str());
+    
     Serial.printf("  - %s\n", topicAudioUpdate().c_str());
     client.subscribe(topicAudioUpdate().c_str());
     Serial.printf("  - %s\n", topicFirmwareUpdate().c_str());

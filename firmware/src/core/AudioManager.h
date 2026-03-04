@@ -33,6 +33,7 @@ public:
 
     void play();
     void stop();
+    void setVolume(int vol); // 0-21 (ES8388 range)
 
     bool isPlaying() const;
     bool isDownloading() const;
