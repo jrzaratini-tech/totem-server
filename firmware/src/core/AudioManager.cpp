@@ -32,9 +32,9 @@ AudioManager::AudioManager() {
     clippedSamples = 0;
 }
 
-// Volume digital global (0-10 do backend -> 0.0-3.0 gain with boost)
+// Volume digital global (0-10 do backend -> 0.0-4.0 gain with boost)
 static float gDigitalGain = 1.0f; // Base gain (will be multiplied by boost)
-static float gVolumeBoost = 2.5f; // Additional boost multiplier for maximum output
+static float gVolumeBoost = 4.0f; // Additional boost multiplier for maximum output
 
 // Helper macros para cast de ponteiros
 #define I2S_PTR ((I2SStream*)i2s)
