@@ -1,7 +1,8 @@
-esp32async/ESPAsyncWebServer
+https://github.com/pschatzmann/arduino-libhelix.git
+https://github.com/pschatzmann/arduino-audio-tools.git
+PubSubClient
 esp32async/AsyncTCP
+tzapu/WiFiManager
 FastLED
 ArduinoJson
-tzapu/WiFiManager
-ESP32-audioI2S
-PubSubClient
+esp32async/ESPAsyncWebServer

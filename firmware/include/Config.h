@@ -7,7 +7,7 @@
 #define TOTEM_ID                "printpixel"
 #define DEFAULT_TOTEM_ID        TOTEM_ID
 #define FORCE_TOTEM_ID          TOTEM_ID
-#define FIRMWARE_VERSION        "4.0.0"
+#define FIRMWARE_VERSION        "4.1.0"
 #define SERVER_URL              "https://totem-server.onrender.com"
 
 // ========== CONFIGURAÇÕES DE REDE ==========

@@ -2,13 +2,88 @@
 #include "Config.h"
 #include <WiFiClientSecure.h>
 #include <esp_task_wdt.h>
-#include "utils/ES8388.h"
+
+#include "AudioTools.h"
+#include "AudioTools/AudioCodecs/CodecMP3Helix.h"
+#include <Wire.h>
+
+using namespace audio_tools;
 
 AudioManager::AudioManager() {
     playing = false;
     downloading = false;
     currentVersion = 0;
     downloadStartMs = 0;
+    i2s = nullptr;
+    encoded = nullptr;
+    decoder = nullptr;
+    copier = nullptr;
+}
+
+// Helper macros para cast de ponteiros
+#define I2S_PTR ((I2SStream*)i2s)
+#define ENCODED_PTR ((EncodedAudioStream*)encoded)
+#define DECODER_PTR ((MP3DecoderHelix*)decoder)
+#define COPIER_PTR ((StreamCopy*)copier)
+
+// ES8388 I2C Address
+#define ES8388_ADDR 0x10
+
+// ES8388 Helper functions
+static void writeES8388(uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(ES8388_ADDR);
+    Wire.write(reg);
+    Wire.write(value);
+    Wire.endTransmission();
+}
+
+static uint8_t readES8388(uint8_t reg) {
+    Wire.beginTransmission(ES8388_ADDR);
+    Wire.write(reg);
+    Wire.endTransmission(false);
+    Wire.requestFrom(ES8388_ADDR, (uint8_t)1);
+    return Wire.read();
+}
+
+static void initES8388() {
+    Serial.println("[Audio] Configuring ES8388 codec...");
+    
+    // Reset codec
+    writeES8388(0x00, 0x80);
+    writeES8388(0x00, 0x00);
+    delay(100);
+    
+    // Power Management - Desligar ADC completamente para evitar ruídos
+    writeES8388(0x01, 0x58); // VMIDSEL=500k, VREF=ON
+    writeES8388(0x02, 0xF3); // Power DOWN ADC, Power UP DAC
+    writeES8388(0x03, 0x00); // Power up DAC L/R
+    writeES8388(0x04, 0x3C); // Power up LOUT/ROUT
+    
+    // ADC Control - Garantir que ADC está desligado
+    writeES8388(0x09, 0x88); // ADC mute
+    writeES8388(0x0A, 0xF0); // ADC control - desabilitado
+    
+    // DAC Control
+    writeES8388(0x17, 0x18); // I2S 16-bit
+    writeES8388(0x18, 0x02); // DAC control
+    writeES8388(0x1A, 0x00); // DAC volume control
+    
+    // Mixer Control - Route DAC to outputs (sem ADC)
+    writeES8388(0x26, 0x00); // Left Mixer - apenas DAC
+    writeES8388(0x27, 0x00); // Right Mixer - apenas DAC  
+    writeES8388(0x28, 0x38); // LOUT2 mixer
+    writeES8388(0x29, 0x38); // ROUT2 mixer
+    writeES8388(0x2A, 0x50); // Left DAC to Left Mixer
+    writeES8388(0x2B, 0x50); // Right DAC to Right Mixer
+    
+    // Output Volume (0x00 = mute, 0x1E = max)
+    writeES8388(0x2E, 0x1C); // LOUT1 volume
+    writeES8388(0x2F, 0x1C); // ROUT1 volume
+    writeES8388(0x30, 0x1C); // LOUT2 volume
+    writeES8388(0x31, 0x1C); // ROUT2 volume
+    
+    delay(50); // Delay para estabilização
+    Serial.println("[Audio] ✓ ES8388 configured");
 }
 
 void AudioManager::begin(const String &totemId, const String &deviceToken) {
@@ -19,41 +94,77 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     if (!SPIFFS.begin(true)) {
         Serial.println("[Audio] ERROR: SPIFFS initialization failed!");
     } else {
-        Serial.println("[Audio] ✓ SPIFFS initialized");
+        Serial.println("[Audio] SPIFFS initialized");
         size_t totalBytes = SPIFFS.totalBytes();
         size_t usedBytes = SPIFFS.usedBytes();
         Serial.printf("[Audio] SPIFFS - Total: %d bytes, Used: %d bytes, Free: %d bytes\n", 
                      totalBytes, usedBytes, totalBytes - usedBytes);
     }
 
-    Serial.println("[Audio] Enabling Power Amplifier...");
-    pinMode(PA_ENABLE_PIN, OUTPUT);
-    digitalWrite(PA_ENABLE_PIN, HIGH);
-    Serial.printf("[Audio] PA_EN (GPIO %d) set to HIGH\n", PA_ENABLE_PIN);
-    
+    Serial.println("[Audio] ========== HARDWARE SETUP ==========");
     Serial.println("[Audio] Initializing ES8388 codec...");
     Serial.printf("[Audio] I2C Pins - SDA=%d, SCL=%d\n", I2C_SDA, I2C_SCL);
-    ES8388::begin(I2C_SDA, I2C_SCL);
-    ES8388::setVolume(25); // Volume 0-33 (25 = alto)
-    
-    Serial.println("[Audio] Initializing I2S audio...");
     Serial.printf("[Audio] I2S Pins - BCLK=%d, LRC=%d, DOUT=%d\n", I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setVolume(DEFAULT_VOLUME);
-    Serial.printf("[Audio] ✓ I2S initialized - Volume set to %d\n", DEFAULT_VOLUME);
+    
+    // IMPORTANTE: Desligar amplificador ANTES de configurar ES8388
+    pinMode(PA_ENABLE_PIN, OUTPUT);
+    digitalWrite(PA_ENABLE_PIN, LOW);
+    Serial.printf("[Audio] PA_EN (GPIO %d) = LOW (desligado durante config)\n", PA_ENABLE_PIN);
+    
+    // Initialize I2C for ES8388
+    Wire.begin(I2C_SDA, I2C_SCL);
+    delay(100);
+    
+    // Initialize ES8388 codec via I2C
+    initES8388();
+    
+    // CRÍTICO: Ligar amplificador APENAS APÓS ES8388 estar configurado
+    delay(100);
+    digitalWrite(PA_ENABLE_PIN, HIGH);
+    Serial.println("[Audio] ✓ Power amplifier enabled (após configuração ES8388)");
+    
+    // Create I2S stream
+    i2s = new I2SStream();
+    auto i2s_cfg = I2S_PTR->defaultConfig(TX_MODE);
+    i2s_cfg.pin_bck = I2S_BCLK;
+    i2s_cfg.pin_ws = I2S_LRC;
+    i2s_cfg.pin_data = I2S_DOUT;
+    i2s_cfg.sample_rate = 44100;
+    i2s_cfg.bits_per_sample = 16;
+    i2s_cfg.channels = 2;
+    i2s_cfg.i2s_format = I2S_STD_FORMAT;
+    I2S_PTR->begin(i2s_cfg);
+    
+    // Create decoder MP3
+    decoder = new MP3DecoderHelix();
+    
+    // Create encoded stream
+    encoded = new EncodedAudioStream(I2S_PTR, DECODER_PTR);
+    ENCODED_PTR->begin();
+    
+    // Create copier (will copy file -> encoded stream)
+    copier = new StreamCopy();
+    
+    Serial.println("[Audio] I2S library initialized");
+    Serial.println("[Audio] ========================================");
 }
 
 void AudioManager::loop() {
-    if (playing) {
-        audio.loop();
-        if (!audio.isRunning()) {
+    if (playing && audioFile && copier) {
+        // Copiar dados do arquivo para o encoded stream usando StreamCopy
+        if (COPIER_PTR->copy()) {
+            // Continua copiando
+        } else {
+            // Fim do arquivo
             playing = false;
+            audioFile.close();
+            Serial.println("[Audio] Playback finished");
         }
     }
 }
 
 void AudioManager::play() {
-    Serial.println("[Audio] play() called");
+    Serial.println("[Audio] ========== PLAY REQUEST ==========");
     
     if (playing) {
         Serial.println("[Audio] Already playing, ignoring");
@@ -65,29 +176,54 @@ void AudioManager::play() {
         Serial.printf("[Audio] Looking for: %s\n", AUDIO_FILENAME);
         return;
     }
-
-    Serial.printf("[Audio] Attempting to play: %s\n", AUDIO_FILENAME);
-    if (audio.connecttoFS(SPIFFS, AUDIO_FILENAME)) {
-        playing = true;
-        Serial.println("[Audio] Playback started successfully!");
-    } else {
-        Serial.println("[Audio] ERROR: Failed to start playback!");
+    
+    if (!copier) {
+        Serial.println("[Audio] ERROR: Audio streams not initialized!");
+        return;
     }
+    
+    // Abrir arquivo de áudio
+    audioFile = SPIFFS.open(AUDIO_FILENAME, FILE_READ);
+    if (!audioFile) {
+        Serial.println("[Audio] ERROR: Failed to open audio file!");
+        return;
+    }
+    
+    Serial.printf("[Audio] Audio file opened - Size: %d bytes (%.2f KB)\n", 
+                 audioFile.size(), audioFile.size() / 1024.0);
+    
+    // Configurar copier para copiar do arquivo para o encoded stream
+    COPIER_PTR->begin(*ENCODED_PTR, audioFile);
+    
+    playing = true;
+    Serial.println("[Audio] Playback started successfully!");
+    Serial.println("[Audio] ========================================");
 }
 
 void AudioManager::stop() {
     if (!playing) return;
     Serial.println("[Audio] Stopping playback");
-    audio.stopSong();
+    
+    if (audioFile) {
+        audioFile.close();
+    }
+    
     playing = false;
 }
 
 void AudioManager::setVolume(int vol) {
-    // vol: 0-21 (ES8388 range)
+    // vol: 0-21, map to ES8388 range 0-30
     int clampedVol = constrain(vol, 0, 21);
-    ES8388::setVolume(clampedVol);
-    audio.setVolume(clampedVol);
-    Serial.printf("[Audio] Volume set to %d\n", clampedVol);
+    int es8388Vol = map(clampedVol, 0, 21, 0, 30);
+    Serial.printf("[Audio] Setting volume to %d (ES8388: %d/30)\n", clampedVol, es8388Vol);
+    
+    // Set ES8388 output volume registers
+    writeES8388(0x2E, es8388Vol); // LOUT1
+    writeES8388(0x2F, es8388Vol); // ROUT1
+    writeES8388(0x30, es8388Vol); // LOUT2
+    writeES8388(0x31, es8388Vol); // ROUT2
+    
+    Serial.println("[Audio] Volume updated");
 }
 
 bool AudioManager::isPlaying() const { return playing; }

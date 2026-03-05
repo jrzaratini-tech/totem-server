@@ -23,7 +23,7 @@ bool StateMachine::setState(SystemState newState) {
     // Regras principais
     if (newState == PLAYING) {
         if (currentState == PLAYING) return false;
-        if (currentState != IDLE && currentState != BOOT) return false;
+        if (currentState != IDLE && currentState != BOOT && currentState != DOWNLOADING_AUDIO) return false;
     }
 
     if (newState == DOWNLOADING_AUDIO) {

@@ -736,12 +736,13 @@ O firmware é organizado em módulos independentes que se comunicam através do 
   - Persistência de dados entre reboots
 
 - **`AudioManager`** (`AudioManager.cpp/h`)
-  - Reprodução de áudio via I2S (ESP32-audioI2S)
-  - Download seguro de áudio do servidor
-  - Validação de tamanho e integridade
-  - Suporte a HTTPS com validação de certificado
-  - Fallback para modo insecure (se configurado)
-  - Controle de volume e estado de reprodução
+  - **Biblioteca**: `arduino-audio-tools` + `arduino-libhelix` (MP3 decoder)
+  - **Codec**: ES8388 configurado via I2C direto (sem arduino-audio-driver)
+  - **Reprodução**: I2S → MP3DecoderHelix → EncodedAudioStream → I2SStream
+  - **Download seguro**: HTTPS com validação, temp file → rename pattern
+  - **Controle de volume**: 0-21 mapeado para registradores ES8388 (0x2E-0x31)
+  - **Eliminação de ruídos**: ADC desligado, PA habilitado apenas após codec configurado
+  - **Streaming**: StreamCopy para leitura contínua de SPIFFS → decoder
 
 - **`LEDEngine`** (`LEDEngine.cpp/h`)
   - Controle de LEDs via FastLED (WS2812B)
@@ -789,18 +790,24 @@ Cada efeito é implementado como uma classe independente:
 - **Sistema Dual**: Modo espera (contínuo) + Modo disparo (sincronizado com áudio)
 
 #### Áudio (ESP32-Audio-Kit)
-- **Codec**: ES8388
-- **Interface**: I2S
+- **Codec**: ES8388 (configuração via I2C direto)
+- **Interface**: I2S (44.1kHz, 16-bit, stereo)
+- **Biblioteca**: `arduino-audio-tools` v1.2.2 + `arduino-libhelix` v0.9.2
 - **Pinos I2S**:
   - BCLK: GPIO 27
-  - LRC: GPIO 25
+  - LRC (WS): GPIO 25
   - DOUT: GPIO 26
-  - DIN: GPIO 35
 - **Pinos I2C** (ES8388):
   - SDA: GPIO 33
   - SCL: GPIO 32
+  - Endereço: 0x10
 - **Power Amplifier Enable**: GPIO 21
-- **Volume padrão**: 15 (escala 0-21)
+- **Volume**: 0-10 (MQTT) → 0-21 (interno) → 0-30 (ES8388)
+- **Configuração ES8388**:
+  - ADC desligado (0x02=0xF3) para eliminar ruídos
+  - DAC habilitado com mixer direto (sem ADC)
+  - Sequência crítica: PA OFF → Config ES8388 → Delay 100ms → PA ON
+  - Registradores de volume: LOUT1/ROUT1/LOUT2/ROUT2 (0x2E-0x31)
 
 #### Botões (TTP223 Capacitivos) - Atualizado v4.1.0
 - **Botão Cor**: GPIO 15 (cicla entre cores)
@@ -990,14 +997,20 @@ pio run -t upload && pio device monitor
    ```
 3. Copie as pastas `src/` e `include/` para dentro da pasta do sketch
 
-**Bibliotecas necessárias**:
-- `ESP32-audioI2S`
-- `ESPAsyncWebServer`
-- `AsyncTCP`
-- `WiFiManager` (tzapu)
-- `FastLED`
-- `ArduinoJson`
-- `PubSubClient`
+**Bibliotecas necessárias** (PlatformIO):
+- `arduino-audio-tools` @ 1.2.2 (pschatzmann)
+- `arduino-libhelix` @ 0.9.2 (pschatzmann)
+- `ESPAsyncWebServer` @ 3.10.0
+- `AsyncTCP` @ 3.4.10
+- `WiFiManager` @ 2.0.17 (tzapu)
+- `FastLED` @ 3.10.3
+- `ArduinoJson` @ 7.4.3
+- `PubSubClient` @ 2.8.0
+- `WiFiClientSecure` @ 2.0.0
+- `Wire` @ 2.0.0 (I2C para ES8388)
+- `HTTPClient` @ 2.0.0
+- `SPIFFS` @ 2.0.0
+- `Preferences` @ 2.0.0
 
 **Configurações da placa**:
 - Board: ESP32 Dev Module
@@ -1056,6 +1069,138 @@ O firmware gera logs detalhados via Serial (115200 baud):
 [MAIN] ✓ Playback started
 [LOOP] PLAYING - Audio: YES, Remaining: 25 sec
 ```
+
+### Sistema de Áudio - Detalhes Técnicos
+
+#### Arquitetura de Playback
+
+O sistema de áudio utiliza uma cadeia de processamento moderna e eficiente:
+
+```
+SPIFFS (/audio.mp3)
+    ↓
+File (Arduino)
+    ↓
+StreamCopy (arduino-audio-tools)
+    ↓
+EncodedAudioStream
+    ↓
+MP3DecoderHelix (libhelix)
+    ↓
+I2SStream (44.1kHz, 16-bit, stereo)
+    ↓
+ES8388 DAC (via I2S)
+    ↓
+Power Amplifier (GPIO 21)
+    ↓
+Alto-falante
+```
+
+#### Configuração ES8388 (Registradores I2C)
+
+O codec ES8388 é configurado diretamente via I2C sem dependências externas:
+
+**Reset e Power Management:**
+```cpp
+0x00 = 0x80, 0x00  // Reset
+0x01 = 0x58        // VMIDSEL=500k, VREF=ON
+0x02 = 0xF3        // ADC OFF, DAC ON (crítico para eliminar ruídos)
+0x03 = 0x00        // DAC L/R power up
+0x04 = 0x3C        // LOUT/ROUT power up
+```
+
+**ADC Control (Desligado):**
+```cpp
+0x09 = 0x88        // ADC mute
+0x0A = 0xF0        // ADC control disabled
+```
+
+**DAC Control:**
+```cpp
+0x17 = 0x18        // I2S 16-bit
+0x18 = 0x02        // DAC control
+0x1A = 0x00        // DAC volume control
+```
+
+**Mixer (DAC direto, sem ADC):**
+```cpp
+0x26 = 0x00        // Left Mixer - apenas DAC
+0x27 = 0x00        // Right Mixer - apenas DAC
+0x28 = 0x38        // LOUT2 mixer
+0x29 = 0x38        // ROUT2 mixer
+0x2A = 0x50        // Left DAC to Left Mixer
+0x2B = 0x50        // Right DAC to Right Mixer
+```
+
+**Output Volume:**
+```cpp
+0x2E = 0x1C        // LOUT1 volume (0x00=mute, 0x1E=max)
+0x2F = 0x1C        // ROUT1 volume
+0x30 = 0x1C        // LOUT2 volume
+0x31 = 0x1C        // ROUT2 volume
+```
+
+#### Sequência de Inicialização (Crítica)
+
+Para evitar ruídos no alto-falante:
+
+1. **Desligar amplificador**: `digitalWrite(PA_ENABLE_PIN, LOW)`
+2. **Inicializar I2C**: `Wire.begin(SDA=33, SCL=32)`
+3. **Configurar ES8388**: Todos os registradores acima
+4. **Delay estabilização**: `delay(100ms)`
+5. **Ligar amplificador**: `digitalWrite(PA_ENABLE_PIN, HIGH)`
+6. **Criar streams**: I2SStream → EncodedAudioStream → StreamCopy
+
+⚠️ **IMPORTANTE**: Ligar o amplificador ANTES do ES8388 estar configurado causa ruídos/clicks!
+
+#### Loop de Playback
+
+```cpp
+void AudioManager::loop() {
+    if (playing && audioFile && copier) {
+        if (COPIER_PTR->copy()) {
+            // Continua copiando dados
+        } else {
+            // Fim do arquivo
+            playing = false;
+            audioFile.close();
+        }
+    }
+}
+```
+
+O `StreamCopy::copy()` lê chunks do arquivo MP3 e os envia para o decoder de forma não-bloqueante.
+
+#### Mapeamento de Volume
+
+```
+MQTT (0-10) → Interno (0-21) → ES8388 (0-30)
+
+Exemplo:
+  Volume MQTT = 8
+  Volume interno = 16
+  ES8388 = 22 (0x16)
+```
+
+#### Troubleshooting Áudio
+
+**Problema: Ruídos/clicks ao ligar**
+- ✅ Solução: PA_ENABLE deve estar LOW durante configuração ES8388
+- ✅ Implementado: Sequência correta de inicialização
+
+**Problema: Sem som**
+- Verificar: PA_ENABLE_PIN está HIGH após boot?
+- Verificar: Arquivo `/audio.mp3` existe em SPIFFS?
+- Verificar: Logs mostram "Playback started successfully"?
+
+**Problema: Volume muito baixo**
+- Ajustar via MQTT: `totem/{id}/config/volume` (0-10)
+- Verificar registradores 0x2E-0x31 do ES8388
+
+**Problema: Áudio distorcido**
+- Verificar: Sample rate = 44.1kHz
+- Verificar: Bits per sample = 16
+- Verificar: Arquivo MP3 está corrompido?
 
 ### Compatibilidade com Backend v4.1.0
 

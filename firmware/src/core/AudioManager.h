@@ -5,11 +5,15 @@
 #include <HTTPClient.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
-#include <Audio.h>
 
 class AudioManager {
 private:
-    Audio audio;
+    // Ponteiros void para objetos da biblioteca (implementação no .cpp)
+    void *i2s;
+    void *encoded;
+    void *decoder;
+    void *copier;
+    File audioFile;
 
     String totemId;
     String deviceToken;
