@@ -15,6 +15,9 @@ Este repositório concentra principalmente:
 - **Auto-Play**: Reprodução automática quando novo áudio é enviado ou configuração de trigger é atualizada
 - **Limite de Upload**: Reduzido para 5MB para melhor performance
 - **Otimização SPIFFS**: Firmware agora deleta áudio antigo antes de baixar novo, evitando erro de espaço
+- **🔊 Controle de Ganho do Amplificador**: MAX98357A configurado para ganho máximo de 15dB via GPIO
+- **⚡ Otimizações de Memória**: Buffer de download reduzido, logs simplificados, heap livre aumentado
+- **🔧 Correções de Estabilidade**: Removido reset automático de WiFi por pino flutuante
 
 ---
 
@@ -695,7 +698,7 @@ O firmware do ESP32 está localizado em `firmware/` e implementa uma arquitetura
 - **Flexibilidade**: Provisionamento dinâmico via WiFi AP, configuração via MQTT
 - **Modularidade**: Componentes independentes e reutilizáveis
 
-**Versão atual**: `4.0.0`
+**Versão atual**: `4.1.0`
 
 ### Arquitetura Modular
 
@@ -737,11 +740,12 @@ O firmware é organizado em módulos independentes que se comunicam através do 
 
 - **`AudioManager`** (`AudioManager.cpp/h`)
   - **Biblioteca**: `arduino-audio-tools` + `arduino-libhelix` (MP3 decoder)
-  - **Codec**: ES8388 configurado via I2C direto (sem arduino-audio-driver)
-  - **Reprodução**: I2S → MP3DecoderHelix → EncodedAudioStream → I2SStream
+  - **Hardware**: MAX98357A I2S DAC (ESP32 DevKit V1)
+  - **Reprodução**: I2S → MP3DecoderHelix → EncodedAudioStream → I2SStream → MAX98357A
   - **Download seguro**: HTTPS com validação, temp file → rename pattern
-  - **Controle de volume**: 0-21 mapeado para registradores ES8388 (0x2E-0x31)
-  - **Eliminação de ruídos**: ADC desligado, PA habilitado apenas após codec configurado
+  - **Controle de volume digital**: 0-10 (MQTT) → ganho 0.0-1.0 (sem limitação de clipping)
+  - **Controle de ganho do amplificador**: GPIO 33 → pino GAIN do MAX98357A (15dB máximo)
+  - **Otimizações v4.1.0**: Buffer de download reduzido (1024 bytes), logs simplificados
   - **Streaming**: StreamCopy para leitura contínua de SPIFFS → decoder
 
 - **`LEDEngine`** (`LEDEngine.cpp/h`)
@@ -789,25 +793,25 @@ Cada efeito é implementado como uma classe independente:
 - Brilho máximo: 180 (de 255)
 - **Sistema Dual**: Modo espera (contínuo) + Modo disparo (sincronizado com áudio)
 
-#### Áudio (ESP32-Audio-Kit)
-- **Codec**: ES8388 (configuração via I2C direto)
+#### Áudio (ESP32 DevKit V1 + MAX98357A)
+- **Amplificador**: MAX98357A I2S Class D (3W @ 4Ω)
 - **Interface**: I2S (44.1kHz, 16-bit, stereo)
 - **Biblioteca**: `arduino-audio-tools` v1.2.2 + `arduino-libhelix` v0.9.2
 - **Pinos I2S**:
   - BCLK: GPIO 27
   - LRC (WS): GPIO 25
-  - DOUT: GPIO 26
-- **Pinos I2C** (ES8388):
-  - SDA: GPIO 33
-  - SCL: GPIO 32
-  - Endereço: 0x10
-- **Power Amplifier Enable**: GPIO 21
-- **Volume**: 0-10 (MQTT) → 0-21 (interno) → 0-30 (ES8388)
-- **Configuração ES8388**:
-  - ADC desligado (0x02=0xF3) para eliminar ruídos
-  - DAC habilitado com mixer direto (sem ADC)
-  - Sequência crítica: PA OFF → Config ES8388 → Delay 100ms → PA ON
-  - Registradores de volume: LOUT1/ROUT1/LOUT2/ROUT2 (0x2E-0x31)
+  - DOUT (DIN): GPIO 26
+  - **GAIN**: GPIO 33 (controle de ganho do amplificador)
+- **Volume Digital**: 0-10 (MQTT) → ganho 0.0-1.0 (100% sem limitação)
+- **Ganho do Amplificador** (MAX98357A):
+  - Controlado via pino GAIN (GPIO 33)
+  - **HIGH (3.3V)**: 15dB (máximo) ✅ **configuração atual**
+  - Flutuante: 9dB (padrão de fábrica)
+  - LOW (GND): 3dB (mínimo)
+- **Configuração de Hardware**:
+  - Conectar GPIO 33 do ESP32 ao pino GAIN do MAX98357A
+  - Alimentação: 3.3V-5V (recomendado fonte externa para volume alto)
+  - Saída: Alto-falante 4Ω-8Ω (3W RMS máximo)
 
 #### Botões (TTP223 Capacitivos) - Atualizado v4.1.0
 - **Botão Cor**: GPIO 15 (cicla entre cores)

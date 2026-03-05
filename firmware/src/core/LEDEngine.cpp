@@ -106,12 +106,16 @@ void LEDEngine::loop() {
             break;
         }
         case HEART: {
-            uint8_t level = heartEffect.beatLevel(elapsed);
-            uint8_t scaled = (uint8_t)map(level, 0, 255, 0, cfg.maxBrightness);
-            FastLED.setBrightness(scaled);
-            CRGB heartColor = CRGB::Red;
-            solidEffect.render(mainLeds, mainCount, heartLeds, heartCount, baseColor);
-            if (heartLeds && heartCount > 0) fill_solid(heartLeds, heartCount, heartColor);
+            // Apagar fita principal
+            if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, CRGB::Black);
+            
+            // Aplicar batimento vermelho apenas na fita do coração
+            if (heartLeds && heartCount > 0) {
+                uint8_t level = heartEffect.beatLevel(elapsed);
+                CRGB heartColor = CRGB::Red;
+                heartColor.nscale8(level);  // Aplicar nível de batimento à cor vermelha
+                fill_solid(heartLeds, heartCount, heartColor);
+            }
             break;
         }
         default:

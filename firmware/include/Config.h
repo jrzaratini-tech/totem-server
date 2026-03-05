@@ -49,31 +49,30 @@
 #define DEFAULT_BRIGHTNESS      120
 
 // ========== HARDWARE - BOTÕES ==========
-// NOTA: Pinos ajustados para não conflitar com I2S/I2C do Audio-Kit
-#define PIN_BTN_COR             15
-#define PIN_BTN_MAIS            4
-#define PIN_BTN_MENOS           16
-#define PIN_BTN_CORACAO         5
-#define PIN_BTN_RESET_WIFI      22
+#define PIN_BTN_TRIGGER         15      // TTP223 capacitive trigger button
+#define PIN_BTN_RESET_WIFI      22      // Mechanical WiFi reset button
 #define DEBOUNCE_DELAY          50
 #define LONG_PRESS_TIME         5000
 #define MIN_CLICK_INTERVAL      150
 
+// Legacy button pins (mantidos para compatibilidade com ButtonManager)
+#define PIN_BTN_COR             15
+#define PIN_BTN_MAIS            4
+#define PIN_BTN_MENOS           16
+#define PIN_BTN_CORACAO         15      // Mesmo que trigger
+#define PIN_BTN_CORACAO_ALIAS   PIN_BTN_TRIGGER
+
 // ========== HARDWARE - ÁUDIO I2S ==========
-// ESP32-Audio-Kit A1S com ES8388
-// Pinos I2S corretos para ESP32-Audio-Kit V2.2 A1S
-#define I2S_BCLK                27
-#define I2S_LRC                 25
-#define I2S_DOUT                26
-#define I2S_DIN                 35
-// Pinos I2C para ES8388 codec
-#define I2C_SDA                 33
-#define I2C_SCL                 32
-#define PA_ENABLE_PIN           21  // Power Amplifier Enable
-// Volume padrão (0-21, mapeado de 0-10 do servidor)
-#define DEFAULT_VOLUME          15
+// ESP32 DevKit V1 com MAX98357A I2S DAC
+// MAX98357A não requer inicialização I2C, apenas I2S digital
+#define I2S_BCLK                27      // Bit Clock
+#define I2S_LRC                 25      // Left/Right Clock (Word Select)
+#define I2S_DOUT                26      // Data Out (DIN no MAX98357A)
+#define I2S_GAIN                33      // Gain control (HIGH=15dB, LOW=3dB, float=9dB)
+// Volume padrão (0-10 do servidor, mapeado para ganho digital 0.0-1.0)
+#define DEFAULT_VOLUME          10
 #define MIN_VOLUME              0
-#define MAX_VOLUME              21
+#define MAX_VOLUME              10
 
 // ========== HARDWARE - SD CARD (opcional) ==========
 #define SD_CS                   5

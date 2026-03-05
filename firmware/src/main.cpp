@@ -32,6 +32,8 @@ static String gDeviceToken;
 
 static unsigned long lastStatusMs = 0;
 static unsigned long playEndMs = 0;
+static unsigned long lastHeapCheck = 0;
+static unsigned long triggerStartMs = 0;
 
 static void publishStatus() {
     StaticJsonDocument<384> doc;
@@ -41,6 +43,8 @@ static void publishStatus() {
     doc["rssi"] = wifiManager.getRSSI();
     doc["ip"] = wifiManager.getIP();
     doc["state"] = stateMachine.getStateName();
+    doc["freeHeap"] = ESP.getFreeHeap();
+    doc["minFreeHeap"] = ESP.getMinFreeHeap();
 
     String out;
     serializeJson(doc, out);
@@ -58,10 +62,6 @@ static void safeEnterError(const String &err) {
 
 static void setupButtonCallbacks() {
     buttonManager.onButtonCor([](bool longPress) {
-        if (longPress) {
-            wifiManager.resetWiFiSettings();
-            return;
-        }
         configManager.cycleColor();
         ledEngine.setColor(configManager.getColor());
     });
@@ -157,18 +157,20 @@ static void setupMQTTCallbacks() {
             int vol = payload.toInt();
             if (vol >= 0 && vol <= 10) {
                 currentVolume = vol;
-                // Mapear 0-10 para 0-21 (escala do ES8388)
-                int es8388Vol = map(vol, 0, 10, 0, 21);
-                audioManager.setVolume(es8388Vol);
-                Serial.printf("[MAIN] Volume set to %d (ES8388: %d)\n", vol, es8388Vol);
+                // Volume digital direto (0-10)
+                audioManager.setVolume(vol);
+                Serial.printf("[MAIN] Volume set to %d/10\n", vol);
             }
             return;
         }
         
         if (topic.endsWith("/trigger")) {
+            triggerStartMs = millis();
             Serial.println("[MAIN] ========================================");
             Serial.println("[MAIN] TRIGGER COMMAND RECEIVED");
             Serial.printf("[MAIN] Payload: '%s'\n", payload.c_str());
+            Serial.printf("[MAIN] Heap - Free: %d bytes, Min: %d bytes\n", 
+                         ESP.getFreeHeap(), ESP.getMinFreeHeap());
             Serial.println("[MAIN] ========================================");
             
             if (payload == "play") {
@@ -223,8 +225,13 @@ static void setupMQTTCallbacks() {
                 Serial.println("[MAIN] Starting audio playback...");
                 audioManager.play();
                 playEndMs = millis() + (unsigned long)cfg.duration * 1000UL;
-                Serial.printf("[MAIN] ✓ Playback started - Will end at: %lu ms (duration: %d sec)\n", 
+                unsigned long latency = millis() - triggerStartMs;
+                Serial.printf("[MAIN] ✓ Playback started - Latency: %lu ms\n", latency);
+                Serial.printf("[MAIN] ✓ Will end at: %lu ms (duration: %d sec)\n", 
                              playEndMs, cfg.duration);
+                if (latency > 300) {
+                    Serial.printf("[MAIN] ⚠ WARNING: High latency detected (%lu ms > 300ms target)\n", latency);
+                }
                 Serial.println("[MAIN] ========================================");
             } else {
                 Serial.printf("[MAIN] ✗ Unknown trigger payload: '%s'\n", payload.c_str());
@@ -297,10 +304,16 @@ void setup() {
     Serial.begin(115200);
     delay(100);
     Serial.println();
-    Serial.println("[BOOT] app start");
-    Serial.printf("[BOOT] reset_reason=%d\n", (int)esp_reset_reason());
-    Serial.printf("[BOOT] fw=%s\n", FIRMWARE_VERSION);
-    Serial.printf("[BOOT] totem_id=%s\n", TOTEM_ID);
+    Serial.println("[BOOT] ========================================");
+    Serial.println("[BOOT] ESP32 IoT Totem - Production Firmware");
+    Serial.println("[BOOT] ========================================");
+    Serial.printf("[BOOT] Firmware version: %s\n", FIRMWARE_VERSION);
+    Serial.printf("[BOOT] Totem ID: %s\n", TOTEM_ID);
+    Serial.printf("[BOOT] Reset reason: %d\n", (int)esp_reset_reason());
+    Serial.printf("[BOOT] Heap at boot - Free: %d bytes, Min: %d bytes\n", 
+                 ESP.getFreeHeap(), ESP.getMinFreeHeap());
+    Serial.printf("[BOOT] Flash size: %d bytes\n", ESP.getFlashChipSize());
+    Serial.printf("[BOOT] CPU frequency: %d MHz\n", ESP.getCpuFreqMHz());
     Serial.flush();
 
     esp_ota_mark_app_valid_cancel_rollback();
@@ -359,7 +372,22 @@ void setup() {
 
     stateMachine.setState(IDLE);
     lastStatusMs = 0;
+    lastHeapCheck = millis();
+    
+    Serial.println("[BOOT] ========================================");
     Serial.println("[BOOT] Setup complete - entering IDLE state");
+    Serial.printf("[BOOT] Heap after setup - Free: %d bytes, Min: %d bytes\n", 
+                 ESP.getFreeHeap(), ESP.getMinFreeHeap());
+    
+    // Verificar se heap mínimo está acima do limite seguro
+    if (ESP.getMinFreeHeap() < 120000) {
+        Serial.printf("[BOOT] ⚠ WARNING: Low minimum free heap (%d < 120KB)\n", 
+                     ESP.getMinFreeHeap());
+    } else {
+        Serial.println("[BOOT] ✓ Heap check passed (>120KB free)");
+    }
+    
+    Serial.println("[BOOT] ========================================");
     Serial.flush();
 }
 
@@ -404,6 +432,22 @@ void loop() {
     if (millis() - lastStatusMs >= STATUS_INTERVAL) {
         publishStatus();
         lastStatusMs = millis();
+    }
+    
+    // Monitoramento de heap a cada 30 segundos
+    if (millis() - lastHeapCheck >= 30000) {
+        size_t freeHeap = ESP.getFreeHeap();
+        size_t minFreeHeap = ESP.getMinFreeHeap();
+        
+        if (freeHeap < 80000) {
+            Serial.printf("[HEAP] ⚠ WARNING: Low free heap: %d bytes\n", freeHeap);
+        }
+        
+        if (minFreeHeap < 120000) {
+            Serial.printf("[HEAP] ⚠ WARNING: Low minimum free heap: %d bytes\n", minFreeHeap);
+        }
+        
+        lastHeapCheck = millis();
     }
 
     // recuperação simples do ERROR

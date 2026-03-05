@@ -5,9 +5,16 @@
 
 #include "AudioTools.h"
 #include "AudioTools/AudioCodecs/CodecMP3Helix.h"
-#include <Wire.h>
 
 using namespace audio_tools;
+
+// ========== AUDIO PROCESSING CONFIGURATION ==========
+// Digital gain boost for maximum volume (1.0 = no boost, 1.8 = 80% boost)
+#define MAX_DIGITAL_GAIN 1.8f
+#define MIN_DIGITAL_GAIN 0.0f
+
+// Audio metrics logging interval
+#define METRICS_LOG_INTERVAL 5000
 
 AudioManager::AudioManager() {
     playing = false;
@@ -15,80 +22,98 @@ AudioManager::AudioManager() {
     currentVersion = 0;
     downloadStartMs = 0;
     i2s = nullptr;
+    volumeStream = nullptr;
     encoded = nullptr;
     decoder = nullptr;
     copier = nullptr;
+    peakSample = 0;
+    lastMetricsLog = 0;
+    samplesProcessed = 0;
+    clippedSamples = 0;
 }
+
+// Volume digital global (0-10 do backend -> 0.0-1.8 gain with boost)
+static float gDigitalGain = MAX_DIGITAL_GAIN; // Default volume 10/10 with max boost
+static float gVolumeBoost = 1.5f; // Additional boost multiplier (1.0-1.8)
 
 // Helper macros para cast de ponteiros
 #define I2S_PTR ((I2SStream*)i2s)
+#define VOLUME_PTR ((VolumeStream*)volumeStream)
 #define ENCODED_PTR ((EncodedAudioStream*)encoded)
 #define DECODER_PTR ((MP3DecoderHelix*)decoder)
 #define COPIER_PTR ((StreamCopy*)copier)
 
-// ES8388 I2C Address
-#define ES8388_ADDR 0x10
+// ========== CUSTOM AUDIO PROCESSOR ==========
+// Stereo-to-mono mixer with digital gain boost and clipping prevention
+// Uses BaseConverter for proper AudioTools integration
+class StereoToMonoGainConverter : public BaseConverter {
+private:
+    int16_t *peakSamplePtr;
+    unsigned long *samplesProcessedPtr;
+    unsigned long *clippedSamplesPtr;
+    
+public:
+    StereoToMonoGainConverter(int16_t *peak, unsigned long *samples, unsigned long *clipped) 
+        : peakSamplePtr(peak), samplesProcessedPtr(samples), clippedSamplesPtr(clipped) {}
+    
+    size_t convert(uint8_t *src, size_t size) override {
+        if (!src || size == 0) return 0;
+        
+        // Process stereo 16-bit samples
+        int16_t *samples = (int16_t*)src;
+        size_t numSamples = size / 2; // bytes to 16-bit samples
+        
+        // Ensure even number (stereo pairs)
+        if (numSamples % 2 != 0) numSamples--;
+        
+        for (size_t i = 0; i < numSamples; i += 2) {
+            // Read stereo pair
+            int16_t left = samples[i];
+            int16_t right = samples[i + 1];
+            
+            // Mix to mono (average)
+            int32_t mono = ((int32_t)left + (int32_t)right) / 2;
+            
+            // Apply digital gain with volume boost
+            float totalGain = gDigitalGain * gVolumeBoost;
+            mono = (int32_t)(mono * totalGain);
+            
+            // Clamp to prevent clipping
+            if (mono > 32767) {
+                mono = 32767;
+                (*clippedSamplesPtr)++;
+            } else if (mono < -32768) {
+                mono = -32768;
+                (*clippedSamplesPtr)++;
+            }
+            
+            // Track peak for metrics
+            int16_t absSample = abs((int16_t)mono);
+            if (absSample > *peakSamplePtr) {
+                *peakSamplePtr = absSample;
+            }
+            
+            // Write mono sample to both channels (MAX98357A expects stereo format)
+            samples[i] = (int16_t)mono;
+            samples[i + 1] = (int16_t)mono;
+            
+            (*samplesProcessedPtr)++;
+        }
+        
+        return size; // Return original size
+    }
+};
 
-// ES8388 Helper functions
-static void writeES8388(uint8_t reg, uint8_t value) {
-    Wire.beginTransmission(ES8388_ADDR);
-    Wire.write(reg);
-    Wire.write(value);
-    Wire.endTransmission();
-}
-
-static uint8_t readES8388(uint8_t reg) {
-    Wire.beginTransmission(ES8388_ADDR);
-    Wire.write(reg);
-    Wire.endTransmission(false);
-    Wire.requestFrom(ES8388_ADDR, (uint8_t)1);
-    return Wire.read();
-}
-
-static void initES8388() {
-    Serial.println("[Audio] Configuring ES8388 codec...");
-    
-    // Reset codec
-    writeES8388(0x00, 0x80);
-    writeES8388(0x00, 0x00);
-    delay(100);
-    
-    // Power Management - Desligar ADC completamente para evitar ruídos
-    writeES8388(0x01, 0x58); // VMIDSEL=500k, VREF=ON
-    writeES8388(0x02, 0xF3); // Power DOWN ADC, Power UP DAC
-    writeES8388(0x03, 0x00); // Power up DAC L/R
-    writeES8388(0x04, 0x3C); // Power up LOUT/ROUT
-    
-    // ADC Control - Garantir que ADC está desligado
-    writeES8388(0x09, 0x88); // ADC mute
-    writeES8388(0x0A, 0xF0); // ADC control - desabilitado
-    
-    // DAC Control
-    writeES8388(0x17, 0x18); // I2S 16-bit
-    writeES8388(0x18, 0x02); // DAC control
-    writeES8388(0x1A, 0x00); // DAC volume control
-    
-    // Mixer Control - Route DAC to outputs (sem ADC)
-    writeES8388(0x26, 0x00); // Left Mixer - apenas DAC
-    writeES8388(0x27, 0x00); // Right Mixer - apenas DAC  
-    writeES8388(0x28, 0x38); // LOUT2 mixer
-    writeES8388(0x29, 0x38); // ROUT2 mixer
-    writeES8388(0x2A, 0x50); // Left DAC to Left Mixer
-    writeES8388(0x2B, 0x50); // Right DAC to Right Mixer
-    
-    // Output Volume (0x00 = mute, 0x1E = max)
-    writeES8388(0x2E, 0x1C); // LOUT1 volume
-    writeES8388(0x2F, 0x1C); // ROUT1 volume
-    writeES8388(0x30, 0x1C); // LOUT2 volume
-    writeES8388(0x31, 0x1C); // ROUT2 volume
-    
-    delay(50); // Delay para estabilização
-    Serial.println("[Audio] ✓ ES8388 configured");
-}
+static StereoToMonoGainConverter *gAudioConverter = nullptr;
+static ConverterStream<int16_t> *gConverterStream = nullptr;
 
 void AudioManager::begin(const String &totemId, const String &deviceToken) {
     this->totemId = totemId;
     this->deviceToken = deviceToken;
+    
+    // Log heap inicial
+    Serial.printf("[Audio] Heap at start - Free: %d bytes, Min free: %d bytes\n", 
+                 ESP.getFreeHeap(), ESP.getMinFreeHeap());
     
     Serial.println("[Audio] Initializing SPIFFS...");
     if (!SPIFFS.begin(true)) {
@@ -102,28 +127,19 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     }
 
     Serial.println("[Audio] ========== HARDWARE SETUP ==========");
-    Serial.println("[Audio] Initializing ES8388 codec...");
-    Serial.printf("[Audio] I2C Pins - SDA=%d, SCL=%d\n", I2C_SDA, I2C_SCL);
-    Serial.printf("[Audio] I2S Pins - BCLK=%d, LRC=%d, DOUT=%d\n", I2S_BCLK, I2S_LRC, I2S_DOUT);
+    Serial.println("[Audio] Hardware: ESP32 DevKit V1 + MAX98357A I2S DAC");
+    Serial.printf("[Audio] I2S Pins - BCLK=%d, LRC=%d, DOUT=%d, GAIN=%d\n", I2S_BCLK, I2S_LRC, I2S_DOUT, I2S_GAIN);
     
-    // IMPORTANTE: Desligar amplificador ANTES de configurar ES8388
-    pinMode(PA_ENABLE_PIN, OUTPUT);
-    digitalWrite(PA_ENABLE_PIN, LOW);
-    Serial.printf("[Audio] PA_EN (GPIO %d) = LOW (desligado durante config)\n", PA_ENABLE_PIN);
+    // Configure GAIN pin for maximum amplifier gain (15dB)
+    Serial.printf("[Audio] Configuring GAIN pin (GPIO %d) for MAX98357A...\n", I2S_GAIN);
+    pinMode(I2S_GAIN, OUTPUT);
+    digitalWrite(I2S_GAIN, HIGH);  // HIGH = 15dB gain
+    delay(10);
+    int gainState = digitalRead(I2S_GAIN);
+    Serial.printf("[Audio] GAIN pin state: %s (expected: HIGH)\n", gainState == HIGH ? "HIGH" : "LOW");
+    Serial.println("[Audio] MAX98357A configured for 15dB gain (maximum)");
     
-    // Initialize I2C for ES8388
-    Wire.begin(I2C_SDA, I2C_SCL);
-    delay(100);
-    
-    // Initialize ES8388 codec via I2C
-    initES8388();
-    
-    // CRÍTICO: Ligar amplificador APENAS APÓS ES8388 estar configurado
-    delay(100);
-    digitalWrite(PA_ENABLE_PIN, HIGH);
-    Serial.println("[Audio] ✓ Power amplifier enabled (após configuração ES8388)");
-    
-    // Create I2S stream
+    // Create I2S stream for MAX98357A with optimized DMA buffers
     i2s = new I2SStream();
     auto i2s_cfg = I2S_PTR->defaultConfig(TX_MODE);
     i2s_cfg.pin_bck = I2S_BCLK;
@@ -133,32 +149,76 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     i2s_cfg.bits_per_sample = 16;
     i2s_cfg.channels = 2;
     i2s_cfg.i2s_format = I2S_STD_FORMAT;
+    i2s_cfg.buffer_count = 8;      // Optimized: 8 DMA buffers
+    i2s_cfg.buffer_size = 512;     // Optimized: 512 samples per buffer
     I2S_PTR->begin(i2s_cfg);
+    Serial.println("[Audio] ✓ I2S initialized (44.1kHz, 16-bit, Stereo, DMA: 8x512)");
     
-    // Create decoder MP3
+    // Create audio converter for stereo-to-mono mixing + gain boost
+    gAudioConverter = new StereoToMonoGainConverter(&peakSample, &samplesProcessed, &clippedSamples);
+    Serial.println("[Audio] ✓ Audio converter created (stereo→mono + gain boost)");
+    
+    // Create converter stream (applies gain processing)
+    gConverterStream = new ConverterStream<int16_t>(*I2S_PTR, *gAudioConverter);
+    gConverterStream->begin();
+    Serial.println("[Audio] ✓ Converter stream initialized");
+    
+    // Create MP3 decoder
     decoder = new MP3DecoderHelix();
+    Serial.println("[Audio] ✓ MP3 Helix decoder created");
     
-    // Create encoded stream
-    encoded = new EncodedAudioStream(I2S_PTR, DECODER_PTR);
+    // Create encoded stream (decoder -> converter -> I2S)
+    encoded = new EncodedAudioStream(gConverterStream, DECODER_PTR);
     ENCODED_PTR->begin();
+    Serial.println("[Audio] ✓ Encoded audio stream initialized");
     
-    // Create copier (will copy file -> encoded stream)
+    // Create copier (file -> encoded stream)
     copier = new StreamCopy();
+    Serial.println("[Audio] ✓ Stream copier created");
     
-    Serial.println("[Audio] I2S library initialized");
+    // Set default volume with boost
+    float baseGain = (float)DEFAULT_VOLUME / 10.0f;
+    gDigitalGain = baseGain;
+    Serial.printf("[Audio] ✓ Default volume: %d/10 (base: %.2f, boost: %.2f, total: %.2fx)\n", 
+                 DEFAULT_VOLUME, baseGain, gVolumeBoost, baseGain * gVolumeBoost);
+    
     Serial.println("[Audio] ========================================");
+    Serial.println("[Audio] AUDIO PIPELINE READY:");
+    Serial.println("[Audio]   SPIFFS → MP3 Decoder → Converter Stream");
+    Serial.println("[Audio]   → Stereo-to-Mono Mix → Digital Gain Boost");
+    Serial.println("[Audio]   → Sample Clamp → I2S → MAX98357A (15dB)");
+    Serial.printf("[Audio] Digital gain range: %.1fx - %.1fx\n", MIN_DIGITAL_GAIN, MAX_DIGITAL_GAIN);
+    Serial.printf("[Audio] Current boost multiplier: %.2fx\n", gVolumeBoost);
+    Serial.printf("[Audio] Heap after init - Free: %d bytes, Min free: %d bytes\n", 
+                 ESP.getFreeHeap(), ESP.getMinFreeHeap());
+    Serial.println("[Audio] ==========================================");
 }
 
 void AudioManager::loop() {
     if (playing && audioFile && copier) {
-        // Copiar dados do arquivo para o encoded stream usando StreamCopy
-        if (COPIER_PTR->copy()) {
-            // Continua copiando
-        } else {
-            // Fim do arquivo
+        // Usar StreamCopy para pipeline correto: File -> EncodedStream -> Decoder -> Processor -> I2S
+        if (!COPIER_PTR->copy()) {
+            // Fim do arquivo ou erro
             playing = false;
-            audioFile.close();
+            if (audioFile) {
+                audioFile.close();
+            }
             Serial.println("[Audio] Playback finished");
+            
+            // Log final metrics
+            Serial.printf("[Audio] Final metrics - Samples: %lu, Peak: %d, Clipped: %lu\n",
+                         samplesProcessed, peakSample, clippedSamples);
+        }
+        
+        // Log audio metrics periodically
+        if (millis() - lastMetricsLog > METRICS_LOG_INTERVAL) {
+            float peakPercent = (peakSample / 32767.0f) * 100.0f;
+            float clipPercent = samplesProcessed > 0 ? (clippedSamples / (float)samplesProcessed) * 100.0f : 0.0f;
+            Serial.printf("[AUDIO] vol=%d/10 gain=%.2fx boost=%.2fx total=%.2fx peak=%d(%.1f%%) clipped=%lu(%.2f%%)\n",
+                         (int)(gDigitalGain * 10.0f), gDigitalGain, gVolumeBoost, 
+                         gDigitalGain * gVolumeBoost, peakSample, peakPercent, 
+                         clippedSamples, clipPercent);
+            lastMetricsLog = millis();
         }
     }
 }
@@ -182,6 +242,12 @@ void AudioManager::play() {
         return;
     }
     
+    // Reset metrics
+    peakSample = 0;
+    samplesProcessed = 0;
+    clippedSamples = 0;
+    lastMetricsLog = millis();
+    
     // Abrir arquivo de áudio
     audioFile = SPIFFS.open(AUDIO_FILENAME, FILE_READ);
     if (!audioFile) {
@@ -196,34 +262,52 @@ void AudioManager::play() {
     COPIER_PTR->begin(*ENCODED_PTR, audioFile);
     
     playing = true;
-    Serial.println("[Audio] Playback started successfully!");
-    Serial.println("[Audio] ========================================");
+    Serial.printf("[Audio] Playback started - Volume: %d/10, Gain: %.2fx, Boost: %.2fx\n",
+                 (int)(gDigitalGain * 10.0f), gDigitalGain, gVolumeBoost);
+    Serial.println("[Audio] ==========================================");
 }
 
 void AudioManager::stop() {
     if (!playing) return;
     Serial.println("[Audio] Stopping playback");
     
+    // Parar copier primeiro
+    if (copier) {
+        COPIER_PTR->end();
+    }
+    
+    // Fechar arquivo
     if (audioFile) {
         audioFile.close();
+    }
+    
+    // Limpar buffers I2S
+    if (encoded) {
+        ENCODED_PTR->end();
+        ENCODED_PTR->begin();
     }
     
     playing = false;
 }
 
 void AudioManager::setVolume(int vol) {
-    // vol: 0-21, map to ES8388 range 0-30
-    int clampedVol = constrain(vol, 0, 21);
-    int es8388Vol = map(clampedVol, 0, 21, 0, 30);
-    Serial.printf("[Audio] Setting volume to %d (ES8388: %d/30)\n", clampedVol, es8388Vol);
+    int clampedVol = constrain(vol, MIN_VOLUME, MAX_VOLUME);
     
-    // Set ES8388 output volume registers
-    writeES8388(0x2E, es8388Vol); // LOUT1
-    writeES8388(0x2F, es8388Vol); // ROUT1
-    writeES8388(0x30, es8388Vol); // LOUT2
-    writeES8388(0x31, es8388Vol); // ROUT2
+    // Map 0-10 to 0.0-1.0 base gain
+    float baseGain = (float)clampedVol / 10.0f;
     
-    Serial.println("[Audio] Volume updated");
+    // Apply boost for volumes > 0 (1.5x boost for maximum output)
+    if (clampedVol > 0) {
+        gDigitalGain = baseGain;
+        gVolumeBoost = 1.5f; // Constant boost multiplier
+    } else {
+        gDigitalGain = 0.0f;
+        gVolumeBoost = 1.0f;
+    }
+    
+    float totalGain = gDigitalGain * gVolumeBoost;
+    Serial.printf("[Audio] Vol: %d/10 (base: %.2f, boost: %.2fx, total: %.2fx, hw: 15dB)\n", 
+                 clampedVol, gDigitalGain, gVolumeBoost, totalGain);
 }
 
 bool AudioManager::isPlaying() const { return playing; }
@@ -234,6 +318,7 @@ void AudioManager::setVersion(int v) { currentVersion = max(0, v); }
 
 bool AudioManager::downloadFileToTemp(const String &url) {
     Serial.printf("[Audio] downloadFileToTemp() - URL: %s\n", url.c_str());
+    Serial.printf("[Audio] Heap before download - Free: %d bytes\n", ESP.getFreeHeap());
 
     // Limpar arquivo temporário anterior se existir
     if (SPIFFS.exists(AUDIO_TEMP_FILENAME)) {
@@ -241,11 +326,15 @@ bool AudioManager::downloadFileToTemp(const String &url) {
         SPIFFS.remove(AUDIO_TEMP_FILENAME);
     }
 
-    // CRÍTICO: Deletar áudio antigo ANTES de baixar o novo para liberar espaço
-    if (SPIFFS.exists(AUDIO_FILENAME)) {
-        Serial.println("[Audio] Removing old audio file to free space...");
+    // SEGURANÇA: Verificar espaço disponível ANTES de deletar áudio atual
+    size_t freeBytes = SPIFFS.totalBytes() - SPIFFS.usedBytes();
+    Serial.printf("[Audio] SPIFFS free space: %d bytes\n", freeBytes);
+    
+    // Só deletar áudio antigo se houver espaço mínimo (1MB)
+    if (freeBytes < 1048576 && SPIFFS.exists(AUDIO_FILENAME)) {
+        Serial.println("[Audio] Low space, removing old audio file...");
         SPIFFS.remove(AUDIO_FILENAME);
-        size_t freeBytes = SPIFFS.totalBytes() - SPIFFS.usedBytes();
+        freeBytes = SPIFFS.totalBytes() - SPIFFS.usedBytes();
         Serial.printf("[Audio] SPIFFS free space after cleanup: %d bytes\n", freeBytes);
     }
 
@@ -274,6 +363,9 @@ bool AudioManager::downloadFileToTemp(const String &url) {
         return false;
     }
 
+    // Configurar timeout HTTP
+    http.setTimeout(30000); // 30 segundos
+    
     if (deviceToken.length() > 0) {
         http.addHeader("X-Device-Token", deviceToken);
         Serial.println("[Audio] Added device token to request");
@@ -297,6 +389,14 @@ bool AudioManager::downloadFileToTemp(const String &url) {
         Serial.printf("[Audio] ERROR: Invalid file size (max: %d bytes)\n", MAX_AUDIO_SIZE);
         return false;
     }
+    
+    // Verificar se há espaço suficiente no SPIFFS
+    size_t freeSpace = SPIFFS.totalBytes() - SPIFFS.usedBytes();
+    if ((size_t)len > freeSpace) {
+        http.end();
+        Serial.printf("[Audio] ERROR: Insufficient SPIFFS space (need: %d, have: %d)\n", len, freeSpace);
+        return false;
+    }
 
     Serial.printf("[Audio] Opening temp file: %s\n", AUDIO_TEMP_FILENAME);
     File tmp = SPIFFS.open(AUDIO_TEMP_FILENAME, FILE_WRITE);
@@ -309,7 +409,7 @@ bool AudioManager::downloadFileToTemp(const String &url) {
     WiFiClient *stream = http.getStreamPtr();
     
     // Alocar buffer no heap para evitar stack overflow
-    uint8_t *buf = (uint8_t*)malloc(2048);
+    uint8_t *buf = (uint8_t*)malloc(1024);
     if (!buf) {
         tmp.close();
         http.end();
@@ -341,27 +441,16 @@ bool AudioManager::downloadFileToTemp(const String &url) {
 
         size_t avail = stream->available();
         if (avail) {
-            size_t toRead = min(avail, (size_t)2048);
+            size_t toRead = min(avail, (size_t)1024);
             int r = stream->readBytes(buf, toRead);
             if (r > 0) {
                 tmp.write(buf, (size_t)r);
                 total += r;
                 
                 int percent = (total * 100) / len;
-                if (percent != lastPercent && percent % 10 == 0) {
-                    unsigned long elapsed = (millis() - downloadStartMs) / 1000;
-                    float speed = (total / 1024.0) / max(1UL, elapsed);
-                    Serial.printf("[Audio] Download progress: %d%% (%d/%d bytes, %.1f KB/s)\n", 
-                                 percent, total, len, speed);
+                if (percent != lastPercent && percent % 20 == 0) {
+                    Serial.printf("[Audio] %d%%\n", percent);
                     lastPercent = percent;
-                }
-                
-                // Log a cada 5 segundos mesmo sem mudança de %
-                if (millis() - lastProgressLog > 5000) {
-                    unsigned long elapsed = (millis() - downloadStartMs) / 1000;
-                    float speed = (total / 1024.0) / max(1UL, elapsed);
-                    Serial.printf("[Audio] Downloaded: %d bytes (%.1f KB/s)\n", total, speed);
-                    lastProgressLog = millis();
                 }
             }
         } else {
@@ -374,7 +463,7 @@ bool AudioManager::downloadFileToTemp(const String &url) {
     http.end();
     free(buf);
 
-    Serial.printf("[Audio] Download finished - Total: %d bytes, Expected: %d bytes\n", total, len);
+    Serial.printf("[Audio] Download OK - %d bytes\n", total);
 
     if (total != len) {
         SPIFFS.remove(AUDIO_TEMP_FILENAME);
@@ -541,4 +630,55 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
     downloading = false;
     Serial.printf("[Audio] SUCCESS: Audio updated to version %d\n", newVersion);
     return true;
+}
+
+void AudioManager::playTestTone(int durationMs) {
+    Serial.println("[Audio] ========== TEST TONE ==========");
+    Serial.printf("[Audio] Generating %dms sine wave at 1kHz, full scale\n", durationMs);
+    
+    if (!i2s) {
+        Serial.println("[Audio] ERROR: I2S not initialized");
+        return;
+    }
+    
+    const int sampleRate = 44100;
+    const int frequency = 1000; // 1kHz tone
+    const int amplitude = 32767; // Full scale
+    const int numSamples = (sampleRate * durationMs) / 1000;
+    
+    Serial.printf("[Audio] Sample rate: %d Hz, Frequency: %d Hz, Samples: %d\n", 
+                 sampleRate, frequency, numSamples);
+    Serial.printf("[Audio] Current gain: %.2fx, Boost: %.2fx, Total: %.2fx\n",
+                 gDigitalGain, gVolumeBoost, gDigitalGain * gVolumeBoost);
+    
+    int16_t buffer[256];
+    int samplesGenerated = 0;
+    
+    while (samplesGenerated < numSamples) {
+        int chunkSize = min(128, (numSamples - samplesGenerated) / 2); // stereo pairs
+        
+        for (int i = 0; i < chunkSize; i++) {
+            float t = (float)(samplesGenerated + i) / sampleRate;
+            int16_t sample = (int16_t)(amplitude * sin(2.0 * PI * frequency * t));
+            
+            // Apply current gain settings
+            int32_t gained = (int32_t)(sample * gDigitalGain * gVolumeBoost);
+            if (gained > 32767) gained = 32767;
+            if (gained < -32768) gained = -32768;
+            
+            // Stereo output (both channels same)
+            buffer[i * 2] = (int16_t)gained;
+            buffer[i * 2 + 1] = (int16_t)gained;
+        }
+        
+        I2S_PTR->write((uint8_t*)buffer, chunkSize * 4); // 2 channels * 2 bytes
+        samplesGenerated += chunkSize;
+        
+        if (samplesGenerated % 4410 == 0) {
+            Serial.printf("[Audio] Test tone: %d%%\n", (samplesGenerated * 100) / numSamples);
+        }
+    }
+    
+    Serial.println("[Audio] Test tone complete");
+    Serial.println("[Audio] =======================================");
 }

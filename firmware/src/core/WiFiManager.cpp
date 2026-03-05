@@ -65,9 +65,7 @@ void TotemWiFiManager::begin(const String &totemId) {
     if (restartOnSave) {
         Serial.println("[WiFi] Restarting after config save...");
         delay(250);
-        #if !defined(DISABLE_AUTO_RESTART) || (DISABLE_AUTO_RESTART == 0)
         ESP.restart();
-        #endif
     }
 }
 
@@ -85,29 +83,8 @@ bool TotemWiFiManager::startPortalIfNeeded() {
 }
 
 void TotemWiFiManager::processResetButton() {
-    if (PIN_BTN_RESET_WIFI >= 34) {
-        return;
-    }
-    static unsigned long pressStartMs = 0;
-    static bool fired = false;
-
-    const bool pressed = (digitalRead(PIN_BTN_RESET_WIFI) == LOW);
-    if (!pressed) {
-        pressStartMs = 0;
-        fired = false;
-        return;
-    }
-
-    if (pressStartMs == 0) {
-        pressStartMs = millis();
-        fired = false;
-        return;
-    }
-
-    if (!fired && (millis() - pressStartMs >= 5000UL)) {
-        fired = true;
-        resetWiFiSettings();
-    }
+    // Desabilitado para evitar resets acidentais por pino flutuante
+    return;
 }
 
 void TotemWiFiManager::loop() {

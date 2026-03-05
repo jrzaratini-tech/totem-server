@@ -284,13 +284,13 @@
         .upload-label {
             background: transparent;
             color: var(--accent);
-            font-weight: 500;
-            padding: 6px 14px;
-            border-radius: 40px;
+            font-weight: 600;
+            padding: 14px 24px;
+            border-radius: 50px;
             cursor: pointer;
             display: inline-block;
-            border: 1px solid var(--accent);
-            font-size: 0.8rem;
+            border: 2px solid var(--accent);
+            font-size: 1rem;
             transition: all 0.2s;
         }
 
@@ -355,23 +355,25 @@
         }
 
         .btn {
-            padding: 8px 18px;
-            border-radius: 40px;
-            font-weight: 500;
-            font-size: 0.85rem;
+            padding: 18px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
             border: none;
             cursor: pointer;
             transition: all 0.2s;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            gap: 12px;
             background: rgba(255,255,255,0.02);
             border: 1px solid rgba(79, 131, 245, 0.3);
             color: var(--text-secondary);
+            min-height: 56px;
         }
 
         .btn i {
-            font-size: 0.9rem;
+            font-size: 1.3rem;
         }
 
         .btn:hover {
@@ -488,18 +490,18 @@
 
         .control-item label {
             color: var(--text-secondary);
-            font-weight: 500;
-            font-size: 0.8rem;
+            font-weight: 600;
+            font-size: 1rem;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .control-item input[type="color"] {
             background: #1e293b;
-            border: 1px solid var(--accent);
-            border-radius: 12px;
-            height: 38px;
+            border: 2px solid var(--accent);
+            border-radius: 16px;
+            height: 60px;
             width: 100%;
             cursor: pointer;
         }
@@ -507,48 +509,56 @@
         .control-item input[type="range"] {
             accent-color: var(--accent);
             width: 100%;
+            height: 8px;
+            cursor: pointer;
         }
 
         .control-item input[type="number"] {
             background: #1e293b;
             color: white;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 8px;
+            border: 2px solid #334155;
+            border-radius: 16px;
+            padding: 16px;
             width: 100%;
+            font-size: 1.1rem;
+            font-weight: 600;
         }
 
         .control-item select {
             background: #1e293b;
             color: white;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 8px;
+            border: 2px solid #334155;
+            border-radius: 16px;
+            padding: 16px;
             width: 100%;
             cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
         }
 
         .value-hint {
-            font-size: 0.75rem;
+            font-size: 0.95rem;
             color: var(--text-muted);
+            font-weight: 500;
+            margin-top: 6px;
         }
 
         .volume-control {
             background: rgba(0,0,0,0.25);
-            border-radius: 20px;
-            padding: 16px;
+            border-radius: 24px;
+            padding: 24px;
             margin: 16px 0;
-            border: 1px solid rgba(79, 131, 245, 0.15);
+            border: 2px solid rgba(79, 131, 245, 0.25);
         }
 
         .volume-control label {
             color: var(--text-secondary);
-            font-weight: 500;
-            font-size: 0.9rem;
+            font-weight: 600;
+            font-size: 1.1rem;
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
+            gap: 10px;
+            margin-bottom: 16px;
         }
 
         .volume-slider {
@@ -560,14 +570,19 @@
         .volume-slider input[type="range"] {
             flex: 1;
             accent-color: var(--accent);
+            height: 10px;
+            cursor: pointer;
         }
 
         .volume-value {
-            font-size: 1.2rem;
-            font-weight: 600;
+            font-size: 1.8rem;
+            font-weight: 700;
             color: white;
-            min-width: 40px;
+            min-width: 60px;
             text-align: center;
+            background: rgba(79, 131, 245, 0.15);
+            padding: 8px 16px;
+            border-radius: 16px;
         }
 
         .simulator-container {
@@ -655,12 +670,34 @@
             color: var(--accent);
         }
 
-        @media (max-width: 700px) {
+        @media (max-width: 900px) {
             .info-grid {
                 grid-template-columns: 1fr 1fr;
             }
             .customization-grid {
                 grid-template-columns: 1fr;
+            }
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            .container {
+                padding: 0 16px;
+            }
+        }
+        
+        @media (max-width: 500px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            .navbar h1 {
+                font-size: 1.1rem;
+            }
+            .section-title {
+                font-size: 1.1rem;
             }
         }
     </style>
@@ -726,12 +763,15 @@
             <div class="volume-control">
                 <label><i class="fas fa-volume-up"></i> Volume do áudio</label>
                 <div class="volume-slider">
-                    <i class="fas fa-volume-off" style="color: var(--text-muted);"></i>
+                    <i class="fas fa-volume-off" style="color: var(--text-muted); font-size: 1.5rem;"></i>
                     <input type="range" id="volumeSlider" min="0" max="10" value="8">
-                    <i class="fas fa-volume-up" style="color: var(--accent);"></i>
+                    <i class="fas fa-volume-up" style="color: var(--accent); font-size: 1.5rem;"></i>
                     <span class="volume-value" id="volumeValue">8</span>
                 </div>
-                <div class="value-hint" style="text-align: center; margin-top: 8px;">0 = mudo, 10 = máximo</div>
+                <div class="value-hint" style="text-align: center; margin-top: 12px;">0 = mudo, 10 = máximo</div>
+                <div class="button-group" style="margin-top: 16px;">
+                    <button type="button" class="btn btn-primary" id="btnApplyVolume"><i class="fas fa-check"></i> Confirmar Volume</button>
+                </div>
             </div>
 
             <div id="alert" class="alert"></div>
@@ -940,6 +980,49 @@
             btnRemove.style.display = 'inline-flex';
         }
 
+        // Carregar configurações atuais do servidor
+        async function loadCurrentSettings() {
+            try {
+                const response = await fetch(`/cliente/config/${totemId}`);
+                if (response.ok) {
+                    const config = await response.json();
+                    if (config.volume !== undefined) {
+                        volumeSlider.value = config.volume;
+                        volumeValue.textContent = config.volume;
+                    }
+                    if (config.idle) {
+                        if (config.idle.mode) idleMode.value = config.idle.mode;
+                        if (config.idle.color) idleColor.value = config.idle.color;
+                        if (config.idle.speed !== undefined) {
+                            idleSpeed.value = config.idle.speed;
+                            idleSpeedVal.textContent = config.idle.speed;
+                        }
+                        if (config.idle.maxBrightness !== undefined) {
+                            idleBrightness.value = config.idle.maxBrightness;
+                            idleBrightnessVal.textContent = config.idle.maxBrightness;
+                        }
+                    }
+                    if (config.trigger) {
+                        if (config.trigger.mode) triggerMode.value = config.trigger.mode;
+                        if (config.trigger.color) triggerColor.value = config.trigger.color;
+                        if (config.trigger.speed !== undefined) {
+                            triggerSpeed.value = config.trigger.speed;
+                            triggerSpeedVal.textContent = config.trigger.speed;
+                        }
+                        if (config.trigger.maxBrightness !== undefined) {
+                            triggerBrightness.value = config.trigger.maxBrightness;
+                            triggerBrightnessVal.textContent = config.trigger.maxBrightness;
+                        }
+                        if (config.trigger.duration !== undefined) {
+                            triggerDuration.value = config.trigger.duration;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Não foi possível carregar configurações:', error);
+            }
+        }
+
         // Event listeners para sliders
         volumeSlider.addEventListener('input', () => {
             volumeValue.textContent = volumeSlider.value;
@@ -1134,7 +1217,34 @@
             }
         });
 
-        // Aplicar configurações (idle + trigger + volume)
+        // Aplicar apenas volume
+        const btnApplyVolume = document.getElementById('btnApplyVolume');
+        btnApplyVolume.addEventListener('click', async function() {
+            const payload = {
+                volume: Number(volumeSlider.value)
+            };
+            loading.classList.add('active');
+            showAlert('', '');
+            try {
+                const response = await fetch(`/cliente/volume/${totemId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showAlert('✅ Volume atualizado com sucesso!', 'success');
+                } else {
+                    showAlert('❌ Erro ao atualizar volume: ' + (result.error || 'Falha'), 'error');
+                }
+            } catch (e) {
+                showAlert('❌ Erro de conexão.', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
+
+        // Aplicar configurações (idle + trigger)
         btnApplyConfig.addEventListener('click', async function() {
             const payload = {
                 idle: {
@@ -1149,8 +1259,7 @@
                     speed: Number(triggerSpeed.value),
                     duration: Number(triggerDuration.value),
                     maxBrightness: Number(triggerBrightness.value)
-                },
-                volume: Number(volumeSlider.value)
+                }
             };
             loading.classList.add('active');
             showAlert('', '');
@@ -1269,6 +1378,9 @@
         idleSpeedVal.textContent = idleSpeed.value;
         triggerBrightnessVal.textContent = triggerBrightness.value;
         triggerSpeedVal.textContent = triggerSpeed.value;
+        
+        // Carregar configurações ao abrir a página
+        loadCurrentSettings();
     </script>
 </body>
 </html>

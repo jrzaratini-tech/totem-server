@@ -10,10 +10,17 @@ class AudioManager {
 private:
     // Ponteiros void para objetos da biblioteca (implementação no .cpp)
     void *i2s;
+    void *volumeStream;
     void *encoded;
     void *decoder;
     void *copier;
     File audioFile;
+
+    // Audio metrics
+    int16_t peakSample;
+    unsigned long lastMetricsLog;
+    unsigned long samplesProcessed;
+    unsigned long clippedSamples;
 
     String totemId;
     String deviceToken;
@@ -37,7 +44,8 @@ public:
 
     void play();
     void stop();
-    void setVolume(int vol); // 0-21 (ES8388 range)
+    void setVolume(int vol); // 0-10 (backend range, mapped to digital gain)
+    void playTestTone(int durationMs = 3000); // Test sine wave at full scale
 
     bool isPlaying() const;
     bool isDownloading() const;

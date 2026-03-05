@@ -2,6 +2,7 @@
 #include <HTTPClient.h>
 #include <Update.h>
 #include <WiFiClientSecure.h>
+#include <esp_task_wdt.h>
 #include "Config.h"
 
 OTAManager::OTAManager() {
@@ -42,6 +43,9 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
         updating = false;
         return false;
     }
+    
+    // Configurar timeout HTTP para OTA
+    http.setTimeout(60000); // 60 segundos
 
     int code = http.GET();
     if (code != 200) {
@@ -68,7 +72,27 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
     uint8_t buf[1024];
 
     unsigned long lastProg = millis();
+    unsigned long lastWdt = millis();
+    unsigned long otaStartMs = millis();
+    
+    Serial.println("[OTA] Starting firmware download...");
+    
     while (http.connected() && written < (size_t)len) {
+        // Reset watchdog a cada 500ms
+        if (millis() - lastWdt > 500) {
+            esp_task_wdt_reset();
+            lastWdt = millis();
+        }
+        
+        // Timeout de 5 minutos para OTA completo
+        if (millis() - otaStartMs > OTA_TIMEOUT) {
+            Serial.println("[OTA] ERROR: OTA timeout");
+            Update.abort();
+            http.end();
+            updating = false;
+            return false;
+        }
+        
         size_t avail = stream->available();
         if (avail) {
             int r = stream->readBytes(buf, (size_t)min(avail, sizeof(buf)));
@@ -79,6 +103,7 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
         }
         if (millis() - lastProg > 250) {
             progress = (int)((written * 100UL) / (unsigned long)len);
+            Serial.printf("[OTA] Progress: %d%% (%d/%d bytes)\n", progress, written, len);
             lastProg = millis();
             yield();
         }
@@ -95,7 +120,11 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
     progress = ok ? 100 : 0;
 
     if (ok) {
+        Serial.println("[OTA] SUCCESS! Firmware updated, restarting...");
+        delay(1000);
         ESP.restart();
+    } else {
+        Serial.printf("[OTA] FAILED! Error: %s\n", Update.errorString());
     }
 
     return ok;

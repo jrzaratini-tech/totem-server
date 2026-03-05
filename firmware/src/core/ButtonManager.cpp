@@ -12,7 +12,8 @@ void ButtonManager::begin() {
     pinMode(PIN_BTN_COR, INPUT_PULLUP);
     pinMode(PIN_BTN_MAIS, INPUT_PULLUP);
     pinMode(PIN_BTN_MENOS, INPUT_PULLUP);
-    pinMode(PIN_BTN_CORACAO, INPUT_PULLUP);
+    // TTP223 capacitive touch - lógica positiva (HIGH quando tocado)
+    pinMode(PIN_BTN_CORACAO, INPUT);
 }
 
 void ButtonManager::onButtonCor(std::function<void(bool)> cb) { onCor = cb; }
@@ -26,7 +27,13 @@ void ButtonManager::loop() {
 
 void ButtonManager::updateBtn(int idx) {
     Btn &b = btns[idx];
-    bool reading = digitalRead(b.pin) == HIGH;
+    bool rawReading = digitalRead(b.pin) == HIGH;
+    
+    // TTP223 no GPIO15 (índice 3 = botão coração/trigger) tem lógica invertida
+    // TTP223: HIGH quando tocado, LOW quando não tocado
+    // Botões mecânicos: LOW quando pressionado, HIGH quando não pressionado
+    bool reading = (idx == 3) ? rawReading : !rawReading;
+    
     unsigned long now = millis();
 
     if (reading != b.lastReading) {
@@ -41,8 +48,8 @@ void ButtonManager::updateBtn(int idx) {
     if (reading != b.stableState) {
         b.stableState = reading;
 
-        if (!reading) {
-            // pressed (LOW)
+        if (reading) {
+            // pressed (normalizado para true = pressionado)
             b.pressStartMs = now;
             b.longFired = false;
         } else {
@@ -59,7 +66,7 @@ void ButtonManager::updateBtn(int idx) {
         }
     }
 
-    if (!b.stableState && !b.longFired && (now - b.pressStartMs >= LONG_PRESS_TIME)) {
+    if (b.stableState && !b.longFired && (now - b.pressStartMs >= LONG_PRESS_TIME)) {
         b.longFired = true;
         if (now - b.lastClickMs >= MIN_CLICK_INTERVAL) {
             b.lastClickMs = now;

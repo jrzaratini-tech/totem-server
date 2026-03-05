@@ -568,7 +568,80 @@ app.post('/cliente/config/:id', async (req, res) => {
     }
 });
 
-// Endpoint para consulta/debug da configuração atual
+// Endpoint para cliente carregar configuração atual
+app.get('/cliente/config/:id', async (req, res) => {
+    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
+        return res.status(401).json({ error: 'Não autorizado' });
+    }
+
+    const id = req.params.id;
+
+    if (!db) {
+        return res.json({
+            volume: 8,
+            idle: null,
+            trigger: null,
+            message: 'Firebase não disponível'
+        });
+    }
+
+    try {
+        const doc = await db.collection('totens').doc(id).get();
+        if (!doc.exists) {
+            return res.status(404).json({ error: 'Totem não encontrado' });
+        }
+
+        const data = doc.data();
+        return res.json({
+            volume: data.volume ?? 8,
+            idle: data.idleConfig || null,
+            trigger: data.triggerConfig || null,
+            updatedAt: data.ultimaAtualizacaoConfig || null
+        });
+    } catch (error) {
+        console.error('Erro ao buscar config:', error);
+        return res.status(500).json({ error: 'Erro interno no servidor' });
+    }
+});
+
+// Endpoint para atualizar apenas o volume
+app.post('/cliente/volume/:id', async (req, res) => {
+    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
+        return res.status(401).json({ error: 'Não autorizado' });
+    }
+
+    const id = req.params.id;
+    const volume = Math.max(0, Math.min(10, Math.trunc(Number(req.body.volume ?? 8))));
+
+    try {
+        if (db) {
+            await db.collection('totens').doc(id).set({
+                volume,
+                ultimaAtualizacaoVolume: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        // Publica volume via MQTT (retained)
+        if (mqttClient && mqttClient.connected) {
+            mqttClient.publish(`totem/${id}/config/volume`, String(volume), { retain: true });
+            console.log(`📤 Volume MQTT publicado: ${volume} para ${id}`);
+        }
+
+        return res.json({
+            success: true,
+            message: 'Volume atualizado com sucesso',
+            volume
+        });
+    } catch (error) {
+        console.error('❌ Erro ao salvar volume:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Erro interno: ' + error.message
+        });
+    }
+});
+
+// Endpoint para consulta/debug da configuração atual (API pública)
 app.get('/api/config/:id', async (req, res) => {
     const id = req.params.id;
 
