@@ -830,6 +830,11 @@
                             <option value="BLINK">Piscar</option>
                             <option value="RUNNING">Corrida</option>
                             <option value="HEART">Coração</option>
+                            <!-- NOVOS EFEITOS -->
+                            <option value="METEOR">☄️ Cometa (Meteoro)</option>
+                            <option value="PIKSEL">🔥 Piksel (Fogo)</option>
+                            <option value="BOUNCE">🤹 Bounce (Quicar)</option>
+                            <option value="SPARKLE">✨ Sparkle (Cintilar)</option>
                         </select>
                     </div>
                     <div class="control-item">
@@ -843,7 +848,8 @@
                     </div>
                     <div class="control-item">
                         <label><i class="fas fa-tachometer-alt"></i> Velocidade</label>
-                        <input type="range" id="idleSpeed" min="1" max="100" value="50" style="direction: rtl;">
+                        <!-- ATRIBUTO direction: rtl REMOVIDO -->
+                        <input type="range" id="idleSpeed" min="1" max="100" value="50">
                         <div class="value-hint"><span id="idleSpeedVal">50</span>/100</div>
                     </div>
                 </div>
@@ -869,6 +875,11 @@
                             <option value="BLINK">Piscar</option>
                             <option value="RUNNING">Corrida</option>
                             <option value="HEART">Coração</option>
+                            <!-- NOVOS EFEITOS -->
+                            <option value="METEOR">☄️ Cometa (Meteoro)</option>
+                            <option value="PIKSEL">🔥 Piksel (Fogo)</option>
+                            <option value="BOUNCE">🤹 Bounce (Quicar)</option>
+                            <option value="SPARKLE">✨ Sparkle (Cintilar)</option>
                         </select>
                     </div>
                     <div class="control-item">
@@ -882,7 +893,8 @@
                     </div>
                     <div class="control-item">
                         <label><i class="fas fa-tachometer-alt"></i> Velocidade</label>
-                        <input type="range" id="triggerSpeed" min="1" max="100" value="70" style="direction: rtl;">
+                        <!-- ATRIBUTO direction: rtl REMOVIDO -->
+                        <input type="range" id="triggerSpeed" min="1" max="100" value="70">
                         <div class="value-hint"><span id="triggerSpeedVal">70</span>/100</div>
                     </div>
                     <div class="control-item">
@@ -1288,7 +1300,7 @@
             alertDiv.className = 'alert ' + type;
         }
 
-        // SIMULADORES
+        // SIMULADORES COM NOVOS EFEITOS
         const canvas = document.getElementById('ledCanvas');
         const ctx = canvas.getContext('2d');
         const canvasTrigger = document.getElementById('ledCanvasTrigger');
@@ -1306,36 +1318,101 @@
             if (!targetCanvas.isConnected) return;
             
             const mode = isIdle ? idleMode.value : triggerMode.value;
-            const speedFactor = isIdle ? Number(idleSpeed.value)/20 : Number(triggerSpeed.value)/20;
+            
+            // CORREÇÃO DA VELOCIDADE: Slider 1-100 mapeado para velocidade (quanto maior, mais rápido)
+            const speedValue = isIdle ? Number(idleSpeed.value) : Number(triggerSpeed.value);
+            // Mapeia 1-100 para um fator de velocidade (0.1 a 10)
+            // Isso faz com que esquerda (1) = lento, direita (100) = rápido
+            const speedFactor = speedValue / 10;
+            
             const brightness = isIdle ? Number(idleBrightness.value)/180 : Number(triggerBrightness.value)/180;
             const [r,g,b] = isIdle ? hexToRgb(idleColor.value) : hexToRgb(triggerColor.value);
             const time = now/1000;
             const t = time * speedFactor;
             const w = targetCanvas.width, h = targetCanvas.height, ledWidth = w/ledCount;
             targetCtx.clearRect(0,0,w,h);
+            
             for(let i=0;i<ledCount;i++){
                 let ledR=r, ledG=g, ledB=b, alpha=1;
                 const pos = i/ledCount;
+                
                 switch(mode){
                     case 'SOLID': alpha = brightness; break;
+                    
                     case 'BLINK': alpha = (Math.sin(t*4*Math.PI)>0?1:0) * brightness; break;
+                    
                     case 'BREATH': alpha = ((Math.sin(t*2*Math.PI)+1)/2) * brightness; break;
+                    
                     case 'RAINBOW': {
                         const hue = (pos*360 + t*50) % 360;
                         const rgb = hslToRgb(hue/360, 1, 0.5);
                         ledR = rgb[0]; ledG = rgb[1]; ledB = rgb[2]; alpha = brightness; break;
                     }
+                    
                     case 'RUNNING': {
                         const wavePos = (t*2) % 1;
                         let dist = Math.abs(pos-wavePos); if(dist>0.5) dist = 1-dist;
                         alpha = Math.exp(-dist*8) * brightness; break;
                     }
+                    
                     case 'HEART': {
                         const beat = Math.sin(t*3*Math.PI);
                         const envelope = Math.max(0, beat*beat*beat*1.5);
                         alpha = Math.min(1, envelope * brightness); break;
                     }
+                    
+                    // NOVOS EFEITOS
+                    case 'METEOR': { // Cometa: um ponto brilhante que se move, deixando um rastro
+                        const meteorPos = (t * 1.5) % 1; // posição atual do cometa (0-1)
+                        const trailLength = 0.2; // comprimento do rastro (20% da fita)
+                        // Calcula a distância de cada LED à posição do cometa
+                        let dist = Math.abs(pos - meteorPos);
+                        if (dist > 0.5) dist = 1 - dist; // considerando wrap-around
+                        
+                        if (dist < trailLength) {
+                            // Intensidade é maior no centro (cometa) e diminui no rastro
+                            alpha = (1 - dist / trailLength) * brightness;
+                        } else {
+                            alpha = 0; // LEDs fora do rastro ficam apagados
+                        }
+                        break;
+                    }
+                    
+                    case 'PIKSEL': { // Efeito "Piksel" ou "Fogo": chamas que sobem e descem aleatoriamente
+                        // Simula chamas com base em uma onda senoidal e ruído
+                        const flicker = Math.sin(t * 10 + i * 2) * 0.5 + 0.5;
+                        // Picos aleatórios para simular chamas
+                        const flame = Math.max(0, Math.sin(t * 8 - i * 3) * flicker);
+                        alpha = Math.min(brightness, flame * 1.5);
+                        // Usa cor alaranjada (r=1, g=0.5, b=0) em vez da cor sólida
+                        ledR = 255; ledG = 100; ledB = 0; 
+                        break;
+                    }
+                    
+                    case 'BOUNCE': { // Bounce: um ponto que quica entre o início e o fim da fita
+                        // Usa uma onda triangular para ir e voltar
+                        const bouncePos = Math.abs((t * 1.5) % 2 - 1); // valor de 0 a 1 e volta
+                        const size = 0.1; // tamanho do ponto que quica
+                        let dist = Math.abs(pos - bouncePos);
+                        alpha = (dist < size) ? brightness * (1 - dist/size) : 0;
+                        break;
+                    }
+                    
+                    case 'SPARKLE': { // Sparkle: cintilações aleatórias por toda a fita
+                        // Usa ruído para criar piscadas aleatórias
+                        const sparkleSeed = Math.sin(i * 10 + t * 20) * 0.5 + 0.5;
+                        const threshold = 0.7; // Quão frequentes são as cintilações
+                        if (sparkleSeed > threshold) {
+                            // Brilho máximo quando "cintila"
+                            alpha = brightness; 
+                        } else {
+                            // Mantém um brilho de fundo baixo
+                            alpha = brightness * 0.1; 
+                        }
+                        break;
+                    }
                 }
+                
                 targetCtx.fillStyle = `rgba(${ledR}, ${ledG}, ${ledB}, ${alpha})`;
                 const x = i*ledWidth, y=2;
                 targetCtx.beginPath();
@@ -1349,6 +1426,7 @@
                 animFrameTrigger = requestAnimationFrame((t) => drawSimulator(t, false));
             }
         }
+        
         CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){ if(w<2*r)r=w/2; if(h<2*r)r=h/2; this.moveTo(x+r,y); this.lineTo(x+w-r,y); this.quadraticCurveTo(x+w,y,x+w,y+r); this.lineTo(x+w,y+h-r); this.quadraticCurveTo(x+w,y+h,x+w-r,y+h); this.lineTo(x+r,y+h); this.quadraticCurveTo(x,y+h,x,y+h-r); this.lineTo(x,y+r); this.quadraticCurveTo(x,y,x+r,y); this.closePath(); return this; };
 
         window.addEventListener('load', ()=>{ 
@@ -1357,6 +1435,7 @@
             animFrame = requestAnimationFrame((t) => drawSimulator(t, true)); 
             animFrameTrigger = requestAnimationFrame((t) => drawSimulator(t, false));
         });
+        
         function resizeCanvas(){ 
             const container = canvas.parentElement; 
             canvas.width = container.clientWidth-24; 
@@ -1365,6 +1444,7 @@
             canvasTrigger.width = containerTrigger.clientWidth-24;
             canvasTrigger.height=30;
         }
+        
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
         window.addEventListener('beforeunload', ()=>{ 

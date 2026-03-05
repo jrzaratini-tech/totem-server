@@ -1,5 +1,5 @@
 // ============================================
-// TOTEM INTERATIVO IoT v4.0 - CORRIGIDO
+// TOTEM INTERATIVO IoT v4.1.0 - CORRIGIDO
 // Servidor Principal com Suporte a Áudio Personalizado
 // Firebase + MQTT + Upload de MP3 + OTA
 // ============================================
@@ -1190,7 +1190,7 @@ app.post('/admin/disparar/:id', adminAuth, async (req, res) => {
 
 app.listen(PORT, () => {
     console.log('\n' + '='.repeat(50));
-    console.log('🚀 TOTEM SERVER v4.0 CORRIGIDO rodando!');
+    console.log('🚀 TOTEM SERVER v4.1.0 CORRIGIDO rodando!');
     console.log('='.repeat(50));
     console.log(`📡 Porta: ${PORT}`);
     console.log(`🌐 URL: ${SERVER_URL}`);
