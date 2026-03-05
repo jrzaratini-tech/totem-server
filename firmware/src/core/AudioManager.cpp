@@ -9,8 +9,8 @@
 using namespace audio_tools;
 
 // ========== AUDIO PROCESSING CONFIGURATION ==========
-// Digital gain boost for maximum volume (1.0 = no boost, 1.8 = 80% boost)
-#define MAX_DIGITAL_GAIN 1.8f
+// Digital gain boost for maximum volume (1.0 = no boost, 3.0 = 200% boost)
+#define MAX_DIGITAL_GAIN 3.0f
 #define MIN_DIGITAL_GAIN 0.0f
 
 // Audio metrics logging interval
@@ -32,9 +32,9 @@ AudioManager::AudioManager() {
     clippedSamples = 0;
 }
 
-// Volume digital global (0-10 do backend -> 0.0-1.8 gain with boost)
-static float gDigitalGain = MAX_DIGITAL_GAIN; // Default volume 10/10 with max boost
-static float gVolumeBoost = 1.5f; // Additional boost multiplier (1.0-1.8)
+// Volume digital global (0-10 do backend -> 0.0-3.0 gain with boost)
+static float gDigitalGain = 1.0f; // Base gain (will be multiplied by boost)
+static float gVolumeBoost = 2.5f; // Additional boost multiplier for maximum output
 
 // Helper macros para cast de ponteiros
 #define I2S_PTR ((I2SStream*)i2s)
@@ -176,11 +176,11 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     copier = new StreamCopy();
     Serial.println("[Audio] ✓ Stream copier created");
     
-    // Set default volume with boost
-    float baseGain = (float)DEFAULT_VOLUME / 10.0f;
-    gDigitalGain = baseGain;
-    Serial.printf("[Audio] ✓ Default volume: %d/10 (base: %.2f, boost: %.2f, total: %.2fx)\n", 
-                 DEFAULT_VOLUME, baseGain, gVolumeBoost, baseGain * gVolumeBoost);
+    // Set default volume with boost (using exponential curve)
+    float normalizedVol = (float)DEFAULT_VOLUME / 10.0f;
+    gDigitalGain = 0.3f + (normalizedVol * normalizedVol * 0.9f);
+    Serial.printf("[Audio] ✓ Default volume: %d/10 (base: %.3f, boost: %.2fx, total: %.3fx)\n", 
+                 DEFAULT_VOLUME, gDigitalGain, gVolumeBoost, gDigitalGain * gVolumeBoost);
     
     Serial.println("[Audio] ========================================");
     Serial.println("[Audio] AUDIO PIPELINE READY:");
@@ -293,21 +293,34 @@ void AudioManager::stop() {
 void AudioManager::setVolume(int vol) {
     int clampedVol = constrain(vol, MIN_VOLUME, MAX_VOLUME);
     
-    // Map 0-10 to 0.0-1.0 base gain
-    float baseGain = (float)clampedVol / 10.0f;
+    Serial.println("[Audio] ========================================");
+    Serial.printf("[Audio] VOLUME CHANGE REQUEST: %d/10\n", clampedVol);
     
-    // Apply boost for volumes > 0 (1.5x boost for maximum output)
-    if (clampedVol > 0) {
-        gDigitalGain = baseGain;
-        gVolumeBoost = 1.5f; // Constant boost multiplier
-    } else {
+    if (clampedVol == 0) {
+        // Mute
         gDigitalGain = 0.0f;
         gVolumeBoost = 1.0f;
+        Serial.println("[Audio] Volume: MUTED");
+    } else {
+        // Use exponential curve for better perceived loudness
+        // Volume 1-10 maps to gain 0.3-1.2 (exponential)
+        float normalizedVol = (float)clampedVol / 10.0f;
+        gDigitalGain = 0.3f + (normalizedVol * normalizedVol * 0.9f); // Exponential: 0.3 to 1.2
+        
+        // Aggressive boost multiplier for maximum output
+        gVolumeBoost = 2.5f;
+        
+        float totalGain = gDigitalGain * gVolumeBoost;
+        Serial.printf("[Audio] Volume: %d/10\n", clampedVol);
+        Serial.printf("[Audio] Base gain: %.3f (exponential curve)\n", gDigitalGain);
+        Serial.printf("[Audio] Boost multiplier: %.2fx\n", gVolumeBoost);
+        Serial.printf("[Audio] Total digital gain: %.3fx\n", totalGain);
+        Serial.printf("[Audio] Hardware gain: 15dB (GPIO %d = HIGH)\n", I2S_GAIN);
+        Serial.printf("[Audio] Combined output: %.1fdB digital + 15dB hardware\n", 
+                     20.0f * log10(totalGain));
     }
     
-    float totalGain = gDigitalGain * gVolumeBoost;
-    Serial.printf("[Audio] Vol: %d/10 (base: %.2f, boost: %.2fx, total: %.2fx, hw: 15dB)\n", 
-                 clampedVol, gDigitalGain, gVolumeBoost, totalGain);
+    Serial.println("[Audio] ========================================");
 }
 
 bool AudioManager::isPlaying() const { return playing; }

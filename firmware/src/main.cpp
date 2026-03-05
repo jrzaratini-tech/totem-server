@@ -153,14 +153,24 @@ static void setupMQTTCallbacks() {
         
         // Sistema Dual v4.1.0 - Volume
         if (topic.endsWith("/config/volume")) {
-            Serial.println("[MAIN] Received VOLUME config");
+            Serial.println("[MAIN] ========================================");
+            Serial.println("[MAIN] MQTT VOLUME UPDATE RECEIVED");
+            Serial.printf("[MAIN] Topic: %s\n", topic.c_str());
+            Serial.printf("[MAIN] Payload: '%s'\n", payload.c_str());
+            
             int vol = payload.toInt();
+            Serial.printf("[MAIN] Parsed volume: %d\n", vol);
+            
             if (vol >= 0 && vol <= 10) {
                 currentVolume = vol;
-                // Volume digital direto (0-10)
+                Serial.printf("[MAIN] Calling audioManager.setVolume(%d)...\n", vol);
                 audioManager.setVolume(vol);
-                Serial.printf("[MAIN] Volume set to %d/10\n", vol);
+                Serial.printf("[MAIN] ✓ Volume successfully set to %d/10\n", vol);
+            } else {
+                Serial.printf("[MAIN] ✗ Invalid volume value: %d (must be 0-10)\n", vol);
             }
+            
+            Serial.println("[MAIN] ========================================");
             return;
         }
         

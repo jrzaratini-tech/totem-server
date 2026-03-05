@@ -1306,7 +1306,7 @@
             if (!targetCanvas.isConnected) return;
             
             const mode = isIdle ? idleMode.value : triggerMode.value;
-            const speedFactor = isIdle ? Number(idleSpeed.value)/50 : Number(triggerSpeed.value)/50;
+            const speedFactor = isIdle ? Number(idleSpeed.value)/20 : Number(triggerSpeed.value)/20;
             const brightness = isIdle ? Number(idleBrightness.value)/180 : Number(triggerBrightness.value)/180;
             const [r,g,b] = isIdle ? hexToRgb(idleColor.value) : hexToRgb(triggerColor.value);
             const time = now/1000;
