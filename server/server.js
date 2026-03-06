@@ -386,58 +386,8 @@ app.get('/totem/:id', async (req, res) => {
     
     console.log(`✅ Totem ativo: ${id} → ${totem.link}`);
     
-    // Retorna página HTML que faz redirect no cliente (funciona com QR codes)
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Redirecionando...</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    margin: 0;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                }
-                .container {
-                    text-align: center;
-                    padding: 20px;
-                }
-                .spinner {
-                    border: 4px solid rgba(255,255,255,0.3);
-                    border-top: 4px solid white;
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    animation: spin 1s linear infinite;
-                    margin: 20px auto;
-                }
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="spinner"></div>
-                <h2>Redirecionando para o Instagram...</h2>
-                <p>Aguarde um momento</p>
-            </div>
-            <script>
-                setTimeout(function() {
-                    window.location.href = '${totem.link}';
-                }, 500);
-            </script>
-        </body>
-        </html>
-    `);
+    // Redirect direto e imperceptível para o Instagram (sem tela intermediária)
+    res.redirect(302, totem.link);
 });
 
 app.get('/expirado', (req, res) => {
@@ -1024,21 +974,13 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
         if (totem.audio && totem.audio.url) {
             const audioUrl = totem.audio.url;
             
-            // Adicionar logging para debugging
-            console.log(`🎵 Áudio para ${totem.id}: ${audioUrl}`);
+            // Escapar URL para uso seguro em atributo HTML
+            const audioUrlEscaped = audioUrl.replace(/'/g, "\\'").replace(/"/g, '&quot;');
             
             audioCell = `
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="color: #ccc; font-size: 13px;">${totem.audio.nome || 'audio.mp3'}</span>
-                    <button onclick="playAudio('${audioUrl}')" style="
-                        background: #28a745;
-                        color: white;
-                        border: none;
-                        padding: 5px 10px;
-                        border-radius: 3px;
-                        cursor: pointer;
-                        font-size: 12px;
-                    ">▶️ Play</button>
+                    <button class="btn-play" onclick="playAudio('${audioUrlEscaped}')">▶️ Play</button>
                 </div>
             `;
         } else {
@@ -1052,6 +994,9 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
                 <td>${formatarData(totem.dataExpiracao)}</td>
                 <td class="${expirada ? 'status-bloqueado' : 'status-ativo'}">${statusIcon} ${statusText}</td>
                 <td>${audioCell}</td>
+                <td>
+                    <button class="btn-qr" onclick="copiarLinkQR('${totem.id}')">📋 Copiar Link QR</button>
+                </td>
                 <td>
                     <a href="/admin/editar/${totem.id}">✏️ Editar</a> | 
                     <a href="/admin/excluir/${totem.id}" onclick="return confirm('Excluir totem?')">🗑️ Excluir</a>

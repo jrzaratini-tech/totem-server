@@ -85,7 +85,7 @@
         tr:hover {
             background: #3d3d3d;
         }
-        .btn-editar, .btn-excluir, .btn-copiar {
+        .btn-editar, .btn-excluir, .btn-copiar, .btn-qr, .btn-play {
             padding: 5px 10px;
             text-decoration: none;
             border-radius: 3px;
@@ -105,6 +105,14 @@
         }
         .btn-copiar {
             background: #17a2b8;
+            color: #fff;
+        }
+        .btn-qr {
+            background: #6f42c1;
+            color: #fff;
+        }
+        .btn-play {
+            background: #28a745;
             color: #fff;
         }
         .qr-link {
@@ -204,6 +212,7 @@
                     <th>Expira em</th>
                     <th>Status</th>
                     <th>Áudio</th>
+                    <th>Link QR Code</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -238,6 +247,23 @@
             });
         }
         
+        function copiarLinkQR(id) {
+            const baseUrl = window.location.origin;
+            const link = `${baseUrl}/totem/${id}`;
+            
+            navigator.clipboard.writeText(link).then(function() {
+                const msg = document.getElementById('copiadoMsg');
+                msg.style.display = 'block';
+                msg.textContent = '✅ Link QR Code copiado: ' + link;
+                
+                setTimeout(() => {
+                    msg.style.display = 'none';
+                }, 2000);
+            }, function() {
+                alert('❌ Erro ao copiar. Selecione manualmente: ' + link);
+            });
+        }
+
         function filtrar(tipo) {
             const linhas = document.querySelectorAll('#tabela-corpo tr');
             const botoes = document.querySelectorAll('.filtro-btn');
@@ -267,45 +293,20 @@
             console.log('Tentando reproduzir áudio:', audioUrl);
             
             const audio = new Audio();
-            
-            // Adicionar CORS headers para permitir reprodução
             audio.crossOrigin = 'anonymous';
             
             audio.addEventListener('error', (e) => {
                 console.error('Erro ao carregar áudio:', e);
-                console.error('Código do erro:', audio.error ? audio.error.code : 'desconhecido');
-                console.error('Mensagem do erro:', audio.error ? audio.error.message : 'desconhecido');
-                alert('Erro ao reproduzir áudio. Verifique se o arquivo existe e está acessível.');
-            });
-            
-            audio.addEventListener('loadstart', () => {
-                console.log('Iniciando carregamento do áudio...');
-            });
-            
-            audio.addEventListener('canplay', () => {
-                console.log('Áudio pronto para reprodução');
+                alert('Erro ao reproduzir áudio. Verifique se o arquivo existe.');
             });
             
             audio.src = audioUrl;
             
-            // Tentar reproduzir
             audio.play().then(() => {
                 console.log('Áudio reproduzido com sucesso');
             }).catch(error => {
                 console.error('Erro ao reproduzir áudio:', error);
-                
-                // Tentar com mute primeiro (alguns navegadores exigem)
-                audio.muted = true;
-                audio.play().then(() => {
-                    console.log('Áudio reproduzido com muted');
-                    // Tentar ativar som após início
-                    setTimeout(() => {
-                        audio.muted = false;
-                    }, 100);
-                }).catch(mutedError => {
-                    console.error('Erro mesmo com muted:', mutedError);
-                    alert('Erro ao reproduzir áudio. O navegador pode estar bloqueando reprodução automática. Tente clicar no botão novamente.');
-                });
+                alert('Clique novamente para reproduzir (navegador bloqueou reprodução automática).');
             });
         }
     </script>
