@@ -14,6 +14,7 @@
 #include "core/LEDEngine.h"
 #include "core/ButtonManager.h"
 #include "core/OTAManager.h"
+#include "utils/HeartbeatLED.h"
 
 static StateMachine stateMachine;
 static TotemWiFiManager wifiManager;
@@ -24,6 +25,7 @@ static AudioManager audioManager;
 static LEDEngine ledEngine;
 static ButtonManager buttonManager;
 static OTAManager otaManager;
+static HeartbeatLED heartbeatLED;
 
 static bool gWdtStarted = false;
 
@@ -380,6 +382,9 @@ void setup() {
     otaManager.begin();
     Serial.println("[BOOT] OTA manager initialized");
 
+    heartbeatLED.begin(15, 18);
+    Serial.println("[BOOT] Standalone heartbeat LED initialized on pin 18");
+
     stateMachine.setState(IDLE);
     lastStatusMs = 0;
     lastHeapCheck = millis();
@@ -410,6 +415,7 @@ void loop() {
     ledEngine.loop();
     audioManager.loop();
     otaManager.loop();
+    heartbeatLED.update();
 
     if (stateMachine.getState() == PLAYING) {
         static unsigned long lastPlayingLog = 0;

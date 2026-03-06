@@ -290,24 +290,69 @@
         }
 
         function playAudio(audioUrl) {
-            console.log('Tentando reproduzir áudio:', audioUrl);
+            console.log('=== PLAY AUDIO DEBUG ===');
+            console.log('URL recebida:', audioUrl);
+            console.log('Tipo da URL:', typeof audioUrl);
             
-            const audio = new Audio();
-            audio.crossOrigin = 'anonymous';
+            if (!audioUrl || audioUrl === 'null' || audioUrl === 'undefined') {
+                alert('❌ Erro: URL do áudio inválida ou não encontrada.');
+                console.error('URL inválida:', audioUrl);
+                return;
+            }
             
-            audio.addEventListener('error', (e) => {
-                console.error('Erro ao carregar áudio:', e);
-                alert('Erro ao reproduzir áudio. Verifique se o arquivo existe.');
-            });
-            
-            audio.src = audioUrl;
-            
-            audio.play().then(() => {
-                console.log('Áudio reproduzido com sucesso');
-            }).catch(error => {
-                console.error('Erro ao reproduzir áudio:', error);
-                alert('Clique novamente para reproduzir (navegador bloqueou reprodução automática).');
-            });
+            // Testar se a URL é acessível
+            fetch(audioUrl, { method: 'HEAD' })
+                .then(response => {
+                    console.log('Status da URL:', response.status);
+                    console.log('Content-Type:', response.headers.get('content-type'));
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    // URL válida, reproduzir áudio
+                    const audio = new Audio();
+                    audio.crossOrigin = 'anonymous';
+                    
+                    audio.addEventListener('loadeddata', () => {
+                        console.log('✅ Áudio carregado com sucesso');
+                        console.log('Duração:', audio.duration, 'segundos');
+                    });
+                    
+                    audio.addEventListener('error', (e) => {
+                        console.error('❌ Erro ao carregar áudio:', e);
+                        console.error('Código do erro:', audio.error ? audio.error.code : 'desconhecido');
+                        console.error('Mensagem:', audio.error ? audio.error.message : 'desconhecido');
+                        alert('❌ Erro ao carregar o arquivo de áudio.\n\nVerifique:\n- Se o arquivo existe no servidor\n- Se a URL está correta\n- Console do navegador (F12) para mais detalhes');
+                    });
+                    
+                    audio.src = audioUrl;
+                    
+                    audio.play()
+                        .then(() => {
+                            console.log('✅ Áudio reproduzindo com sucesso');
+                            const msg = document.getElementById('copiadoMsg');
+                            msg.style.display = 'block';
+                            msg.style.background = '#28a745';
+                            msg.textContent = '🔊 Reproduzindo áudio...';
+                            setTimeout(() => { msg.style.display = 'none'; }, 2000);
+                        })
+                        .catch(error => {
+                            console.error('❌ Erro ao reproduzir:', error);
+                            console.error('Nome do erro:', error.name);
+                            console.error('Mensagem:', error.message);
+                            
+                            if (error.name === 'NotAllowedError') {
+                                alert('⚠️ Navegador bloqueou a reprodução automática.\n\nClique no botão Play novamente para reproduzir.');
+                            } else {
+                                alert('❌ Erro ao reproduzir áudio: ' + error.message);
+                            }
+                        });
+                })
+                .catch(error => {
+                    console.error('❌ Erro ao verificar URL:', error);
+                    alert('❌ Não foi possível acessar o arquivo de áudio.\n\nErro: ' + error.message + '\n\nURL: ' + audioUrl);
+                });
         }
     </script>
 </body>
