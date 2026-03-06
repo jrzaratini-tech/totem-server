@@ -80,6 +80,10 @@ bool ConfigManager::updateFromJson(const String &json) {
         else if (m == "BREATH") cfg.mode = BREATH;
         else if (m == "RUNNING") cfg.mode = RUNNING;
         else if (m == "HEART" || m == "HEARTBEAT") cfg.mode = HEART;
+        else if (m == "METEOR") cfg.mode = METEOR;
+        else if (m == "PIKSEL") cfg.mode = PIKSEL;
+        else if (m == "BOUNCE") cfg.mode = BOUNCE;
+        else if (m == "SPARKLE") cfg.mode = SPARKLE;
     }
 
     if (doc.containsKey("color")) {
@@ -134,6 +138,10 @@ EffectMode ConfigManager::modeFromString(const String &modeStr) {
     if (m == "BREATH") return BREATH;
     if (m == "RUNNING") return RUNNING;
     if (m == "HEART" || m == "HEARTBEAT") return HEART;
+    if (m == "METEOR") return METEOR;
+    if (m == "PIKSEL") return PIKSEL;
+    if (m == "BOUNCE") return BOUNCE;
+    if (m == "SPARKLE") return SPARKLE;
     return BREATH; // default
 }
 

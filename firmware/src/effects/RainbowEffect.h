@@ -8,7 +8,6 @@ class RainbowEffect {
 public:
     void render(CRGB *mainLeds, int mainCount, CRGB *heartLeds, int heartCount, uint8_t baseHue) {
         if (mainLeds && mainCount > 0) fill_rainbow(mainLeds, mainCount, baseHue, max(1, 255 / max(1, mainCount)));
-        if (heartLeds && heartCount > 0) fill_rainbow(heartLeds, heartCount, baseHue, max(1, 255 / max(1, heartCount)));
     }
 };
 

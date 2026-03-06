@@ -100,7 +100,11 @@ enum EffectMode {
     BLINK = 2,
     BREATH = 3,
     RUNNING = 4,
-    HEART = 5
+    HEART = 5,
+    METEOR = 6,
+    PIKSEL = 7,
+    BOUNCE = 8,
+    SPARKLE = 9
 };
 
 #endif

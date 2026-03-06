@@ -2,8 +2,22 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Print Pixel · Login do Cliente</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Login do painel de controle do Totem Interativo">
+    <meta name="theme-color" content="#4f83f5">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Totem Dashboard">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    
+    <!-- Android Chrome -->
+    <meta name="mobile-web-app-capable" content="yes">
     <!-- Fontes e ícones -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -261,5 +275,28 @@
             <i class="fas fa-lock"></i> Conexão segura • Apenas letras e números
         </div>
     </div>
+    
+    <script>
+        // PWA - Redirecionamento automático para totem salvo
+        const savedTotemId = localStorage.getItem('totemId');
+        
+        if (savedTotemId) {
+            console.log(' Redirecionando automaticamente para dashboard:', savedTotemId);
+            window.location.href = '/cliente/dashboard/' + savedTotemId;
+        }
+        
+        // PWA - Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log(' Service Worker registrado:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log(' Falha ao registrar Service Worker:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>

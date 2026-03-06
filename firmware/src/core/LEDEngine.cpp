@@ -5,6 +5,10 @@
 #include "effects/BreathEffect.h"
 #include "effects/RunningEffect.h"
 #include "effects/HeartEffect.h"
+#include "effects/MeteorEffect.h"
+#include "effects/PikselEffect.h"
+#include "effects/BounceEffect.h"
+#include "effects/SparkleEffect.h"
 
 static SolidEffect solidEffect;
 static RainbowEffect rainbowEffect;
@@ -12,6 +16,10 @@ static BlinkEffect blinkEffect;
 static BreathEffect breathEffect;
 static RunningEffect runningEffect;
 static HeartEffect heartEffect;
+static MeteorEffect meteorEffect;
+static PikselEffect pikselEffect;
+static BounceEffect bounceEffect;
+static SparkleEffect sparkleEffect;
 
 LEDEngine::LEDEngine() {
     mainLeds = nullptr;
@@ -118,6 +126,18 @@ void LEDEngine::loop() {
             }
             break;
         }
+        case METEOR:
+            meteorEffect.render(mainLeds, mainCount, baseColor, now, cfg.speed);
+            break;
+        case PIKSEL:
+            pikselEffect.render(mainLeds, mainCount, now, cfg.speed);
+            break;
+        case BOUNCE:
+            bounceEffect.render(mainLeds, mainCount, baseColor, now, cfg.speed);
+            break;
+        case SPARKLE:
+            sparkleEffect.render(mainLeds, mainCount, baseColor, now, cfg.speed);
+            break;
         default:
             solidEffect.render(mainLeds, mainCount, heartLeds, heartCount, baseColor);
             break;

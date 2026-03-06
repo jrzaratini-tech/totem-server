@@ -8,7 +8,6 @@ class RunningEffect {
 public:
     void render(CRGB *mainLeds, int mainCount, CRGB *heartLeds, int heartCount, const CRGB &color, int pos) {
         if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, CRGB::Black);
-        if (heartLeds && heartCount > 0) fill_solid(heartLeds, heartCount, CRGB::Black);
 
         if (mainCount <= 0) return;
         for (int i = 0; i < 4; i++) {
@@ -16,7 +15,6 @@ public:
             CRGB c = color;
             c.fadeToBlackBy(i * 50);
             if (mainLeds) mainLeds[idx] = c;
-            if (heartLeds && heartCount > 0) heartLeds[idx % heartCount] = c;
         }
     }
 };

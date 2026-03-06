@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Ícones PWA</title>
+</head>
+<body>
+    <h1>Gerador de Ícones para PWA</h1>
+    <p>Este arquivo gera ícones SVG que serão convertidos automaticamente pelo navegador.</p>
+    <canvas id="canvas"></canvas>
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+        
+        sizes.forEach(size => {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#4f83f5');
+            gradient.addColorStop(1, '#667eea');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Icon shape (printer icon simplified)
+            ctx.fillStyle = '#ffffff';
+            const padding = size * 0.2;
+            const iconSize = size - (padding * 2);
+            
+            // Simple printer shape
+            ctx.fillRect(padding + iconSize * 0.2, padding, iconSize * 0.6, iconSize * 0.3);
+            ctx.fillRect(padding, padding + iconSize * 0.3, iconSize, iconSize * 0.4);
+            ctx.fillRect(padding + iconSize * 0.15, padding + iconSize * 0.7, iconSize * 0.7, iconSize * 0.3);
+            
+            // Download
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `icon-${size}x${size}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        });
+    </script>
+</body>
+</html>
