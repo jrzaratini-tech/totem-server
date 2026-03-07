@@ -470,6 +470,65 @@
             50% { opacity: 0.5; }
         }
 
+        .btn-mic-record {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #6d9bff);
+            border: 4px solid rgba(79, 131, 245, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(79, 131, 245, 0.4);
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn-mic-record i {
+            font-size: 3rem;
+            color: #0b0f18;
+        }
+
+        .btn-mic-record:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 35px rgba(79, 131, 245, 0.6);
+            border-color: var(--accent);
+        }
+
+        .btn-mic-record:active {
+            transform: scale(0.95);
+        }
+
+        .btn-mic-record.recording {
+            background: linear-gradient(135deg, #ef4444, #f87171);
+            border-color: #ef4444;
+            animation: pulse-recording 1s infinite;
+        }
+
+        .btn-mic-record.recording i {
+            color: white;
+        }
+
+        @keyframes pulse-recording {
+            0%, 100% { box-shadow: 0 8px 25px rgba(239, 68, 68, 0.6); }
+            50% { box-shadow: 0 12px 40px rgba(239, 68, 68, 0.9); }
+        }
+
+        .mic-instruction {
+            margin-top: 16px;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .mic-instruction.recording {
+            color: #f87171;
+            font-weight: 600;
+        }
+
         .rec-timer {
             font-size: 1.8rem;
             font-weight: 700;
@@ -820,6 +879,41 @@
                 <span style="color: var(--text-muted); font-size: 0.8rem;"><i class="far fa-clock"></i> atualização em até 10s</span>
             </div>
 
+            <div id="alert" class="alert"></div>
+
+            <div class="upload-area">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <input type="file" id="audioFile" name="audio" accept=".mp3,.webm,.ogg,.wav,.m4a,audio/*" style="display: none;">
+                <label for="audioFile" class="upload-label" id="fileLabel">
+                    <i class="fas fa-folder-open"></i> Escolher arquivo
+                </label>
+                <div class="file-info" id="fileInfo">Nenhum selecionado</div>
+            </div>
+
+            <!-- PREVIEW DE ÁUDIO -->
+            <div class="preview-audio" id="audioPreview" style="display: none;">
+                <audio id="audioPlayer" controls>
+                    <source src="" type="audio/mpeg">
+                </audio>
+                <button class="btn-stop-preview" id="stopPreview" title="Parar">
+                    <i class="fas fa-stop"></i>
+                </button>
+            </div>
+
+            <!-- BOTÃO DE MICROFONE GRANDE (PRESSIONAR PARA GRAVAR) -->
+            <div style="text-align: center; margin: 30px 0;">
+                <div class="btn-mic-record" id="btnMicRecord">
+                    <i class="fas fa-microphone"></i>
+                </div>
+                <div class="mic-instruction" id="micInstruction">Pressione e segure para gravar</div>
+                <div class="rec-timer" id="recTimer" style="display: none; margin-top: 10px;">00:00</div>
+            </div>
+
+            <div class="button-group">
+                <button type="button" class="btn btn-primary" id="btnUpload"><i class="fas fa-upload"></i> Enviar arquivo</button>
+                <button type="button" class="btn btn-danger" id="btnRemove" style="display: none;"><i class="fas fa-trash-alt"></i> Remover áudio</button>
+            </div>
+
             <!-- CONTROLE DE VOLUME -->
             <div class="volume-control">
                 <label><i class="fas fa-volume-up"></i> Volume do áudio</label>
@@ -836,29 +930,16 @@
                 </div>
             </div>
 
-            <div id="alert" class="alert"></div>
-
-            <div class="upload-area">
-                <i class="fas fa-cloud-upload-alt"></i>
-                <input type="file" id="audioFile" name="audio" accept=".mp3,.webm,.ogg,.wav,.m4a,audio/*" style="display: none;">
-                <label for="audioFile" class="upload-label" id="fileLabel">
-                    <i class="fas fa-folder-open"></i> Escolher arquivo
-                </label>
-                <div class="file-info" id="fileInfo">Nenhum selecionado</div>
-            </div>
-
-            <!-- BOTÃO DE MICROFONE GRANDE (PRESSIONAR PARA GRAVAR) -->
-            <div style="text-align: center; margin: 30px 0;">
-                <div class="btn-mic-record" id="btnMicRecord">
-                    <i class="fas fa-microphone"></i>
-                </div>
-                <div class="mic-instruction" id="micInstruction">Pressione e segure para gravar</div>
-                <div class="rec-timer" id="recTimer" style="display: none; margin-top: 10px;">00:00</div>
-            </div>
-
-            <div class="button-group">
-                <button type="button" class="btn btn-primary" id="btnUpload"><i class="fas fa-upload"></i> Enviar arquivo</button>
-                <button type="button" class="btn btn-danger" id="btnRemove" style="display: none;"><i class="fas fa-trash-alt"></i> Remover áudio</button>
+            <!-- INSTRUÇÕES -->
+            <div class="instructions">
+                <h3><i class="fas fa-info-circle"></i> Instruções</h3>
+                <ul>
+                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> MP3 até 5MB ou gravação de até 60s</li>
+                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> Configure dois modos de LED: espera (idle) e disparo (trigger)</li>
+                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> Ajuste o volume do áudio de 0 (mudo) a 10 (máximo)</li>
+                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> Após aplicar, aguarde 10s para sincronização</li>
+                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> O totem precisa estar online para receber as configurações</li>
+                </ul>
             </div>
         </div>
 
@@ -1032,6 +1113,12 @@
         // Variáveis de gravação
         let isRecording = false;
         let audioStream = null;
+        let recordedChunks = [];
+        let recordedBlob = null;
+        let mediaRecorder = null;
+        let recTimerInterval = null;
+        let recStartedAt = 0;
+        const MAX_RECORD_TIME = 60;
 
         // Função para iniciar gravação
         async function startRecording() {
@@ -1549,6 +1636,27 @@
                 console.log('⚠️ Erro ao carregar configurações:', error);
             }
         }
+
+        // Event listeners para atualizar valores dos sliders em tempo real
+        volumeSlider.addEventListener('input', function() {
+            volumeValue.textContent = this.value;
+        });
+
+        idleBrightness.addEventListener('input', function() {
+            idleBrightnessVal.textContent = this.value;
+        });
+
+        idleSpeed.addEventListener('input', function() {
+            idleSpeedVal.textContent = this.value;
+        });
+
+        triggerBrightness.addEventListener('input', function() {
+            triggerBrightnessVal.textContent = this.value;
+        });
+
+        triggerSpeed.addEventListener('input', function() {
+            triggerSpeedVal.textContent = this.value;
+        });
 
         // Inicialização
         volumeValue.textContent = volumeSlider.value;
