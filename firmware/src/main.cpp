@@ -183,9 +183,9 @@ static void setupMQTTCallbacks() {
             Serial.printf("[MAIN] Topic: %s\n", topic.c_str());
             Serial.printf("[MAIN] Payload: %s\n", payload.c_str());
             
-            if (audioManager.getEqualizer().profileFromJSON(payload)) {
+            if (audioManager.getEqualizer()->profileFromJSON(payload)) {
                 Serial.println("[MAIN] ✓ Audio equalizer profile updated successfully");
-                audioManager.getEqualizer().printProfile();
+                audioManager.getEqualizer()->printProfile();
             } else {
                 Serial.println("[MAIN] ✗ Failed to parse equalizer config JSON");
             }
