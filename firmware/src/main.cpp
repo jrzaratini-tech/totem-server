@@ -176,6 +176,24 @@ static void setupMQTTCallbacks() {
             return;
         }
         
+        // Audio Equalizer Config
+        if (topic.endsWith("/audioConfig")) {
+            Serial.println("[MAIN] ========================================");
+            Serial.println("[MAIN] AUDIO EQUALIZER CONFIG RECEIVED");
+            Serial.printf("[MAIN] Topic: %s\n", topic.c_str());
+            Serial.printf("[MAIN] Payload: %s\n", payload.c_str());
+            
+            if (audioManager.getEqualizer().profileFromJSON(payload)) {
+                Serial.println("[MAIN] ✓ Audio equalizer profile updated successfully");
+                audioManager.getEqualizer().printProfile();
+            } else {
+                Serial.println("[MAIN] ✗ Failed to parse equalizer config JSON");
+            }
+            
+            Serial.println("[MAIN] ========================================");
+            return;
+        }
+        
         if (topic.endsWith("/trigger")) {
             triggerStartMs = millis();
             Serial.println("[MAIN] ========================================");

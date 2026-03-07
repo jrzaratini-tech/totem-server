@@ -5,9 +5,11 @@
 #include <HTTPClient.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
+#include "AudioEqualizer.h"
 
 class AudioManager {
 private:
+    AudioEqualizer* equalizer;
     // Ponteiros void para objetos da biblioteca (implementação no .cpp)
     void *i2s;
     void *volumeStream;
@@ -56,6 +58,9 @@ public:
     // Consulta o backend e baixa áudio se houver versão nova.
     // Retorna true se fez download/aplicou (ou se já estava atualizado com sucesso), false se houve erro.
     bool checkAndDownloadFromServer(String *outError = nullptr);
+    
+    // Audio equalizer access
+    AudioEqualizer* getEqualizer();
 };
 
 #endif

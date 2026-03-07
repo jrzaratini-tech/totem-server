@@ -16,6 +16,7 @@ String MQTTManager::topicConfigIdle() const { return topicBase() + "/config/idle
 String MQTTManager::topicConfigTrigger() const { return topicBase() + "/config/trigger"; }
 String MQTTManager::topicConfigVolume() const { return topicBase() + "/config/volume"; }
 String MQTTManager::topicAudioUpdate() const { return topicBase() + "/audioUpdate"; }
+String MQTTManager::topicAudioConfig() const { return topicBase() + "/audioConfig"; }
 String MQTTManager::topicFirmwareUpdate() const { return topicBase() + "/firmwareUpdate"; }
 String MQTTManager::topicStatus() const { return topicBase() + "/status"; }
 
@@ -103,6 +104,8 @@ void MQTTManager::subscribeTopics() {
     
     Serial.printf("  - %s\n", topicAudioUpdate().c_str());
     client.subscribe(topicAudioUpdate().c_str());
+    Serial.printf("  - %s\n", topicAudioConfig().c_str());
+    client.subscribe(topicAudioConfig().c_str());
     Serial.printf("  - %s\n", topicFirmwareUpdate().c_str());
     client.subscribe(topicFirmwareUpdate().c_str());
 }

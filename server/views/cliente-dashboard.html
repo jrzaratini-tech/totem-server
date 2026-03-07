@@ -832,6 +832,7 @@
                 <div class="value-hint" style="text-align: center; margin-top: 12px;">0 = mudo, 10 = máximo</div>
                 <div class="button-group" style="margin-top: 16px;">
                     <button type="button" class="btn btn-primary" id="btnApplyVolume"><i class="fas fa-check"></i> Confirmar Volume</button>
+                    <button type="button" class="btn" onclick="window.location.href='/cliente/equalizer/{{ID}}'"><i class="fas fa-sliders-h"></i> Configurações de Som</button>
                 </div>
             </div>
 
@@ -846,26 +847,18 @@
                 <div class="file-info" id="fileInfo">Nenhum selecionado</div>
             </div>
 
-            <div id="audioPreview" style="display: none;" class="preview-audio">
-                <audio controls id="audioPlayer">
-                    <source src="" type="audio/mpeg">
-                </audio>
-                <button class="btn-stop-preview" id="stopPreview" title="Parar"><i class="fas fa-stop"></i></button>
-            </div>
-
-            <div class="recording-container" id="recordingContainer" style="display: none;">
-                <div class="mic-icon"><i class="fas fa-microphone"></i></div>
-                <div class="rec-timer" id="recTimer">00:00</div>
-                <div class="progress-bar"><div class="progress-fill" id="recProgress"></div></div>
-                <div class="rec-hint" style="color:var(--text-secondary);" id="recHint">Gravando... até 60s</div>
+            <!-- BOTÃO DE MICROFONE GRANDE (PRESSIONAR PARA GRAVAR) -->
+            <div style="text-align: center; margin: 30px 0;">
+                <div class="btn-mic-record" id="btnMicRecord">
+                    <i class="fas fa-microphone"></i>
+                </div>
+                <div class="mic-instruction" id="micInstruction">Pressione e segure para gravar</div>
+                <div class="rec-timer" id="recTimer" style="display: none; margin-top: 10px;">00:00</div>
             </div>
 
             <div class="button-group">
-                <button type="button" class="btn btn-primary" id="btnUpload"><i class="fas fa-upload"></i> Enviar</button>
-                <button type="button" class="btn btn-success" id="btnStartRec"><i class="fas fa-microphone"></i> Gravar</button>
-                <button type="button" class="btn btn-danger" id="btnStopRec" style="display: none;"><i class="fas fa-stop"></i> Parar</button>
-                <button type="button" class="btn btn-primary" id="btnSendRec" style="display: none;"><i class="fas fa-paper-plane"></i> Enviar gravação</button>
-                <button type="button" class="btn btn-danger" id="btnRemove" style="display: none;"><i class="fas fa-trash-alt"></i> Remover</button>
+                <button type="button" class="btn btn-primary" id="btnUpload"><i class="fas fa-upload"></i> Enviar arquivo</button>
+                <button type="button" class="btn btn-danger" id="btnRemove" style="display: none;"><i class="fas fa-trash-alt"></i> Remover áudio</button>
             </div>
         </div>
 
@@ -1008,15 +1001,10 @@
         const audioAtualDisplay = document.getElementById('audioAtualDisplay');
         const audioDataDisplay = document.getElementById('audioDataDisplay');
 
-        const btnStartRec = document.getElementById('btnStartRec');
-        const btnStopRec = document.getElementById('btnStopRec');
-        const btnSendRec = document.getElementById('btnSendRec');
         const btnUpload = document.getElementById('btnUpload');
-
-        const recordingContainer = document.getElementById('recordingContainer');
+        const btnMicRecord = document.getElementById('btnMicRecord');
+        const micInstruction = document.getElementById('micInstruction');
         const recTimer = document.getElementById('recTimer');
-        const recProgress = document.getElementById('recProgress');
-        const recHint = document.getElementById('recHint');
 
         // Controles de volume
         const volumeSlider = document.getElementById('volumeSlider');
@@ -1042,78 +1030,184 @@
         const btnApplyConfig = document.getElementById('btnApplyConfig');
 
         // Variáveis de gravação
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let recordedBlob = null;
-        let recTimerInterval = null;
-        let recStartedAt = 0;
-        const MAX_RECORD_TIME = 60;
+        let isRecording = false;
+        let audioStream = null;
 
-        if (audioAtualNome !== 'Nenhum áudio personalizado' && audioAtualNome !== 'padrao.mp3') {
-            btnRemove.style.display = 'inline-flex';
-        }
+        // Função para iniciar gravação
+        async function startRecording() {
+            if (isRecording) return;
 
-        // Carregar configurações atuais do servidor
-        async function loadCurrentSettings() {
+            recordedChunks = [];
+            recordedBlob = null;
+
+            if (!window.isSecureContext) {
+                showAlert('❌ A gravação exige HTTPS (ou localhost).', 'error');
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showAlert('❌ Navegador não suporta gravação.', 'error');
+                return;
+            }
+
             try {
-                const response = await fetch(`/cliente/config/${totemId}`);
-                if (response.ok) {
-                    const config = await response.json();
-                    if (config.volume !== undefined) {
-                        volumeSlider.value = config.volume;
-                        volumeValue.textContent = config.volume;
-                    }
-                    if (config.idle) {
-                        if (config.idle.mode) idleMode.value = config.idle.mode;
-                        if (config.idle.color) idleColor.value = config.idle.color;
-                        if (config.idle.speed !== undefined) {
-                            idleSpeed.value = config.idle.speed;
-                            idleSpeedVal.textContent = config.idle.speed;
-                        }
-                        if (config.idle.maxBrightness !== undefined) {
-                            idleBrightness.value = config.idle.maxBrightness;
-                            idleBrightnessVal.textContent = config.idle.maxBrightness;
-                        }
-                    }
-                    if (config.trigger) {
-                        if (config.trigger.mode) triggerMode.value = config.trigger.mode;
-                        if (config.trigger.color) triggerColor.value = config.trigger.color;
-                        if (config.trigger.speed !== undefined) {
-                            triggerSpeed.value = config.trigger.speed;
-                            triggerSpeedVal.textContent = config.trigger.speed;
-                        }
-                        if (config.trigger.maxBrightness !== undefined) {
-                            triggerBrightness.value = config.trigger.maxBrightness;
-                            triggerBrightnessVal.textContent = config.trigger.maxBrightness;
-                        }
-                        if (config.trigger.duration !== undefined) {
-                            triggerDuration.value = config.trigger.duration;
-                        }
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                let options = {};
+                const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+                for (const t of preferred) {
+                    if (MediaRecorder.isTypeSupported(t)) {
+                        options = { mimeType: t };
+                        break;
                     }
                 }
-            } catch (error) {
-                console.log('Não foi possível carregar configurações:', error);
+
+                mediaRecorder = new MediaRecorder(audioStream, options);
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const mime = mediaRecorder.mimeType || 'audio/webm';
+                    recordedBlob = new Blob(recordedChunks, { type: mime });
+
+                    // Parar stream de áudio
+                    if (audioStream) {
+                        audioStream.getTracks().forEach(t => t.stop());
+                        audioStream = null;
+                    }
+
+                    // Enviar imediatamente
+                    if (recordedBlob.size > 5 * 1024 * 1024) {
+                        showAlert('❌ Gravação muito grande! Máximo 5MB.', 'error');
+                        resetRecordingUI();
+                        return;
+                    }
+
+                    let ext = 'webm';
+                    if (mime.includes('ogg')) ext = 'ogg';
+                    if (mime.includes('wav')) ext = 'wav';
+                    const filename = `gravacao_${totemId}.${ext}`;
+
+                    await enviarBlobComoUpload(recordedBlob, filename);
+                    resetRecordingUI();
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+
+                // UI feedback
+                btnMicRecord.classList.add('recording');
+                micInstruction.textContent = 'Gravando... Solte para enviar';
+                micInstruction.classList.add('recording');
+                recTimer.style.display = 'block';
+                recStartedAt = Date.now();
+                recTimer.textContent = '00:00';
+
+                // Timer
+                if (recTimerInterval) clearInterval(recTimerInterval);
+                recTimerInterval = setInterval(() => {
+                    const elapsed = (Date.now() - recStartedAt) / 1000;
+                    if (elapsed >= MAX_RECORD_TIME) {
+                        stopRecording();
+                        showAlert('⏱️ Tempo máximo atingido (60s). Enviando...', 'info');
+                    } else {
+                        const mins = Math.floor(elapsed / 60);
+                        const secs = Math.floor(elapsed % 60);
+                        recTimer.textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+                    }
+                }, 100);
+
+                showAlert('🎙️ Gravando... Solte o botão para enviar', 'info');
+            } catch (e) {
+                showAlert('❌ Não foi possível acessar o microfone. Verifique as permissões.', 'error');
+                resetRecordingUI();
             }
         }
 
-        // Event listeners para sliders
-        volumeSlider.addEventListener('input', () => {
-            volumeValue.textContent = volumeSlider.value;
+        // Função para parar gravação
+        function stopRecording() {
+            if (!isRecording) return;
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+
+            if (recTimerInterval) {
+                clearInterval(recTimerInterval);
+                recTimerInterval = null;
+            }
+
+            isRecording = false;
+        }
+
+        // Função para resetar UI
+        function resetRecordingUI() {
+            btnMicRecord.classList.remove('recording');
+            micInstruction.textContent = 'Pressione e segure para gravar';
+            micInstruction.classList.remove('recording');
+            recTimer.style.display = 'none';
+            recTimer.textContent = '00:00';
+            isRecording = false;
+        }
+
+        // Event listeners para mouse
+        btnMicRecord.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startRecording();
         });
 
-        idleBrightness.addEventListener('input', () => {
-            idleBrightnessVal.textContent = idleBrightness.value;
-        });
-        idleSpeed.addEventListener('input', () => {
-            idleSpeedVal.textContent = idleSpeed.value;
+        btnMicRecord.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            stopRecording();
         });
 
-        triggerBrightness.addEventListener('input', () => {
-            triggerBrightnessVal.textContent = triggerBrightness.value;
+        btnMicRecord.addEventListener('mouseleave', (e) => {
+            if (isRecording) {
+                stopRecording();
+            }
         });
-        triggerSpeed.addEventListener('input', () => {
-            triggerSpeedVal.textContent = triggerSpeed.value;
+
+        // Event listeners para touch (mobile)
+        btnMicRecord.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startRecording();
         });
+
+        btnMicRecord.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopRecording();
+        });
+
+        btnMicRecord.addEventListener('touchcancel', (e) => {
+            if (isRecording) {
+                stopRecording();
+            }
+        });
+
+        async function enviarBlobComoUpload(blob, filename) {
+            const formData = new FormData();
+            formData.append('audio', blob, filename);
+            loading.classList.add('active');
+            showAlert('', '');
+            try {
+                const response = await fetch(`/cliente/audio/${totemId}`, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showAlert('✅ Gravação enviada com sucesso!', 'success');
+                    btnRemove.style.display = 'inline-flex';
+                    audioAtualDisplay.textContent = filename;
+                    const data = new Date().toLocaleDateString('pt-BR');
+                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
+                } else {
+                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
+                }
+            } catch (error) {
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
 
         // Upload de arquivo
         fileInput.addEventListener('change', function(e) {
@@ -1175,99 +1269,6 @@
                 loading.classList.remove('active');
             }
         });
-
-        // Gravação
-        btnStartRec.addEventListener('click', async function() {
-            recordedChunks = []; recordedBlob = null;
-            if (!window.isSecureContext) { showAlert('❌ A gravação exige HTTPS (ou localhost).', 'error'); return; }
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showAlert('❌ Navegador não suporta gravação.', 'error'); return; }
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                let options = {};
-                const preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
-                for (const t of preferred) { if (MediaRecorder.isTypeSupported(t)) { options = { mimeType: t }; break; } }
-                mediaRecorder = new MediaRecorder(stream, options);
-                mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
-                mediaRecorder.onstop = () => {
-                    const mime = mediaRecorder.mimeType || 'audio/webm';
-                    recordedBlob = new Blob(recordedChunks, { type: mime });
-                    const url = URL.createObjectURL(recordedBlob);
-                    const sourceEl = audioPlayer.querySelector('source');
-                    sourceEl.src = url; sourceEl.type = mime; audioPlayer.load();
-                    audioPreview.style.display = 'flex';
-                    btnSendRec.style.display = 'inline-flex';
-                    recordingContainer.style.display = 'none';
-                    btnStartRec.style.display = 'inline-flex';
-                    btnStopRec.style.display = 'none';
-                    if (recTimerInterval) clearInterval(recTimerInterval);
-                    recTimer.textContent = '00:00';
-                    recProgress.style.width = '0%';
-                    recHint.textContent = 'Gravação concluída! Envie agora.';
-                    stream.getTracks().forEach(t => t.stop());
-                };
-                mediaRecorder.start();
-                btnStartRec.style.display = 'none';
-                btnStopRec.style.display = 'inline-flex';
-                btnSendRec.style.display = 'none';
-                recordingContainer.style.display = 'block';
-                recStartedAt = Date.now();
-                recTimer.textContent = '00:00';
-                recProgress.style.width = '0%';
-                if (recTimerInterval) clearInterval(recTimerInterval);
-                recTimerInterval = setInterval(() => {
-                    const elapsed = (Date.now() - recStartedAt) / 1000;
-                    if (elapsed >= MAX_RECORD_TIME) {
-                        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-                        showAlert('⏱️ Tempo máximo atingido (60s).', 'info');
-                    } else {
-                        const mins = Math.floor(elapsed / 60); const secs = Math.floor(elapsed % 60);
-                        recTimer.textContent = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
-                        recProgress.style.width = `${(elapsed/MAX_RECORD_TIME)*100}%`;
-                    }
-                }, 250);
-                recHint.textContent = 'Gravando... clique em Parar quando terminar.';
-                showAlert('🎙️ Gravando...', 'info');
-            } catch (e) {
-                showAlert('❌ Não foi possível acessar o microfone. Verifique as permissões.', 'error');
-            }
-        });
-
-        btnStopRec.addEventListener('click', function() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-        });
-
-        btnSendRec.addEventListener('click', async function() {
-            if (!recordedBlob) { showAlert('❌ Nenhuma gravação disponível.', 'error'); return; }
-            if (recordedBlob.size > 5 * 1024 * 1024) { showAlert('❌ Gravação muito grande! Máximo 5MB.', 'error'); return; }
-            const mime = recordedBlob.type || 'audio/webm';
-            let ext = 'webm'; if (mime.includes('ogg')) ext = 'ogg'; if (mime.includes('wav')) ext = 'wav';
-            const filename = `gravacao_${totemId}.${ext}`;
-            await enviarBlobComoUpload(recordedBlob, filename);
-        });
-
-        async function enviarBlobComoUpload(blob, filename) {
-            const formData = new FormData();
-            formData.append('audio', blob, filename);
-            loading.classList.add('active');
-            showAlert('', '');
-            try {
-                const response = await fetch(`/cliente/audio/${totemId}`, { method: 'POST', body: formData });
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    showAlert('✅ Gravação enviada com sucesso!', 'success');
-                    btnRemove.style.display = 'inline-flex';
-                    audioAtualDisplay.textContent = filename;
-                    const data = new Date().toLocaleDateString('pt-BR');
-                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
-                } else {
-                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
-                }
-            } catch (error) {
-                showAlert('❌ Erro de conexão com o servidor', 'error');
-            } finally {
-                loading.classList.remove('active');
-            }
-        }
 
         btnRemove.addEventListener('click', async function() {
             if (!confirm('Tem certeza que deseja remover o áudio personalizado? O totem voltará a usar o áudio padrão.')) return;
@@ -1512,6 +1513,42 @@
             if(animFrame) cancelAnimationFrame(animFrame); 
             if(animFrameTrigger) cancelAnimationFrame(animFrameTrigger);
         });
+
+        // Função para carregar configurações salvas do servidor
+        async function loadCurrentSettings() {
+            try {
+                const response = await fetch(`/cliente/config/${totemId}`);
+                const data = await response.json();
+                
+                if (data.volume !== undefined) {
+                    volumeSlider.value = data.volume;
+                    volumeValue.textContent = data.volume;
+                }
+                
+                if (data.idle) {
+                    idleMode.value = data.idle.mode || 'BREATH';
+                    idleColor.value = data.idle.color || '#ff3366';
+                    idleBrightness.value = data.idle.maxBrightness || 120;
+                    idleBrightnessVal.textContent = data.idle.maxBrightness || 120;
+                    idleSpeed.value = data.idle.speed || 50;
+                    idleSpeedVal.textContent = data.idle.speed || 50;
+                }
+                
+                if (data.trigger) {
+                    triggerMode.value = data.trigger.mode || 'RAINBOW';
+                    triggerColor.value = data.trigger.color || '#00ff00';
+                    triggerBrightness.value = data.trigger.maxBrightness || 150;
+                    triggerBrightnessVal.textContent = data.trigger.maxBrightness || 150;
+                    triggerSpeed.value = data.trigger.speed || 70;
+                    triggerSpeedVal.textContent = data.trigger.speed || 70;
+                    triggerDuration.value = data.trigger.duration || 30;
+                }
+                
+                console.log('✅ Configurações carregadas com sucesso');
+            } catch (error) {
+                console.log('⚠️ Erro ao carregar configurações:', error);
+            }
+        }
 
         // Inicialização
         volumeValue.textContent = volumeSlider.value;

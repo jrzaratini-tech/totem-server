@@ -935,6 +935,10 @@ app.delete('/api/audio/:id', async (req, res) => {
     }
 });
 
+// ========== AUDIO EQUALIZER ROUTES ==========
+const audioEqualizerRoutes = require('./routes/audio-equalizer')(db, mqttClient);
+app.use('/', audioEqualizerRoutes);
+
 // ========== ROTAS ADMIN ==========
 
 app.get('/admin/login', (req, res) => {

@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Print Pixel · Equalizador de Áudio</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Equalizador de áudio do Totem Interativo">
+    <meta name="theme-color" content="#4f83f5">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Equalizador">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    
+    <!-- Android Chrome -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        :root {
+            --bg-dark: #0b0f18;
+            --bg-card: rgba(18, 25, 40, 0.75);
+            --bg-card-solid: #121a2c;
+            --border-glow: rgba(79, 131, 245, 0.15);
+            --accent: #4f83f5;
+            --accent-glow: rgba(79, 131, 245, 0.4);
+            --text-primary: #f0f4ff;
+            --text-secondary: #a0b3d9;
+            --text-muted: #5f73a1;
+            --danger: #f56565;
+            --success: #48bb78;
+            --warning: #ecc94b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at 10% 20%, #1a263a, #0b0f18);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            touch-action: pan-y;
+            overscroll-behavior-y: contain;
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+        
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        input, select, textarea, button {
+            font-size: 16px !important;
+        }
+
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(8, 12, 22, 0.95);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .loading.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(79, 131, 245, 0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .navbar {
+            background: rgba(8, 12, 22, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(79, 131, 245, 0.2);
+            padding: 0.6rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #fff, #bdd3ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .navbar h1 i {
+            font-size: 1.5rem;
+            color: var(--accent);
+            filter: drop-shadow(0 0 5px var(--accent-glow));
+        }
+
+        .navbar h1 span {
+            font-size: 0.75rem;
+            font-weight: 400;
+            background: rgba(79, 131, 245, 0.15);
+            padding: 4px 10px;
+            border-radius: 30px;
+            letter-spacing: 0.3px;
+            color: var(--text-secondary);
+            -webkit-text-fill-color: currentColor;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.03);
+            color: var(--text-secondary);
+            border: 1px solid rgba(79, 131, 245, 0.3);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .back-btn:hover {
+            background: rgba(79, 131, 245, 0.15);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            margin: 20px auto;
+            padding: 0 24px;
+            flex: 1;
+            box-sizing: border-box;
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(8px);
+            border-radius: 20px;
+            padding: 16px 20px;
+            border: 1px solid rgba(79, 131, 245, 0.15);
+            box-shadow: 0 8px 20px -10px rgba(0,0,0,0.5);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .info-card i {
+            font-size: 1.8rem;
+            color: var(--accent);
+            filter: drop-shadow(0 0 5px var(--accent-glow));
+        }
+
+        .info-card .info-text h3 {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .info-card .info-text .value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .section-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border-radius: 28px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(79, 131, 245, 0.2);
+            box-shadow: 0 20px 35px -15px black;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+
+        .section-title i {
+            color: var(--accent);
+            font-size: 1.4rem;
+            filter: drop-shadow(0 0 5px var(--accent-glow));
+        }
+
+        .equalizer-grid {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            gap: 15px;
+            margin: 30px 0;
+            padding: 20px 10px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 40px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .eq-band {
+            flex: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .eq-band label {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .eq-band .frequency {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            margin-top: -8px;
+        }
+
+        .eq-band input[type="range"] {
+            writing-mode: bt-lr;
+            -webkit-appearance: slider-vertical;
+            width: 8px;
+            height: 150px;
+            padding: 0;
+            accent-color: var(--accent);
+            cursor: pointer;
+            background: #1e293b;
+            border-radius: 10px;
+        }
+
+        .eq-band .eq-value {
+            color: var(--accent);
+            font-size: 1rem;
+            font-weight: 700;
+            background: rgba(79, 131, 245, 0.15);
+            padding: 6px 12px;
+            border-radius: 30px;
+            min-width: 60px;
+        }
+
+        .volume-control {
+            background: rgba(0,0,0,0.25);
+            border-radius: 40px;
+            padding: 24px;
+            margin: 20px 0;
+            border: 2px solid rgba(79, 131, 245, 0.25);
+        }
+
+        .volume-control label {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .volume-slider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .volume-slider input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent);
+            height: 10px;
+            cursor: pointer;
+        }
+
+        .volume-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: white;
+            min-width: 60px;
+            text-align: center;
+            background: rgba(79, 131, 245, 0.15);
+            padding: 8px 16px;
+            border-radius: 16px;
+        }
+
+        .gain-section {
+            background: rgba(0,0,0,0.25);
+            border-radius: 30px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .gain-section h3 {
+            color: white;
+            font-size: 1rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gain-section h3 i {
+            color: var(--accent);
+        }
+
+        .gain-options {
+            display: flex;
+            gap: 12px;
+        }
+
+        .gain-option {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 2px solid rgba(79, 131, 245, 0.2);
+            border-radius: 20px;
+            padding: 16px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .gain-option:hover {
+            border-color: var(--accent);
+            background: rgba(79, 131, 245, 0.1);
+        }
+
+        .gain-option.active {
+            border-color: var(--accent);
+            background: rgba(79, 131, 245, 0.2);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .gain-option .gain-label {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .gain-option .gain-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 18px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(79, 131, 245, 0.3);
+            color: var(--text-secondary);
+            min-height: 56px;
+            flex: 1;
+        }
+
+        .btn i {
+            font-size: 1.3rem;
+        }
+
+        .btn:hover {
+            background: rgba(79, 131, 245, 0.15);
+            border-color: var(--accent);
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #0b0f18;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: #6d9bff;
+            border-color: #6d9bff;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: black;
+        }
+        .btn-danger:hover {
+            background: #f87171;
+        }
+
+        .alert {
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            border-radius: 40px;
+            padding: 12px 18px;
+            margin: 16px 0;
+            display: none;
+            border-left: 4px solid transparent;
+        }
+        .alert.success {
+            border-left-color: var(--success);
+            color: #a7f3d0;
+            display: block;
+        }
+        .alert.error {
+            border-left-color: var(--danger);
+            color: #fecaca;
+            display: block;
+        }
+        .alert.info {
+            border-left-color: var(--accent);
+            color: #bfdbfe;
+            display: block;
+        }
+
+        .footer-brand {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(79, 131, 245, 0.2);
+            margin-top: 20px;
+        }
+        .footer-brand strong {
+            color: var(--accent);
+        }
+
+        @media (max-width: 600px) {
+            .equalizer-grid {
+                flex-direction: column;
+                align-items: center;
+                gap: 25px;
+            }
+            
+            .eq-band input[type="range"] {
+                writing-mode: lr-tb;
+                -webkit-appearance: slider-horizontal;
+                width: 100%;
+                height: 8px;
+            }
+            
+            .gain-options {
+                flex-direction: column;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .container {
+                padding: 0 16px;
+            }
+        }
+        
+        @media (max-width: 500px) {
+            .navbar h1 {
+                font-size: 1.1rem;
+            }
+            .navbar-content {
+                padding: 0 12px;
+            }
+            .container {
+                padding: 0 12px;
+            }
+            .section-card {
+                padding: 16px;
+            }
+        }
+        
+        @media (display-mode: standalone) {
+            body {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+            .navbar {
+                padding-top: calc(0.6rem + env(safe-area-inset-top));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p style="color: white; font-weight: 500;">Processando...</p>
+    </div>
+
+    <nav class="navbar">
+        <div class="navbar-content">
+            <h1>
+                <i class="fas fa-sliders-h"></i> Print Pixel · Equalizador
+                <span id="totemIdBadge">ID</span>
+            </h1>
+            <a href="#" class="back-btn" id="backBtn">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- INFO DO TOTEM -->
+        <div class="info-card">
+            <i class="fas fa-microphone-alt"></i>
+            <div class="info-text">
+                <h3>Equalizador de Áudio</h3>
+                <div class="value" id="totemIdDisplay">Carregando...</div>
+            </div>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <!-- SEÇÃO PRINCIPAL -->
+        <div class="section-card">
+            <div class="section-title">
+                <i class="fas fa-sliders-h"></i>
+                <span>Ajuste o som do seu totem</span>
+            </div>
+
+            <!-- VOLUME PRINCIPAL -->
+            <div class="volume-control">
+                <label><i class="fas fa-volume-up"></i> Volume principal</label>
+                <div class="volume-slider">
+                    <i class="fas fa-volume-off" style="color: var(--text-muted); font-size: 1.5rem;"></i>
+                    <input type="range" id="volumeSlider" min="0" max="10" value="8">
+                    <i class="fas fa-volume-up" style="color: var(--accent); font-size: 1.5rem;"></i>
+                    <span class="volume-value" id="volumeValue">8</span>
+                </div>
+            </div>
+
+            <!-- EQUALIZADOR GRÁFICO -->
+            <div style="margin: 20px 0 10px;">
+                <h3 style="color: white; font-size: 1rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-chart-line" style="color: var(--accent);"></i> Equalizador (dB)
+                </h3>
+            </div>
+            
+            <div class="equalizer-grid">
+                <div class="eq-band">
+                    <label>Graves</label>
+                    <span class="frequency">60Hz</span>
+                    <input type="range" id="bassSlider" min="-12" max="12" value="0" step="1" orient="vertical">
+                    <span class="eq-value" id="bassValue">0 dB</span>
+                </div>
+                <div class="eq-band">
+                    <label>Médios</label>
+                    <span class="frequency">1kHz</span>
+                    <input type="range" id="midSlider" min="-12" max="12" value="0" step="1" orient="vertical">
+                    <span class="eq-value" id="midValue">0 dB</span>
+                </div>
+                <div class="eq-band">
+                    <label>Agudos</label>
+                    <span class="frequency">10kHz</span>
+                    <input type="range" id="trebleSlider" min="-12" max="12" value="0" step="1" orient="vertical">
+                    <span class="eq-value" id="trebleValue">0 dB</span>
+                </div>
+            </div>
+
+            <!-- GANHO DO AMPLIFICADOR -->
+            <div class="gain-section">
+                <h3><i class="fas fa-bolt"></i> Ganho do amplificador</h3>
+                <div class="gain-options">
+                    <div class="gain-option" data-gain="3">
+                        <div class="gain-label">3dB</div>
+                        <div class="gain-desc">Baixo</div>
+                    </div>
+                    <div class="gain-option" data-gain="9">
+                        <div class="gain-label">9dB</div>
+                        <div class="gain-desc">Médio</div>
+                    </div>
+                    <div class="gain-option active" data-gain="15">
+                        <div class="gain-label">15dB</div>
+                        <div class="gain-desc">Alto</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTÃO ÚNICO: TOCAR -->
+            <div class="button-group">
+                <button type="button" class="btn btn-primary" id="btnApply">
+                    <i class="fas fa-play"></i> TOCAR
+                </button>
+                <button type="button" class="btn btn-danger" id="btnReset">
+                    <i class="fas fa-undo"></i> Reset
+                </button>
+            </div>
+
+            <p style="color: var(--text-muted); font-size: 0.8rem; text-align: center; margin-top: 16px;">
+                <i class="fas fa-info-circle"></i> Clique em TOCAR para aplicar as configurações e o totem começar a tocar
+            </p>
+        </div>
+
+        <div class="footer-brand">
+            <strong>Print Pixel</strong> · Áudio com qualidade profissional
+        </div>
+    </div>
+
+    <script>
+        const totemId = window.location.pathname.split('/').pop();
+        document.getElementById('totemIdBadge').textContent = totemId;
+        document.getElementById('totemIdDisplay').textContent = `Totem ID: ${totemId}`;
+
+        // Elementos DOM
+        const loading = document.getElementById('loading');
+        const alertDiv = document.getElementById('alert');
+        const backBtn = document.getElementById('backBtn');
+        
+        // Controles
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        
+        const bassSlider = document.getElementById('bassSlider');
+        const bassValue = document.getElementById('bassValue');
+        const midSlider = document.getElementById('midSlider');
+        const midValue = document.getElementById('midValue');
+        const trebleSlider = document.getElementById('trebleSlider');
+        const trebleValue = document.getElementById('trebleValue');
+        
+        const gainOptions = document.querySelectorAll('.gain-option');
+        
+        const btnApply = document.getElementById('btnApply');
+        const btnReset = document.getElementById('btnReset');
+
+        // Configuração atual
+        let currentConfig = {};
+
+        // Event listeners para sliders
+        volumeSlider.addEventListener('input', () => {
+            volumeValue.textContent = volumeSlider.value;
+        });
+
+        bassSlider.addEventListener('input', () => {
+            bassValue.textContent = bassSlider.value + ' dB';
+        });
+
+        midSlider.addEventListener('input', () => {
+            midValue.textContent = midSlider.value + ' dB';
+        });
+
+        trebleSlider.addEventListener('input', () => {
+            trebleValue.textContent = trebleSlider.value + ' dB';
+        });
+
+        // Seleção de ganho
+        gainOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                gainOptions.forEach(opt => opt.classList.remove('active'));
+                option.classList.add('active');
+            });
+        });
+
+        // Voltar ao dashboard
+        backBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = `/cliente/dashboard/${totemId}`;
+        });
+
+        // Carregar configurações atuais
+        async function loadCurrentSettings() {
+            try {
+                const response = await fetch(`/api/cliente/audio-config/${totemId}`);
+                const data = await response.json();
+                
+                if (data.success && data.audioProfile) {
+                    currentConfig = data.audioProfile;
+                    
+                    // Aplicar aos controles
+                    volumeSlider.value = currentConfig.volume || 8;
+                    volumeValue.textContent = currentConfig.volume || 8;
+                    
+                    bassSlider.value = currentConfig.equalizer?.bass || 0;
+                    bassValue.textContent = (currentConfig.equalizer?.bass || 0) + ' dB';
+                    
+                    midSlider.value = currentConfig.equalizer?.mid || 0;
+                    midValue.textContent = (currentConfig.equalizer?.mid || 0) + ' dB';
+                    
+                    trebleSlider.value = currentConfig.equalizer?.treble || 0;
+                    trebleValue.textContent = (currentConfig.equalizer?.treble || 0) + ' dB';
+                    
+                    const gain = currentConfig.amplifierGain || 15;
+                    gainOptions.forEach(opt => {
+                        opt.classList.remove('active');
+                        if (parseInt(opt.dataset.gain) === gain) {
+                            opt.classList.add('active');
+                        }
+                    });
+                }
+            } catch (error) {
+                console.log('Erro ao carregar configurações:', error);
+            }
+        }
+
+        // Obter configuração atual da UI
+        function getCurrentConfiguration() {
+            const activeGain = document.querySelector('.gain-option.active');
+            
+            return {
+                volume: parseInt(volumeSlider.value),
+                equalizer: {
+                    bass: parseInt(bassSlider.value),
+                    mid: parseInt(midSlider.value),
+                    treble: parseInt(trebleSlider.value)
+                },
+                amplifierGain: parseInt(activeGain.dataset.gain),
+                espModel: 'ESP32 DevKit V1', // Fixo para simplificar
+                volumeCurve: 'exponential',   // Fixo para simplificar
+                clippingProtection: true       // Fixo para simplificar
+            };
+        }
+
+        // Aplicar configuração (enviar para o servidor)
+        async function applyConfiguration() {
+            const config = getCurrentConfiguration();
+            
+            loading.classList.add('active');
+            showAlert('', '');
+            
+            try {
+                // 1. Salvar configuração do equalizer
+                const response = await fetch(`/api/cliente/audio-config/${totemId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentConfig = config;
+                    
+                    // 2. Disparar o trigger para tocar imediatamente
+                    try {
+                        const triggerResponse = await fetch(`/api/trigger/${totemId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ command: 'play' })
+                        });
+                        
+                        const triggerData = await triggerResponse.json();
+                        
+                        if (triggerData.success) {
+                            showAlert('✅ Configurações aplicadas e totem tocando!', 'success');
+                        } else {
+                            showAlert('✅ Configurações salvas, mas falha ao disparar: ' + (triggerData.error || 'Erro desconhecido'), 'info');
+                        }
+                    } catch (triggerError) {
+                        showAlert('✅ Configurações salvas, mas não foi possível disparar automaticamente', 'info');
+                    }
+                } else {
+                    showAlert('❌ Erro: ' + (data.error || 'Falha ao aplicar'), 'error');
+                }
+            } catch (error) {
+                showAlert('❌ Erro de conexão com o servidor', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        // Reset para valores padrão
+        function resetToDefaults() {
+            volumeSlider.value = 8;
+            volumeValue.textContent = '8';
+            
+            bassSlider.value = 0;
+            bassValue.textContent = '0 dB';
+            midSlider.value = 0;
+            midValue.textContent = '0 dB';
+            trebleSlider.value = 0;
+            trebleValue.textContent = '0 dB';
+            
+            gainOptions.forEach(opt => {
+                opt.classList.remove('active');
+                if (parseInt(opt.dataset.gain) === 15) {
+                    opt.classList.add('active');
+                }
+            });
+            
+            showAlert('🔄 Valores resetados. Clique em TOCAR para aplicar.', 'info');
+        }
+
+        // Mostrar alerta
+        function showAlert(message, type) {
+            if (!message) {
+                alertDiv.style.display = 'none';
+                alertDiv.className = 'alert';
+                return;
+            }
+            
+            let icon = '';
+            if (type === 'success') icon = '<i class="fas fa-check-circle"></i> ';
+            else if (type === 'error') icon = '<i class="fas fa-exclamation-circle"></i> ';
+            else if (type === 'info') icon = '<i class="fas fa-info-circle"></i> ';
+            
+            alertDiv.innerHTML = icon + message;
+            alertDiv.className = 'alert ' + type;
+            
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+                alertDiv.className = 'alert';
+            }, 3000);
+        }
+
+        // Event listeners dos botões
+        btnApply.addEventListener('click', applyConfiguration);
+        btnReset.addEventListener('click', resetToDefaults);
+
+        // Carregar configurações ao iniciar
+        loadCurrentSettings();
+
+        // PWA - Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('✅ Service Worker registrado');
+                    })
+                    .catch(error => {
+                        console.log('❌ Falha no Service Worker:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

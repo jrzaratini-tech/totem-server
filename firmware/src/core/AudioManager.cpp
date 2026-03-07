@@ -1,4 +1,5 @@
 #include "core/AudioManager.h"
+#include "core/AudioEqualizer.h"
 #include "Config.h"
 #include <WiFiClientSecure.h>
 #include <esp_task_wdt.h>
@@ -30,11 +31,12 @@ AudioManager::AudioManager() {
     lastMetricsLog = 0;
     samplesProcessed = 0;
     clippedSamples = 0;
+    equalizer = nullptr;
 }
 
-// Volume digital global (0-10 do backend -> 0.0-6.0 gain with aggressive boost)
-static float gDigitalGain = 1.5f; // Base gain (will be multiplied by boost)
-static float gVolumeBoost = 5.0f; // Aggressive boost multiplier for maximum output (5x = +14dB digital)
+// Volume digital global (0-10 do backend -> 0.0-4.0 gain with moderate boost)
+static float gDigitalGain = 1.0f; // Base gain (will be multiplied by boost)
+static float gVolumeBoost = 2.5f; // Moderate boost multiplier to prevent clipping (2.5x = +8dB digital)
 
 // Helper macros para cast de ponteiros
 #define I2S_PTR ((I2SStream*)i2s)
@@ -44,7 +46,7 @@ static float gVolumeBoost = 5.0f; // Aggressive boost multiplier for maximum out
 #define COPIER_PTR ((StreamCopy*)copier)
 
 // ========== CUSTOM AUDIO PROCESSOR ==========
-// Stereo-to-mono mixer with aggressive digital gain boost and clipping prevention
+// Stereo-to-mono mixer with moderate digital gain boost and hard limiting
 // Uses BaseConverter for proper AudioTools integration
 class StereoToMonoGainConverter : public BaseConverter {
 private:
@@ -74,25 +76,13 @@ public:
             // Mix to mono (average)
             int32_t mono = ((int32_t)left + (int32_t)right) / 2;
             
-            // Apply aggressive digital gain with volume boost
+            // Apply moderate digital gain with volume boost
             float totalGain = gDigitalGain * gVolumeBoost;
-            
-            // More aggressive gain curve - exponential scaling for last 20%
-            if (gDigitalGain > 0.8f) {
-                // Boost the top end even more (1.2x extra for max volume)
-                totalGain *= (1.0f + (gDigitalGain - 0.8f) * 2.0f);
-            }
             
             mono = (int32_t)(mono * totalGain);
             
-            // Allow slight clipping for maximum volume (up to 10% over)
-            if (mono > 36000) { // ~10% over max
-                mono = 36000;
-                (*clippedSamplesPtr)++;
-            } else if (mono < -36000) {
-                mono = -36000;
-                (*clippedSamplesPtr)++;
-            } else if (mono > 32767) {
+            // Hard clipping at maximum to prevent distortion
+            if (mono > 32767) {
                 mono = 32767;
                 (*clippedSamplesPtr)++;
             } else if (mono < -32768) {
@@ -123,6 +113,10 @@ static ConverterStream<int16_t> *gConverterStream = nullptr;
 void AudioManager::begin(const String &totemId, const String &deviceToken) {
     this->totemId = totemId;
     this->deviceToken = deviceToken;
+    
+    // Initialize audio equalizer
+    equalizer = new AudioEqualizer();
+    equalizer->begin();
     
     // Log heap inicial
     Serial.printf("[Audio] Heap at start - Free: %d bytes, Min free: %d bytes\n", 
@@ -165,42 +159,42 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     i2s_cfg.buffer_count = 8;      // Optimized: 8 DMA buffers
     i2s_cfg.buffer_size = 512;     // Optimized: 512 samples per buffer
     I2S_PTR->begin(i2s_cfg);
-    Serial.println("[Audio] ✓ I2S initialized (44.1kHz, 16-bit, Stereo, DMA: 8x512)");
+    Serial.println("[Audio] I2S initialized (44.1kHz, 16-bit, Stereo, DMA: 8x512)");
     
-    // Create audio converter for stereo-to-mono mixing + aggressive gain boost
+    // Create audio converter for stereo-to-mono mixing + moderate gain boost
     gAudioConverter = new StereoToMonoGainConverter(&peakSample, &samplesProcessed, &clippedSamples);
-    Serial.println("[Audio] ✓ Audio converter created (stereo→mono + aggressive gain boost)");
+    Serial.println("[Audio] Audio converter created (stereo→mono + moderate gain boost)");
     
     // Create converter stream (applies gain processing)
     gConverterStream = new ConverterStream<int16_t>(*I2S_PTR, *gAudioConverter);
     gConverterStream->begin();
-    Serial.println("[Audio] ✓ Converter stream initialized");
+    Serial.println("[Audio] Converter stream initialized");
     
     // Create MP3 decoder
     decoder = new MP3DecoderHelix();
-    Serial.println("[Audio] ✓ MP3 Helix decoder created");
+    Serial.println("[Audio] MP3 Helix decoder created");
     
     // Create encoded stream (decoder -> converter -> I2S)
     encoded = new EncodedAudioStream(gConverterStream, DECODER_PTR);
     ENCODED_PTR->begin();
-    Serial.println("[Audio] ✓ Encoded audio stream initialized");
+    Serial.println("[Audio] Encoded audio stream initialized");
     
     // Create copier (file -> encoded stream)
     copier = new StreamCopy();
-    Serial.println("[Audio] ✓ Stream copier created");
+    Serial.println("[Audio] Stream copier created");
     
-    // Set default volume with aggressive boost (using exponential curve optimized for loudness)
+    // Set default volume with moderate boost (using smooth curve for clean audio)
     float normalizedVol = (float)DEFAULT_VOLUME / 10.0f;
-    gDigitalGain = 0.5f + (normalizedVol * normalizedVol * 1.5f); // Range: 0.5 to 2.0
-    Serial.printf("[Audio] ✓ Default volume: %d/10 (base: %.3f, boost: %.2fx, total: %.3fx = +%.1fdB)\n", 
+    gDigitalGain = 0.3f + (normalizedVol * normalizedVol * 1.3f); // Range: 0.3 to 1.6
+    Serial.printf("[Audio] Default volume: %d/10 (base: %.3f, boost: %.2fx, total: %.3fx = +%.1fdB) - Clean mode\n", 
                  DEFAULT_VOLUME, gDigitalGain, gVolumeBoost, gDigitalGain * gVolumeBoost,
                  20.0f * log10(gDigitalGain * gVolumeBoost));
     
     Serial.println("[Audio] ========================================");
-    Serial.println("[Audio] AUDIO PIPELINE READY:");
+    Serial.println("[Audio] AUDIO PIPELINE READY (CLEAN MODE):");
     Serial.println("[Audio]   SPIFFS → MP3 Decoder → Converter Stream");
-    Serial.println("[Audio]   → Stereo-to-Mono Mix → Digital Gain Boost");
-    Serial.println("[Audio]   → Sample Clamp → I2S → MAX98357A (15dB)");
+    Serial.println("[Audio]   → Stereo-to-Mono Mix → Moderate Gain Boost");
+    Serial.println("[Audio]   → Hard Limiter → I2S → MAX98357A (15dB)");
     Serial.printf("[Audio] Digital gain range: %.1fx - %.1fx (base) × %.1fx (boost)\n", 
                  MIN_DIGITAL_GAIN, MAX_DIGITAL_GAIN, gVolumeBoost);
     Serial.printf("[Audio] Maximum output: %.1fx digital (%.1fdB) + 15dB hardware = %.1fdB total\n",
@@ -320,25 +314,25 @@ void AudioManager::setVolume(int vol) {
         gVolumeBoost = 1.0f;
         Serial.println("[Audio] Volume: MUTED");
     } else {
-        // Aggressive exponential curve optimized for maximum loudness
-        // Volume 1-10 maps to gain 0.5-2.0 (exponential) with 5x boost
-        // At volume 10: 2.0 × 5.0 = 10x total gain (+20dB digital + 15dB hardware = +35dB total)
+        // Smooth exponential curve optimized for clean audio without clipping
+        // Volume 1-10 maps to gain 0.3-1.6 (exponential) with 2.5x boost
+        // At volume 10: 1.6 × 2.5 = 4.0x total gain (+12dB digital + 15dB hardware = +27dB total)
         float normalizedVol = (float)clampedVol / 10.0f;
-        gDigitalGain = 0.5f + (normalizedVol * normalizedVol * 1.5f); // Exponential: 0.5 to 2.0
+        gDigitalGain = 0.3f + (normalizedVol * normalizedVol * 1.3f); // Exponential: 0.3 to 1.6
         
-        // Maximum boost multiplier for loudest output
-        gVolumeBoost = 5.0f; // 5x = +14dB digital boost
+        // Moderate boost multiplier for clean output
+        gVolumeBoost = 2.5f; // 2.5x = +8dB digital boost
         
         float totalGain = gDigitalGain * gVolumeBoost;
         float digitalDB = 20.0f * log10(totalGain);
         float totalDB = digitalDB + 15.0f; // +15dB from MAX98357A hardware
         
-        Serial.printf("[Audio] Volume: %d/10\n", clampedVol);
-        Serial.printf("[Audio] Base gain: %.3f (exponential curve: 0.5-2.0)\n", gDigitalGain);
+        Serial.printf("[Audio] Volume: %d/10 (CLEAN MODE)\n", clampedVol);
+        Serial.printf("[Audio] Base gain: %.3f (smooth curve: 0.3-1.6)\n", gDigitalGain);
         Serial.printf("[Audio] Boost multiplier: %.2fx (+%.1fdB)\n", gVolumeBoost, 20.0f * log10(gVolumeBoost));
         Serial.printf("[Audio] Total digital gain: %.3fx (+%.1fdB)\n", totalGain, digitalDB);
         Serial.printf("[Audio] Hardware gain: 15dB (GPIO %d = HIGH)\n", I2S_GAIN);
-        Serial.printf("[Audio] *** COMBINED OUTPUT: +%.1fdB total (digital + hardware) ***\n", totalDB);
+        Serial.printf("[Audio] *** COMBINED OUTPUT: +%.1fdB total (clean, no clipping) ***\n", totalDB);
     }
     Serial.println("[Audio] ========================================");
 }
@@ -562,9 +556,11 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
     }
     WiFiClientSecure secure;
     if (String(ROOT_CA_PEM).length() > 0) {
+        Serial.println("[Audio] Using ROOT_CA_PEM for HTTPS");
         secure.setCACert(ROOT_CA_PEM);
     } else {
         #if defined(ALLOW_INSECURE_HTTPS) && (ALLOW_INSECURE_HTTPS == 1)
+        Serial.println("[Audio] Using insecure HTTPS (no certificate validation)");
         secure.setInsecure();
         #else
         downloading = false;
@@ -694,19 +690,14 @@ void AudioManager::playTestTone(int durationMs) {
             float t = (float)(samplesGenerated + i) / sampleRate;
             int16_t sample = (int16_t)(amplitude * sin(2.0 * PI * frequency * t));
             
-            // Apply aggressive current gain settings
+            // Apply current gain settings
             float totalGain = gDigitalGain * gVolumeBoost;
-            
-            // Extra boost for test tone
-            if (gDigitalGain > 0.8f) {
-                totalGain *= 1.5f;
-            }
             
             int32_t gained = (int32_t)(sample * totalGain);
             
-            // Allow slight clipping for maximum volume
-            if (gained > 36000) gained = 36000;
-            if (gained < -36000) gained = -36000;
+            // Hard limit to prevent clipping
+            if (gained > 32767) gained = 32767;
+            if (gained < -32768) gained = -32768;
             
             // Stereo output (both channels same)
             buffer[i * 2] = (int16_t)gained;
@@ -723,4 +714,8 @@ void AudioManager::playTestTone(int durationMs) {
     
     Serial.println("[Audio] Test tone complete");
     Serial.println("[Audio] =======================================");
+}
+
+AudioEqualizer* AudioManager::getEqualizer() {
+    return equalizer;
 }
