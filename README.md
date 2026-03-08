@@ -1,4 +1,4 @@
-# Totem Server (v4.1.0)
+# Totem Server (v4.2.0)
 
 Servidor Node.js/Express para o ecossistema **Totem Interativo IoT**.
 
@@ -7,7 +7,22 @@ Este repositório concentra principalmente:
 - **Backend (este projeto)**: painel Admin e painel do Cliente, redirecionamento público `/totem/:id`, API para o firmware (ESP32), integração com **Firebase (Firestore + Storage)**, **MQTT** e upload/conversão de áudio.
 - **Firmware (subpasta `firmware/`)**: projeto PlatformIO/Arduino para ESP32 (tópicos MQTT, download de áudio, OTA, efeitos de LED, etc.).
 
-### ✨ Novidades v4.1.0
+### ✨ Novidades v4.2.0
+
+- **🎙️ Botão de Microfone Redondo**: Interface moderna com botão circular de 120px para gravação de áudio
+  - Design responsivo com gradiente azul e animação de pulso durante gravação
+  - Suporte a gravação de até 60 segundos diretamente no navegador
+  - Estados visuais claros (normal, hover, gravando)
+- **🔧 Correções de Comunicação**: Resolvidos problemas de sincronização entre cliente e servidor
+  - Adicionadas variáveis JavaScript faltantes para gravação de áudio
+  - Implementado preview de áudio antes do upload
+  - Event listeners para atualização em tempo real dos sliders de volume e brilho
+- **📱 Melhorias de UX**: Interface mais intuitiva e responsiva
+  - Feedback visual imediato ao ajustar controles
+  - Instruções claras para cada funcionalidade
+  - Layout otimizado para dispositivos móveis
+
+### ✨ Funcionalidades v4.1.0
 
 - **Sistema Dual de Iluminação**: Configure dois modos independentes (espera e disparo)
 - **Controle de Volume**: Ajuste o volume do áudio de 0 (mudo) a 10 (máximo)
@@ -506,6 +521,14 @@ Baseado em `server/server.js`.
 - `GET /cliente/dashboard/:id`
   - Requer sessão compatível com `:id`.
   - Renderiza HTML substituindo placeholders (`{{ID}}`, `{{LINK}}`, etc.).
+  - **Funcionalidades do Dashboard (v4.2.0)**:
+    - **Gravação de Áudio**: Botão redondo de microfone para gravar até 60s diretamente no navegador
+    - **Upload de Arquivo**: Suporte a MP3, WebM, OGG, WAV, M4A (até 5MB)
+    - **Preview de Áudio**: Visualização antes do upload
+    - **Controle de Volume**: Slider interativo (0-10) com feedback em tempo real
+    - **Configuração de LEDs**: Dois modos independentes (espera e disparo)
+    - **Simuladores Visuais**: Preview em tempo real dos efeitos de LED
+    - **Efeitos Disponíveis**: BREATH, SOLID, RAINBOW, BLINK, RUNNING, HEART, METEOR, PIKSEL, BOUNCE, SPARKLE
 
 - `GET /cliente/logout`
   - Destroi sessão.
@@ -513,10 +536,15 @@ Baseado em `server/server.js`.
 - `POST /cliente/audio/:id`
   - Multipart (campo `audio`).
   - Faz upload + conversão + notificação MQTT.
+  - **Suporta gravação do navegador**: Aceita Blob de áudio gravado via MediaRecorder API
 
 - `POST /cliente/config/:id`
   - JSON com campos de configuração.
   - Salva no Firestore (se disponível) e publica MQTT retained em `.../configUpdate`.
+
+- `GET /cliente/equalizer/:id`
+  - Página de configuração avançada do equalizador de áudio
+  - Controles de equalização por banda de frequência
 
 ### Painel admin
 
@@ -582,6 +610,48 @@ O upload aceita por mimetype ou extensão:
 ### Limite de tamanho
 
 - `5MB` por arquivo (atualizado em v4.1.0).
+
+### Gravação de Áudio no Navegador (v4.2.0)
+
+O dashboard do cliente agora suporta gravação de áudio diretamente no navegador:
+
+**Interface:**
+- Botão redondo de 120px com ícone de microfone
+- Gradiente azul com animação de pulso durante gravação
+- Estados visuais: normal, hover, gravando
+
+**Funcionalidade:**
+- **Pressionar e segurar** o botão para gravar
+- Duração máxima: **60 segundos**
+- Timer visual mostrando tempo decorrido
+- Formato de saída: WebM/Opus (navegadores modernos) ou OGG/Opus (fallback)
+- Conversão automática para MP3 no servidor
+
+**Requisitos:**
+- Navegador moderno com suporte a `MediaRecorder API`
+- Conexão HTTPS (ou localhost para desenvolvimento)
+- Permissão de acesso ao microfone
+
+**Variáveis JavaScript:**
+```javascript
+let isRecording = false;
+let audioStream = null;
+let recordedChunks = [];
+let recordedBlob = null;
+let mediaRecorder = null;
+let recTimerInterval = null;
+let recStartedAt = 0;
+const MAX_RECORD_TIME = 60; // segundos
+```
+
+**Fluxo de gravação:**
+1. Usuário pressiona o botão de microfone
+2. Navegador solicita permissão de acesso ao microfone
+3. Gravação inicia com feedback visual (botão vermelho pulsante)
+4. Timer mostra tempo decorrido
+5. Ao soltar o botão (ou atingir 60s), gravação para
+6. Áudio é convertido para Blob e enviado ao servidor
+7. Servidor converte para MP3 e armazena
 
 ### Conversão para MP3
 
