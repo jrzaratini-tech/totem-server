@@ -1,28 +1,19 @@
-#pragma once
-
-// Minimal std::span polyfill for toolchains that don't provide <span> (e.g., GCC 8).
-// This is intentionally small: only the APIs needed by ESP32-audioI2S.
+#ifndef SPAN_POLYFILL_H
+#define SPAN_POLYFILL_H
 
 #include <cstddef>
+#include <iterator>
 #include <type_traits>
 
-#if defined(__has_include)
-  #if __has_include(<span>)
-    #include <span>
-    #define TOTEM_HAVE_STD_SPAN 1
-  #endif
-#endif
-
-#ifndef TOTEM_HAVE_STD_SPAN
 namespace std {
 
-template <typename T>
+template<typename T>
 class span {
 public:
     using element_type = T;
     using value_type = typename std::remove_cv<T>::type;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
+    using size_type = size_t;
+    using difference_type = ptrdiff_t;
     using pointer = T*;
     using const_pointer = const T*;
     using reference = T&;
@@ -30,25 +21,49 @@ public:
     using iterator = pointer;
     using const_iterator = const_pointer;
 
-    constexpr span() noexcept : ptr_(nullptr), size_(0) {}
-    constexpr span(pointer ptr, size_type count) noexcept : ptr_(ptr), size_(count) {}
-
-    template <std::size_t N>
-    constexpr span(element_type (&arr)[N]) noexcept : ptr_(arr), size_(N) {}
-
-    constexpr iterator begin() const noexcept { return ptr_; }
-    constexpr iterator end() const noexcept { return ptr_ + size_; }
-
-    constexpr reference operator[](size_type idx) const noexcept { return ptr_[idx]; }
-
-    constexpr pointer data() const noexcept { return ptr_; }
+    constexpr span() noexcept : data_(nullptr), size_(0) {}
+    
+    constexpr span(pointer ptr, size_type count) noexcept 
+        : data_(ptr), size_(count) {}
+    
+    constexpr span(pointer first, pointer last) noexcept 
+        : data_(first), size_(last - first) {}
+    
+    template<size_t N>
+    constexpr span(element_type (&arr)[N]) noexcept 
+        : data_(arr), size_(N) {}
+    
+    constexpr iterator begin() const noexcept { return data_; }
+    constexpr iterator end() const noexcept { return data_ + size_; }
+    constexpr const_iterator cbegin() const noexcept { return data_; }
+    constexpr const_iterator cend() const noexcept { return data_ + size_; }
+    
+    constexpr reference operator[](size_type idx) const { return data_[idx]; }
+    constexpr reference front() const { return data_[0]; }
+    constexpr reference back() const { return data_[size_ - 1]; }
+    constexpr pointer data() const noexcept { return data_; }
+    
     constexpr size_type size() const noexcept { return size_; }
+    constexpr size_type size_bytes() const noexcept { return size_ * sizeof(element_type); }
     constexpr bool empty() const noexcept { return size_ == 0; }
+    
+    constexpr span<element_type> first(size_type count) const {
+        return span<element_type>(data_, count);
+    }
+    
+    constexpr span<element_type> last(size_type count) const {
+        return span<element_type>(data_ + (size_ - count), count);
+    }
+    
+    constexpr span<element_type> subspan(size_type offset, size_type count = static_cast<size_type>(-1)) const {
+        return span<element_type>(data_ + offset, count == static_cast<size_type>(-1) ? size_ - offset : count);
+    }
 
 private:
-    pointer ptr_;
+    pointer data_;
     size_type size_;
 };
 
 } // namespace std
-#endif
+
+#endif // SPAN_POLYFILL_H

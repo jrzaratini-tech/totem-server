@@ -1,6 +1,7 @@
 #include "core/OTAManager.h"
 #include <HTTPClient.h>
 #include <Update.h>
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <esp_task_wdt.h>
 #include "Config.h"

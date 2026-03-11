@@ -43,42 +43,56 @@
 #define NUM_LEDS_HEART          15
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
-#define LED_MAIN_PIN            19
-#define LED_HEART_PIN           18
+#define LED_MAIN_PIN            8       // ESP32-S3 safe GPIO
+#define LED_HEART_PIN           9       // ESP32-S3 safe GPIO
 #define MAX_BRIGHTNESS          180
 #define DEFAULT_BRIGHTNESS      120
 
 // ========== HARDWARE - BOTÕES ==========
-#define PIN_BTN_TRIGGER         15      // TTP223 capacitive trigger button
-#define PIN_BTN_RESET_WIFI      22      // Mechanical WiFi reset button
+#define PIN_BTN_TRIGGER         10      // TTP223 capacitive trigger button (ESP32-S3)
+#define PIN_BTN_RESET_WIFI      11      // Mechanical WiFi reset button (ESP32-S3)
 #define DEBOUNCE_DELAY          50
 #define LONG_PRESS_TIME         5000
 #define MIN_CLICK_INTERVAL      150
 
 // Legacy button pins (mantidos para compatibilidade com ButtonManager)
-#define PIN_BTN_COR             15
-#define PIN_BTN_MAIS            4
-#define PIN_BTN_MENOS           16
-#define PIN_BTN_CORACAO         15      // Mesmo que trigger
+#define PIN_BTN_COR             10
+#define PIN_BTN_MAIS            12
+#define PIN_BTN_MENOS           13
+#define PIN_BTN_CORACAO         10      // Mesmo que trigger
 #define PIN_BTN_CORACAO_ALIAS   PIN_BTN_TRIGGER
 
 // ========== HARDWARE - ÁUDIO I2S ==========
-// ESP32 DevKit V1 com MAX98357A I2S DAC
-// MAX98357A não requer inicialização I2C, apenas I2S digital
-#define I2S_BCLK                27      // Bit Clock
-#define I2S_LRC                 25      // Left/Right Clock (Word Select)
-#define I2S_DOUT                26      // Data Out (DIN no MAX98357A)
-#define I2S_GAIN                33      // Gain control (HIGH=15dB, LOW=3dB, float=9dB)
-// Volume padrão (0-10 do servidor, mapeado para ganho digital 0.0-1.0)
-#define DEFAULT_VOLUME          10
+// MAX98357A DAC Configuration
+#define I2S_BCLK                6       // ESP32-S3 → MAX98357A BCLK
+#define I2S_LRC                 7       // ESP32-S3 → MAX98357A LRC
+#define I2S_DOUT                5       // ESP32-S3 → MAX98357A DIN
+// GAIN conectado ao GND = 9dB fixo (não controlável por software)
+
+#define AUDIO_SAMPLE_RATE       44100
+#define AUDIO_BITS_PER_SAMPLE   16
+#define AUDIO_CHANNELS          2
+
+#define I2S_DMA_BUFFER_COUNT    16
+#define I2S_DMA_BUFFER_SIZE     1024
+
+#define DEFAULT_VOLUME          10      // Volume máximo por padrão
 #define MIN_VOLUME              0
 #define MAX_VOLUME              10
 
+// MAX98357A Gain (hardware fixo)
+#define MAX98357A_GAIN_DB       9       // GAIN conectado ao GND = 9dB
+
+// Diagnóstico de áudio
+#define AUDIO_DIAGNOSTICS       1       // Habilitar logs detalhados de áudio
+#define AUDIO_TEST_TONE_FREQ    1000    // Frequência do tom de teste (Hz)
+#define AUDIO_TEST_TONE_DUR     5       // Duração do tom de teste (segundos)
+
 // ========== HARDWARE - SD CARD (opcional) ==========
-#define SD_CS                   5
-#define SD_MOSI                 23
-#define SD_MISO                 19
-#define SD_SCK                  18
+#define SD_CS                   14      // ESP32-S3 SPI CS
+#define SD_MOSI                 15      // ESP32-S3 SPI MOSI
+#define SD_MISO                 16      // ESP32-S3 SPI MISO
+#define SD_SCK                  17      // ESP32-S3 SPI SCK
 
 // ========== COMPORTAMENTO ==========
 #define EFEITO_TEMPO_PADRAO     30
