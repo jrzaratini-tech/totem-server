@@ -118,7 +118,12 @@ float AudioEqualizer::applyLimiter(float sample) {
     float attack = (targetGain < limiterEnvelope) ? LIMITER_ATTACK : LIMITER_RELEASE;
     limiterEnvelope += (targetGain - limiterEnvelope) * attack;
     
-    return sample * limiterEnvelope * MAKEUP_GAIN;
+    float limitedSample = sample * limiterEnvelope * MAKEUP_GAIN;
+    
+    // Hard clip final para garantir que não estoure
+    limitedSample = constrain(limitedSample, -32767.0f * 0.95f, 32767.0f * 0.95f);
+    
+    return limitedSample;
 }
 
 void AudioEqualizer::applyEQToSample(int16_t &left, int16_t &right) {

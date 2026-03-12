@@ -98,7 +98,7 @@ static void setupButtonCallbacks() {
 // Variáveis globais para configurações duais
 static ConfigData idleConfig;
 static ConfigData triggerConfig;
-static int currentVolume = 8; // 0-10
+static int currentVolume = 10; // Volume máximo por padrão
 
 static void setupMQTTCallbacks() {
     mqttManager.onMessage([](const String &topic, const String &payload) {
@@ -380,14 +380,20 @@ void setup() {
 
     Serial.println("[BOOT] Starting audio manager...");
     audioManager.begin(gTotemId, gDeviceToken);
-    Serial.println("[BOOT] Audio manager initialized");
+    audioManager.setVolume(10);  // Volume máximo
+    Serial.println("[BOOT] Audio manager initialized with max volume");
 
     Serial.println("[BOOT] Starting WiFi manager...");
     wifiManager.begin(gTotemId);
     Serial.println("[BOOT] WiFi manager initialized");
 
     Serial.println("[BOOT] Initializing watchdog...");
-    esp_task_wdt_init(WDT_TIMEOUT_SECONDS, true);
+    esp_task_wdt_config_t wdt_config = {
+        .timeout_ms = WDT_TIMEOUT_SECONDS * 1000,
+        .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
+        .trigger_panic = true
+    };
+    esp_task_wdt_init(&wdt_config);
     esp_task_wdt_add(NULL);
     gWdtStarted = true;
     Serial.println("[BOOT] Watchdog started");
@@ -400,8 +406,8 @@ void setup() {
     otaManager.begin();
     Serial.println("[BOOT] OTA manager initialized");
 
-    heartbeatLED.begin(15, 18);
-    Serial.println("[BOOT] Standalone heartbeat LED initialized on pin 18");
+    heartbeatLED.begin(1, 2);
+    Serial.println("[BOOT] Standalone heartbeat LED initialized on GPIO1 and GPIO2 (ESP32-S3)");
 
     stateMachine.setState(IDLE);
     lastStatusMs = 0;

@@ -73,8 +73,8 @@
 #define AUDIO_BITS_PER_SAMPLE   16
 #define AUDIO_CHANNELS          2
 
-#define I2S_DMA_BUFFER_COUNT    16
-#define I2S_DMA_BUFFER_SIZE     1024
+#define I2S_DMA_BUFFER_COUNT    8
+#define I2S_DMA_BUFFER_SIZE     512
 
 #define DEFAULT_VOLUME          10      // Volume máximo por padrão
 #define MIN_VOLUME              0

@@ -185,58 +185,6 @@
             box-sizing: border-box;
         }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-
-        .info-card {
-            background: var(--bg-card);
-            backdrop-filter: blur(8px);
-            border-radius: 20px;
-            padding: 12px 16px;
-            border: 1px solid rgba(79, 131, 245, 0.15);
-            box-shadow: 0 8px 20px -10px rgba(0,0,0,0.5);
-            transition: all 0.2s;
-        }
-
-        .info-card:hover {
-            border-color: var(--accent);
-            box-shadow: 0 8px 25px -8px var(--accent-glow);
-        }
-
-        .info-card h3 {
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-muted);
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .info-card h3 i {
-            font-size: 0.7rem;
-            color: var(--accent);
-        }
-
-        .info-card .value {
-            font-size: 1rem;
-            font-weight: 600;
-            color: white;
-            word-break: break-word;
-            line-height: 1.3;
-        }
-
-        .info-card .meta {
-            font-size: 0.6rem;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
         .section-card {
             background: var(--bg-card);
             backdrop-filter: blur(12px);
@@ -729,6 +677,58 @@
             display: block;
         }
 
+        .info-cards-bottom {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 20px 0 30px;
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(8px);
+            border-radius: 20px;
+            padding: 16px 20px;
+            border: 1px solid rgba(79, 131, 245, 0.15);
+            box-shadow: 0 8px 20px -10px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+
+        .info-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 8px 25px -8px var(--accent-glow);
+        }
+
+        .info-card h3 {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .info-card h3 i {
+            font-size: 0.8rem;
+            color: var(--accent);
+        }
+
+        .info-card .value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: white;
+            word-break: break-word;
+            line-height: 1.3;
+        }
+
+        .info-card .meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
         .instructions {
             background: rgba(0,0,0,0.2);
             border-radius: 24px;
@@ -766,7 +766,7 @@
         }
 
         @media (max-width: 900px) {
-            .info-grid {
+            .info-cards-bottom {
                 grid-template-columns: 1fr 1fr;
             }
             .customization-grid {
@@ -785,7 +785,7 @@
         }
         
         @media (max-width: 500px) {
-            .info-grid {
+            .info-cards-bottom {
                 grid-template-columns: 1fr;
             }
             .navbar h1 {
@@ -841,42 +841,11 @@
     </nav>
 
     <div class="container">
-        <!-- CARDS SUPERIORES -->
-        <div class="info-grid">
-            <div class="info-card">
-                <h3><i class="fas fa-hashtag"></i> Totem ID</h3>
-                <div class="value">{{ID}}</div>
-                <div class="meta">identificador</div>
-            </div>
-            <div class="info-card">
-                <h3><i class="fab fa-instagram"></i> Instagram</h3>
-                <div class="value">{{LINK}}</div>
-                <div class="meta">perfil vinculado</div>
-            </div>
-            <div class="info-card">
-                <h3><i class="far fa-calendar-alt"></i> Expiração</h3>
-                <div class="value">{{DATA_EXPIRACAO}}</div>
-                <div class="meta">validade</div>
-            </div>
-            <div class="info-card">
-                <h3><i class="fas fa-music"></i> Áudio atual</h3>
-                <div class="value" id="audioAtualDisplay">{{AUDIO_NOME}}</div>
-                <div class="meta" id="audioDataDisplay">Atualizado em: {{AUDIO_DATA}}</div>
-            </div>
-        </div>
-
         <!-- SEÇÃO ÁUDIO -->
         <div class="section-card">
             <div class="section-title">
                 <i class="fas fa-microphone-alt"></i>
                 <span>Gerenciar áudio</span>
-            </div>
-
-            <div class="current-audio">
-                <div class="audio-badge">
-                    <span class="audio-name"><i class="fas fa-file-audio"></i> {{AUDIO_NOME}}</span>
-                </div>
-                <span style="color: var(--text-muted); font-size: 0.8rem;"><i class="far fa-clock"></i> atualização em até 10s</span>
             </div>
 
             <div id="alert" class="alert"></div>
@@ -926,20 +895,8 @@
                 <div class="value-hint" style="text-align: center; margin-top: 12px;">0 = mudo, 10 = máximo</div>
                 <div class="button-group" style="margin-top: 16px;">
                     <button type="button" class="btn btn-primary" id="btnApplyVolume"><i class="fas fa-check"></i> Confirmar Volume</button>
-                    <button type="button" class="btn" onclick="window.location.href='/cliente/equalizer/{{ID}}'"><i class="fas fa-sliders-h"></i> Configurações de Som</button>
+                    <button type="button" class="btn" onclick="window.location.href='/cliente/equalizer/{{ID}}'"><i class="fas fa-sliders-h"></i> Equalizador</button>
                 </div>
-            </div>
-
-            <!-- INSTRUÇÕES -->
-            <div class="instructions">
-                <h3><i class="fas fa-info-circle"></i> Instruções</h3>
-                <ul>
-                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> MP3 até 5MB ou gravação de até 60s</li>
-                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> Configure dois modos de LED: espera (idle) e disparo (trigger)</li>
-                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> Ajuste o volume do áudio de 0 (mudo) a 10 (máximo)</li>
-                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> Após aplicar, aguarde 10s para sincronização</li>
-                    <li><i class="fas fa-check-circle" style="color: var(--success);"></i> O totem precisa estar online para receber as configurações</li>
-                </ul>
             </div>
         </div>
 
@@ -983,7 +940,6 @@
                     </div>
                     <div class="control-item">
                         <label><i class="fas fa-tachometer-alt"></i> Velocidade</label>
-                        <!-- ATRIBUTO direction: rtl REMOVIDO -->
                         <input type="range" id="idleSpeed" min="1" max="100" value="50">
                         <div class="value-hint"><span id="idleSpeedVal">50</span>/100</div>
                     </div>
@@ -1028,7 +984,6 @@
                     </div>
                     <div class="control-item">
                         <label><i class="fas fa-tachometer-alt"></i> Velocidade</label>
-                        <!-- ATRIBUTO direction: rtl REMOVIDO -->
                         <input type="range" id="triggerSpeed" min="1" max="100" value="70">
                         <div class="value-hint"><span id="triggerSpeedVal">70</span>/100</div>
                     </div>
@@ -1049,7 +1004,26 @@
             </div>
         </div>
 
-        <!-- INSTRUÇÕES -->
+        <!-- CARDS INFERIORES (Totem ID, Instagram, Expiração) -->
+        <div class="info-cards-bottom">
+            <div class="info-card">
+                <h3><i class="fas fa-hashtag"></i> Totem ID</h3>
+                <div class="value">{{ID}}</div>
+                <div class="meta">identificador único</div>
+            </div>
+            <div class="info-card">
+                <h3><i class="fab fa-instagram"></i> Instagram</h3>
+                <div class="value">{{LINK}}</div>
+                <div class="meta">perfil vinculado</div>
+            </div>
+            <div class="info-card">
+                <h3><i class="far fa-calendar-alt"></i> Expiração</h3>
+                <div class="value">{{DATA_EXPIRACAO}}</div>
+                <div class="meta">validade do serviço</div>
+            </div>
+        </div>
+
+        <!-- INSTRUÇÕES (ÚNICA) -->
         <div class="instructions">
             <h3><i class="fas fa-info-circle"></i> Instruções</h3>
             <ul>
@@ -1079,8 +1053,6 @@
         const audioPlayer = document.getElementById('audioPlayer');
         const stopPreviewBtn = document.getElementById('stopPreview');
         const btnRemove = document.getElementById('btnRemove');
-        const audioAtualDisplay = document.getElementById('audioAtualDisplay');
-        const audioDataDisplay = document.getElementById('audioDataDisplay');
 
         const btnUpload = document.getElementById('btnUpload');
         const btnMicRecord = document.getElementById('btnMicRecord');
@@ -1283,9 +1255,6 @@
                 if (response.ok && result.success) {
                     showAlert('✅ Gravação enviada com sucesso!', 'success');
                     btnRemove.style.display = 'inline-flex';
-                    audioAtualDisplay.textContent = filename;
-                    const data = new Date().toLocaleDateString('pt-BR');
-                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
                 } else {
                     showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
                 }
@@ -1341,9 +1310,6 @@
                 if (response.ok && result.success) {
                     showAlert('✅ Áudio enviado com sucesso!', 'success');
                     btnRemove.style.display = 'inline-flex';
-                    audioAtualDisplay.textContent = fileInput.files[0].name;
-                    const data = new Date().toLocaleDateString('pt-BR');
-                    audioDataDisplay.textContent = `Atualizado em: ${data}`;
                     fileInput.value = '';
                     fileInfo.textContent = 'Nenhum selecionado';
                     audioPreview.style.display = 'none';
@@ -1366,8 +1332,6 @@
                 if (response.ok && result.success) {
                     showAlert('✅ Áudio removido!', 'success');
                     btnRemove.style.display = 'none';
-                    audioAtualDisplay.textContent = 'padrao.mp3';
-                    audioDataDisplay.textContent = `Atualizado em: ${new Date().toLocaleDateString('pt-BR')}`;
                 } else {
                     showAlert('❌ Erro: ' + (result.error || 'Falha ao remover'), 'error');
                 }
