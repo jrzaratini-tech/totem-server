@@ -120,11 +120,30 @@ function conectarMQTT() {
         mqttClient.on('connect', () => {
             console.log('✅ MQTT conectado ao broker HiveMQ');
             
-            // Publicar atualização de firmware automaticamente ao conectar
+            // Verificar se deve publicar atualização de firmware
             setTimeout(() => {
-                const firmwareUrl = `${SERVER_URL}/firmware/firmware-v4.1.0-led205.bin`;
-                const totemId = 'printpixel'; // Altere para o ID do seu totem
-                publicarAtualizacaoFirmware(totemId, firmwareUrl);
+                try {
+                    const configPath = path.join(__dirname, 'firmware-config.json');
+                    if (fs.existsSync(configPath)) {
+                        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                        
+                        if (config.autoPublish === true) {
+                            console.log(`🔄 Auto-publish habilitado para firmware ${config.firmwareVersion}`);
+                            publicarAtualizacaoFirmware(config.totemId, config.firmwareUrl);
+                            
+                            // Desabilitar auto-publish após publicar (evita loops)
+                            config.autoPublish = false;
+                            fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+                            console.log('✅ Auto-publish desabilitado automaticamente');
+                        } else {
+                            console.log('ℹ️ Auto-publish de firmware desabilitado (firmware-config.json)');
+                        }
+                    } else {
+                        console.log('ℹ️ Arquivo firmware-config.json não encontrado - sem auto-publish');
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao verificar firmware-config.json:', error.message);
+                }
             }, 2000); // Aguarda 2s para garantir que a conexão está estável
         });
         
