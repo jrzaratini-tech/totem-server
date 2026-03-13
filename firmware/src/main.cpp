@@ -93,6 +93,12 @@ static void setupButtonCallbacks() {
         audioManager.play();
         playEndMs = millis() + (unsigned long)configManager.getEffectConfig().duration * 1000UL;
     });
+
+    buttonManager.onButtonHeartbeat([](bool longPress) {
+        (void)longPress;
+        Serial.println("[MAIN] Heartbeat button pressed - triggering 5-second heartbeat effect on main strip");
+        ledEngine.triggerHeartbeatEffect(5000);
+    });
 }
 
 // Variáveis globais para configurações duais

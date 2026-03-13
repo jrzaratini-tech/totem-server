@@ -18,6 +18,10 @@ private:
 
     ConfigData cfg;
 
+    bool heartbeatEffectActive;
+    unsigned long heartbeatStartMs;
+    unsigned long heartbeatDurationMs;
+
     CRGB* getMainLeds() { return allLeds; }
     CRGB* getHeartLeds() { return allLeds + mainCount; }
 
@@ -34,6 +38,9 @@ public:
 
     void setBrightness(int b);
     void setColor(uint32_t rgb);
+
+    void triggerHeartbeatEffect(unsigned long durationMs = 5000);
+    bool isHeartbeatEffectActive() const;
 };
 
 #endif

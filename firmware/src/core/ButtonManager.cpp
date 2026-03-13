@@ -6,6 +6,7 @@ ButtonManager::ButtonManager() {
     btns[1] = {PIN_BTN_MAIS, true, true, 0, 0, 0, false};
     btns[2] = {PIN_BTN_MENOS, true, true, 0, 0, 0, false};
     btns[3] = {PIN_BTN_CORACAO, true, true, 0, 0, 0, false};
+    btns[4] = {PIN_BTN_HEARTBEAT, true, true, 0, 0, 0, false};
 }
 
 void ButtonManager::begin() {
@@ -14,25 +15,27 @@ void ButtonManager::begin() {
     pinMode(PIN_BTN_MENOS, INPUT_PULLUP);
     // TTP223 capacitive touch - lógica positiva (HIGH quando tocado)
     pinMode(PIN_BTN_CORACAO, INPUT);
+    pinMode(PIN_BTN_HEARTBEAT, INPUT);
 }
 
 void ButtonManager::onButtonCor(std::function<void(bool)> cb) { onCor = cb; }
 void ButtonManager::onButtonMais(std::function<void(bool)> cb) { onMais = cb; }
 void ButtonManager::onButtonMenos(std::function<void(bool)> cb) { onMenos = cb; }
 void ButtonManager::onButtonCoracao(std::function<void(bool)> cb) { onCoracao = cb; }
+void ButtonManager::onButtonHeartbeat(std::function<void(bool)> cb) { onHeartbeat = cb; }
 
 void ButtonManager::loop() {
-    for (int i = 0; i < 4; i++) updateBtn(i);
+    for (int i = 0; i < 5; i++) updateBtn(i);
 }
 
 void ButtonManager::updateBtn(int idx) {
     Btn &b = btns[idx];
     bool rawReading = digitalRead(b.pin) == HIGH;
     
-    // TTP223 no GPIO15 (índice 3 = botão coração/trigger) tem lógica invertida
+    // TTP223 nos índices 3 e 4 (botões coração/trigger e heartbeat) tem lógica invertida
     // TTP223: HIGH quando tocado, LOW quando não tocado
     // Botões mecânicos: LOW quando pressionado, HIGH quando não pressionado
-    bool reading = (idx == 3) ? rawReading : !rawReading;
+    bool reading = (idx == 3 || idx == 4) ? rawReading : !rawReading;
     
     unsigned long now = millis();
 
@@ -81,6 +84,7 @@ void ButtonManager::fire(int idx, bool longPress) {
         case 1: if (onMais) onMais(longPress); break;
         case 2: if (onMenos) onMenos(longPress); break;
         case 3: if (onCoracao) onCoracao(longPress); break;
+        case 4: if (onHeartbeat) onHeartbeat(longPress); break;
         default: break;
     }
 }

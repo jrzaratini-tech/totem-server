@@ -110,9 +110,9 @@ float AudioEqualizer::applyLimiter(float sample) {
     float absSample = fabs(sample);
     float targetGain = 1.0f;
     
-    if (absSample > LIMITER_THRESHOLD) {
-        float excess = absSample - LIMITER_THRESHOLD;
-        targetGain = LIMITER_THRESHOLD / (LIMITER_THRESHOLD + excess * (1.0f / LIMITER_RATIO));
+    if (absSample > LIMITER_THRESHOLD * 32767.0f) {
+        float excess = absSample - (LIMITER_THRESHOLD * 32767.0f);
+        targetGain = (LIMITER_THRESHOLD * 32767.0f) / (absSample + (excess / LIMITER_RATIO));
     }
     
     float attack = (targetGain < limiterEnvelope) ? LIMITER_ATTACK : LIMITER_RELEASE;
@@ -120,8 +120,7 @@ float AudioEqualizer::applyLimiter(float sample) {
     
     float limitedSample = sample * limiterEnvelope * MAKEUP_GAIN;
     
-    // Hard clip final para garantir que não estoure
-    limitedSample = constrain(limitedSample, -32767.0f * 0.95f, 32767.0f * 0.95f);
+    limitedSample = constrain(limitedSample, -32767.0f, 32767.0f);
     
     return limitedSample;
 }
@@ -131,8 +130,7 @@ void AudioEqualizer::applyEQToSample(int16_t &left, int16_t &right) {
     float midGain = dbToLinear(currentProfile.equalizer.mid);
     float trebleGain = dbToLinear(currentProfile.equalizer.treble);
     
-    // Ponderação otimizada: 35% graves, 35% médios, 30% agudos
-    float avgEQGain = (bassGain * 0.35f + midGain * 0.35f + trebleGain * 0.30f);
+    float avgEQGain = (bassGain * 0.30f + midGain * 0.40f + trebleGain * 0.30f);
     float totalGain = avgEQGain * currentGain * currentBoost;
     
     float leftF = (float)left * totalGain;
@@ -141,10 +139,10 @@ void AudioEqualizer::applyEQToSample(int16_t &left, int16_t &right) {
     if (currentProfile.clippingProtection) {
         leftF = applyLimiter(leftF);
         rightF = applyLimiter(rightF);
+    } else {
+        leftF = constrain(leftF, -32767.0f, 32767.0f);
+        rightF = constrain(rightF, -32767.0f, 32767.0f);
     }
-    
-    leftF = constrain(leftF, -32767.0f, 32767.0f);
-    rightF = constrain(rightF, -32767.0f, 32767.0f);
     
     left = (int16_t)leftF;
     right = (int16_t)rightF;

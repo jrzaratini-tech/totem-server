@@ -202,15 +202,15 @@ module.exports = function(db, mqttClient) {
 
 function getDefaultProfile() {
     return {
-        volume: 8,
+        volume: 10,
         equalizer: {
             bass: 0,
-            mid: 0,
-            treble: 0
+            mid: 2,
+            treble: 3
         },
-        amplifierGain: 15,
-        espModel: 'ESP32 DevKit V1',
-        volumeCurve: 'exponential',
+        amplifierGain: 9,
+        espModel: 'ESP32-S3 DevKit',
+        volumeCurve: 'exponential_aggressive',
         clippingProtection: true,
         customGainPoints: [
             { vol: 0, gain: 0.0 },

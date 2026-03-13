@@ -16,12 +16,13 @@ private:
         bool longFired;
     };
 
-    Btn btns[4];
+    Btn btns[5];
 
     std::function<void(bool)> onCor;
     std::function<void(bool)> onMais;
     std::function<void(bool)> onMenos;
     std::function<void(bool)> onCoracao;
+    std::function<void(bool)> onHeartbeat;
 
     void updateBtn(int idx);
     void fire(int idx, bool longPress);
@@ -36,6 +37,7 @@ public:
     void onButtonMais(std::function<void(bool)> cb);
     void onButtonMenos(std::function<void(bool)> cb);
     void onButtonCoracao(std::function<void(bool)> cb);
+    void onButtonHeartbeat(std::function<void(bool)> cb);
 };
 
 #endif

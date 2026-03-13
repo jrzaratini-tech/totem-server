@@ -35,9 +35,9 @@ struct AudioProfile {
 const AudioProfile DEFAULT_AUDIO_PROFILE = {
     .volume = 10,
     .equalizer = {
-        .bass = 3.0f,      // Graves ultra-controlados (reduzido mais 3dB)
-        .mid = 7.0f,       // Médios presentes e claros
-        .treble = 8.0f     // Agudos brilhantes e cristalinos
+        .bass = 0.0f,      // Graves neutros para evitar distorção
+        .mid = 2.0f,       // Médios presentes
+        .treble = 3.0f     // Agudos cristalinos
     },
     .amplifierGain = 9,    // MAX98357A com GAIN no GND = 9dB fixo
     .espModel = ESP32_S3_DEVKIT,
@@ -57,14 +57,14 @@ const AudioProfile DEFAULT_AUDIO_PROFILE = {
 #define LINEAR_MAX_GAIN         1.0f
 #define EXPONENTIAL_SOFT_BASE   0.2f
 #define EXPONENTIAL_SOFT_MULT   1.8f
-#define EXPONENTIAL_AGG_BASE    0.03f    // Base mínima para máximo range
-#define EXPONENTIAL_AGG_MULT    3.5f     // Multiplicador aumentado para mais volume
+#define EXPONENTIAL_AGG_BASE    0.05f    // Base mínima para máximo range
+#define EXPONENTIAL_AGG_MULT    4.2f     // Multiplicador aumentado para mais volume
 
-#define LIMITER_THRESHOLD       0.85f    // Threshold muito baixo (captura graves cedo)
-#define LIMITER_RATIO           6.0f     // Compressão agressiva (controla graves)
-#define LIMITER_ATTACK          0.0001f  // Attack instantâneo (captura todos transientes)
-#define LIMITER_RELEASE         0.10f    // Release rápido (evita estalos)
-#define MAKEUP_GAIN             1.4f     // Ganho de compensação conservador
-#define HEADROOM_DB             -1.0f    // Headroom amplo para evitar clipping
+#define LIMITER_THRESHOLD       0.95f    // Threshold alto para máximo volume
+#define LIMITER_RATIO           4.0f     // Compressão suave (preserva dinâmica)
+#define LIMITER_ATTACK          0.001f   // Attack rápido mas não instantâneo
+#define LIMITER_RELEASE         0.05f    // Release rápido (evita estalos)
+#define MAKEUP_GAIN             1.15f    // Ganho de compensação otimizado
+#define HEADROOM_DB             -0.5f    // Headroom mínimo para máximo volume
 
 #endif

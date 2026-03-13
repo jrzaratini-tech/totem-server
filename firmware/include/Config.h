@@ -39,8 +39,8 @@
 #define FAILSAFE_BRIGHTNESS     30
 
 // ========== HARDWARE - LEDS ==========
-#define NUM_LEDS_MAIN           220
-#define NUM_LEDS_HEART          15
+#define NUM_LEDS_MAIN           200
+#define NUM_LEDS_HEART          5
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
 #define LED_MAIN_PIN            1       // ESP32-S3 - Longe do I2S para evitar interferência
@@ -51,6 +51,7 @@
 // ========== HARDWARE - BOTÕES ==========
 #define PIN_BTN_TRIGGER         10      // TTP223 capacitive trigger button (ESP32-S3)
 #define PIN_BTN_RESET_WIFI      11      // Mechanical WiFi reset button (ESP32-S3)
+#define PIN_BTN_HEARTBEAT       3       // TTP223 capacitive button for heartbeat effect (ESP32-S3)
 #define DEBOUNCE_DELAY          50
 #define LONG_PRESS_TIME         5000
 #define MIN_CLICK_INTERVAL      150

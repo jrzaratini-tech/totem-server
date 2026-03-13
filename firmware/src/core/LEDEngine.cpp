@@ -34,6 +34,10 @@ LEDEngine::LEDEngine() {
     cfg.speed = 50;
     cfg.duration = EFEITO_TEMPO_PADRAO;
     cfg.maxBrightness = DEFAULT_BRIGHTNESS;
+
+    heartbeatEffectActive = false;
+    heartbeatStartMs = 0;
+    heartbeatDurationMs = 5000;
 }
 
 void LEDEngine::begin(int mainLedCount, int heartLedCount) {
@@ -48,14 +52,14 @@ void LEDEngine::begin(int mainLedCount, int heartLedCount) {
         allLeds = new CRGB[totalCount];
         
         // CRITICAL FIX: Use only ONE FastLED controller for both strips
-        // Main strip (220 LEDs) on GPIO 8
-        // Heart strip (15 LEDs) follows immediately after in the array
+        // Main strip (200 LEDs) on GPIO 1
+        // Heart strip (5 LEDs) follows immediately after in the array
         // This avoids RMT channel conflicts on ESP32-S3
         FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(allLeds, totalCount);
         
         Serial.printf("[LEDEngine] ✓ Single FastLED controller initialized on GPIO %d\n", LED_MAIN_PIN);
-        Serial.println("[LEDEngine] Main LEDs: indices 0-219");
-        Serial.println("[LEDEngine] Heart LEDs: indices 220-234");
+        Serial.println("[LEDEngine] Main LEDs: indices 0-199");
+        Serial.println("[LEDEngine] Heart LEDs: indices 200-204");
         Serial.println("[LEDEngine] NOTE: Heart LEDs are PHYSICALLY on GPIO 9, wire accordingly");
     }
 
@@ -92,9 +96,42 @@ void LEDEngine::setColor(uint32_t rgb) {
 }
 
 void LEDEngine::loop() {
+    unsigned long now = millis();
+
+    // Verificar se o efeito de batimento cardíaco está ativo
+    if (heartbeatEffectActive) {
+        unsigned long heartbeatElapsed = now - heartbeatStartMs;
+        
+        if (heartbeatElapsed >= heartbeatDurationMs) {
+            // Efeito terminou, desativar
+            heartbeatEffectActive = false;
+            Serial.println("[LEDEngine] Heartbeat effect finished");
+        } else {
+            // Renderizar efeito de batimento cardíaco na fita principal
+            CRGB* mainLeds = getMainLeds();
+            if (mainLeds && mainCount > 0) {
+                uint8_t level = heartEffect.beatLevel(heartbeatElapsed);
+                CRGB heartColor = CRGB::Red;
+                heartColor.nscale8(level);
+                fill_solid(mainLeds, mainCount, heartColor);
+            }
+            
+            // Manter o efeito cardíaco nos LEDs do coração
+            CRGB* heartLeds = getHeartLeds();
+            if (heartLeds && heartCount > 0) {
+                uint8_t level = heartEffect.beatLevel(heartbeatElapsed);
+                CRGB heartColor = CRGB::Red;
+                heartColor.nscale8(level);
+                fill_solid(heartLeds, heartCount, heartColor);
+            }
+            
+            FastLED.show();
+            return;
+        }
+    }
+
     if (!active) return;
 
-    unsigned long now = millis();
     unsigned long elapsed = now - startMs;
 
     CRGB baseColor((uint8_t)((cfg.color >> 16) & 0xFF), (uint8_t)((cfg.color >> 8) & 0xFF), (uint8_t)(cfg.color & 0xFF));
@@ -160,4 +197,15 @@ void LEDEngine::loop() {
     }
 
     FastLED.show();
+}
+
+void LEDEngine::triggerHeartbeatEffect(unsigned long durationMs) {
+    heartbeatEffectActive = true;
+    heartbeatStartMs = millis();
+    heartbeatDurationMs = durationMs;
+    Serial.printf("[LEDEngine] Heartbeat effect triggered for %lu ms\n", durationMs);
+}
+
+bool LEDEngine::isHeartbeatEffectActive() const {
+    return heartbeatEffectActive;
 }
