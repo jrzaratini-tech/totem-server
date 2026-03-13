@@ -119,6 +119,13 @@ function conectarMQTT() {
         
         mqttClient.on('connect', () => {
             console.log('✅ MQTT conectado ao broker HiveMQ');
+            
+            // Publicar atualização de firmware automaticamente ao conectar
+            setTimeout(() => {
+                const firmwareUrl = `${SERVER_URL}/firmware/firmware-v4.1.0-led205.bin`;
+                const totemId = 'printpixel'; // Altere para o ID do seu totem
+                publicarAtualizacaoFirmware(totemId, firmwareUrl);
+            }, 2000); // Aguarda 2s para garantir que a conexão está estável
         });
         
         mqttClient.on('error', (err) => {
@@ -173,6 +180,18 @@ function notificarAtualizacaoConfig(totemId, payload) {
         return true;
     }
     console.warn(`⚠️ MQTT não disponível para publicar config em ${totemId}`);
+    return false;
+}
+
+// Função para publicar atualização de firmware automaticamente
+function publicarAtualizacaoFirmware(totemId, firmwareUrl) {
+    if (mqttClient && mqttClient.connected) {
+        const topico = `totem/${totemId}/firmwareUpdate`;
+        mqttClient.publish(topico, firmwareUrl, { retain: true });
+        console.log(`📤 Firmware Update MQTT publicado: ${topico} = ${firmwareUrl}`);
+        return true;
+    }
+    console.warn(`⚠️ MQTT não disponível para publicar firmware update em ${totemId}`);
     return false;
 }
 
