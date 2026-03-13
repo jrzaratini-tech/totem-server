@@ -585,17 +585,6 @@
                 <span>Ajuste o som do seu totem</span>
             </div>
 
-            <!-- VOLUME PRINCIPAL -->
-            <div class="volume-control">
-                <label><i class="fas fa-volume-up"></i> Volume principal</label>
-                <div class="volume-slider">
-                    <i class="fas fa-volume-off" style="color: var(--text-muted); font-size: 1.5rem;"></i>
-                    <input type="range" id="volumeSlider" min="0" max="10" value="8">
-                    <i class="fas fa-volume-up" style="color: var(--accent); font-size: 1.5rem;"></i>
-                    <span class="volume-value" id="volumeValue">8</span>
-                </div>
-            </div>
-
             <!-- EQUALIZADOR GRÁFICO -->
             <div style="margin: 20px 0 10px;">
                 <h3 style="color: white; font-size: 1rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
@@ -621,25 +610,6 @@
                     <span class="frequency">10kHz</span>
                     <input type="range" id="trebleSlider" min="-12" max="12" value="0" step="1" orient="vertical">
                     <span class="eq-value" id="trebleValue">0 dB</span>
-                </div>
-            </div>
-
-            <!-- GANHO DO AMPLIFICADOR -->
-            <div class="gain-section">
-                <h3><i class="fas fa-bolt"></i> Ganho do amplificador</h3>
-                <div class="gain-options">
-                    <div class="gain-option" data-gain="3">
-                        <div class="gain-label">3dB</div>
-                        <div class="gain-desc">Baixo</div>
-                    </div>
-                    <div class="gain-option" data-gain="9">
-                        <div class="gain-label">9dB</div>
-                        <div class="gain-desc">Médio</div>
-                    </div>
-                    <div class="gain-option active" data-gain="15">
-                        <div class="gain-label">15dB</div>
-                        <div class="gain-desc">Alto</div>
-                    </div>
                 </div>
             </div>
 
@@ -674,17 +644,12 @@
         const backBtn = document.getElementById('backBtn');
         
         // Controles
-        const volumeSlider = document.getElementById('volumeSlider');
-        const volumeValue = document.getElementById('volumeValue');
-        
         const bassSlider = document.getElementById('bassSlider');
         const bassValue = document.getElementById('bassValue');
         const midSlider = document.getElementById('midSlider');
         const midValue = document.getElementById('midValue');
         const trebleSlider = document.getElementById('trebleSlider');
         const trebleValue = document.getElementById('trebleValue');
-        
-        const gainOptions = document.querySelectorAll('.gain-option');
         
         const btnApply = document.getElementById('btnApply');
         const btnReset = document.getElementById('btnReset');
@@ -693,10 +658,6 @@
         let currentConfig = {};
 
         // Event listeners para sliders
-        volumeSlider.addEventListener('input', () => {
-            volumeValue.textContent = volumeSlider.value;
-        });
-
         bassSlider.addEventListener('input', () => {
             bassValue.textContent = bassSlider.value + ' dB';
         });
@@ -707,14 +668,6 @@
 
         trebleSlider.addEventListener('input', () => {
             trebleValue.textContent = trebleSlider.value + ' dB';
-        });
-
-        // Seleção de ganho
-        gainOptions.forEach(option => {
-            option.addEventListener('click', () => {
-                gainOptions.forEach(opt => opt.classList.remove('active'));
-                option.classList.add('active');
-            });
         });
 
         // Voltar ao dashboard
@@ -733,9 +686,6 @@
                     currentConfig = data.audioProfile;
                     
                     // Aplicar aos controles
-                    volumeSlider.value = currentConfig.volume || 8;
-                    volumeValue.textContent = currentConfig.volume || 8;
-                    
                     bassSlider.value = currentConfig.equalizer?.bass || 0;
                     bassValue.textContent = (currentConfig.equalizer?.bass || 0) + ' dB';
                     
@@ -744,14 +694,6 @@
                     
                     trebleSlider.value = currentConfig.equalizer?.treble || 0;
                     trebleValue.textContent = (currentConfig.equalizer?.treble || 0) + ' dB';
-                    
-                    const gain = currentConfig.amplifierGain || 15;
-                    gainOptions.forEach(opt => {
-                        opt.classList.remove('active');
-                        if (parseInt(opt.dataset.gain) === gain) {
-                            opt.classList.add('active');
-                        }
-                    });
                 }
             } catch (error) {
                 console.log('Erro ao carregar configurações:', error);
@@ -760,19 +702,16 @@
 
         // Obter configuração atual da UI
         function getCurrentConfiguration() {
-            const activeGain = document.querySelector('.gain-option.active');
-            
             return {
-                volume: parseInt(volumeSlider.value),
                 equalizer: {
                     bass: parseInt(bassSlider.value),
                     mid: parseInt(midSlider.value),
                     treble: parseInt(trebleSlider.value)
                 },
-                amplifierGain: parseInt(activeGain.dataset.gain),
-                espModel: 'ESP32 DevKit V1', // Fixo para simplificar
-                volumeCurve: 'exponential',   // Fixo para simplificar
-                clippingProtection: true       // Fixo para simplificar
+                amplifierGain: 9,
+                espModel: 'ESP32 DevKit V1',
+                volumeCurve: 'exponential',
+                clippingProtection: true
             };
         }
 
@@ -830,22 +769,12 @@
 
         // Reset para valores padrão
         function resetToDefaults() {
-            volumeSlider.value = 8;
-            volumeValue.textContent = '8';
-            
             bassSlider.value = 0;
             bassValue.textContent = '0 dB';
             midSlider.value = 0;
             midValue.textContent = '0 dB';
             trebleSlider.value = 0;
             trebleValue.textContent = '0 dB';
-            
-            gainOptions.forEach(opt => {
-                opt.classList.remove('active');
-                if (parseInt(opt.dataset.gain) === 15) {
-                    opt.classList.add('active');
-                }
-            });
             
             showAlert('🔄 Valores resetados. Clique em TOCAR para aplicar.', 'info');
         }

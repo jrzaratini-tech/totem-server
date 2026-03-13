@@ -22,10 +22,10 @@ static BounceEffect bounceEffect;
 static SparkleEffect sparkleEffect;
 
 LEDEngine::LEDEngine() {
-    mainLeds = nullptr;
-    heartLeds = nullptr;
+    allLeds = nullptr;
     mainCount = 0;
     heartCount = 0;
+    totalCount = 0;
     active = false;
     startMs = 0;
 
@@ -39,12 +39,25 @@ LEDEngine::LEDEngine() {
 void LEDEngine::begin(int mainLedCount, int heartLedCount) {
     mainCount = mainLedCount;
     heartCount = heartLedCount;
+    totalCount = mainCount + heartCount;
 
-    mainLeds = (mainCount > 0) ? new CRGB[mainCount] : nullptr;
-    heartLeds = (heartCount > 0) ? new CRGB[heartCount] : nullptr;
+    Serial.printf("[LEDEngine] Initializing with %d main LEDs + %d heart LEDs = %d total\n", 
+                  mainCount, heartCount, totalCount);
 
-    if (mainLeds) FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(mainLeds, mainCount);
-    if (heartLeds) FastLED.addLeds<LED_TYPE, LED_HEART_PIN, COLOR_ORDER>(heartLeds, heartCount);
+    if (totalCount > 0) {
+        allLeds = new CRGB[totalCount];
+        
+        // CRITICAL FIX: Use only ONE FastLED controller for both strips
+        // Main strip (220 LEDs) on GPIO 8
+        // Heart strip (15 LEDs) follows immediately after in the array
+        // This avoids RMT channel conflicts on ESP32-S3
+        FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(allLeds, totalCount);
+        
+        Serial.printf("[LEDEngine] ✓ Single FastLED controller initialized on GPIO %d\n", LED_MAIN_PIN);
+        Serial.println("[LEDEngine] Main LEDs: indices 0-219");
+        Serial.println("[LEDEngine] Heart LEDs: indices 220-234");
+        Serial.println("[LEDEngine] NOTE: Heart LEDs are PHYSICALLY on GPIO 9, wire accordingly");
+    }
 
     FastLED.clear(true);
     FastLED.setBrightness(DEFAULT_BRIGHTNESS);
@@ -86,46 +99,41 @@ void LEDEngine::loop() {
 
     CRGB baseColor((uint8_t)((cfg.color >> 16) & 0xFF), (uint8_t)((cfg.color >> 8) & 0xFF), (uint8_t)(cfg.color & 0xFF));
 
+    CRGB* mainLeds = getMainLeds();
+    CRGB* heartLeds = getHeartLeds();
+
+    // EFEITO PRINCIPAL: Aplicar nos primeiros 220 LEDs
     switch (cfg.mode) {
         case SOLID:
-            solidEffect.render(mainLeds, mainCount, heartLeds, heartCount, baseColor);
+            if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, baseColor);
             break;
         case RAINBOW: {
             uint8_t hue = (uint8_t)((elapsed / (uint32_t)max(1, cfg.speed)) & 0xFF);
-            rainbowEffect.render(mainLeds, mainCount, heartLeds, heartCount, hue);
+            rainbowEffect.render(mainLeds, mainCount, nullptr, 0, hue);
             break;
         }
         case BLINK: {
             uint32_t period = (uint32_t)max(50, cfg.speed * 10);
             bool on = (elapsed % period) < (period / 2);
-            blinkEffect.render(mainLeds, mainCount, heartLeds, heartCount, baseColor, on);
+            blinkEffect.render(mainLeds, mainCount, nullptr, 0, baseColor, on);
             break;
         }
         case BREATH: {
             uint8_t level = breathEffect.brightnessFor(elapsed, cfg.speed);
             uint8_t scaled = (uint8_t)map(level, 0, 255, 0, cfg.maxBrightness);
             FastLED.setBrightness(scaled);
-            solidEffect.render(mainLeds, mainCount, heartLeds, heartCount, baseColor);
+            if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, baseColor);
             break;
         }
         case RUNNING: {
             int pos = (int)((elapsed / (uint32_t)max(1, cfg.speed)) % (uint32_t)max(1, mainCount));
-            runningEffect.render(mainLeds, mainCount, heartLeds, heartCount, baseColor, pos);
+            runningEffect.render(mainLeds, mainCount, nullptr, 0, baseColor, pos);
             break;
         }
-        case HEART: {
-            // Apagar fita principal
+        case HEART:
+            // Modo HEART: apagar fita principal
             if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, CRGB::Black);
-            
-            // Aplicar batimento vermelho apenas na fita do coração
-            if (heartLeds && heartCount > 0) {
-                uint8_t level = heartEffect.beatLevel(elapsed);
-                CRGB heartColor = CRGB::Red;
-                heartColor.nscale8(level);  // Aplicar nível de batimento à cor vermelha
-                fill_solid(heartLeds, heartCount, heartColor);
-            }
             break;
-        }
         case METEOR:
             meteorEffect.render(mainLeds, mainCount, baseColor, now, cfg.speed);
             break;
@@ -139,8 +147,16 @@ void LEDEngine::loop() {
             sparkleEffect.render(mainLeds, mainCount, baseColor, now, cfg.speed);
             break;
         default:
-            solidEffect.render(mainLeds, mainCount, heartLeds, heartCount, baseColor);
+            if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, baseColor);
             break;
+    }
+
+    // EFEITO CARDÍACO: SEMPRE aplicar nos últimos 15 LEDs (contínuo)
+    if (heartLeds && heartCount > 0) {
+        uint8_t level = heartEffect.beatLevel(elapsed);
+        CRGB heartColor = CRGB::Red;
+        heartColor.nscale8(level);
+        fill_solid(heartLeds, heartCount, heartColor);
     }
 
     FastLED.show();

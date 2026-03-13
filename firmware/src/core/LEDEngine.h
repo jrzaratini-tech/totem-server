@@ -8,15 +8,18 @@
 
 class LEDEngine {
 private:
-    CRGB *mainLeds;
-    CRGB *heartLeds;
+    CRGB *allLeds;
     int mainCount;
     int heartCount;
+    int totalCount;
 
     bool active;
     unsigned long startMs;
 
     ConfigData cfg;
+
+    CRGB* getMainLeds() { return allLeds; }
+    CRGB* getHeartLeds() { return allLeds + mainCount; }
 
 public:
     LEDEngine();

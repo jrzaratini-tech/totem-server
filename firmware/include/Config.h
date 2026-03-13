@@ -43,8 +43,8 @@
 #define NUM_LEDS_HEART          15
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
-#define LED_MAIN_PIN            8       // ESP32-S3 safe GPIO
-#define LED_HEART_PIN           9       // ESP32-S3 safe GPIO
+#define LED_MAIN_PIN            1       // ESP32-S3 - Longe do I2S para evitar interferência
+#define LED_HEART_PIN           9       // ESP32-S3 safe GPIO (não usado fisicamente)
 #define MAX_BRIGHTNESS          180
 #define DEFAULT_BRIGHTNESS      120
 
@@ -67,7 +67,7 @@
 #define I2S_BCLK                6       // ESP32-S3 → MAX98357A BCLK
 #define I2S_LRC                 7       // ESP32-S3 → MAX98357A LRC
 #define I2S_DOUT                5       // ESP32-S3 → MAX98357A DIN
-// GAIN conectado ao GND = 9dB fixo (não controlável por software)
+// GAIN: GND=9dB, Flutuante=12dB, 3.3V=15dB (RECOMENDADO: conectar ao 3.3V)
 
 #define AUDIO_SAMPLE_RATE       44100
 #define AUDIO_BITS_PER_SAMPLE   16
@@ -81,7 +81,7 @@
 #define MAX_VOLUME              10
 
 // MAX98357A Gain (hardware fixo)
-#define MAX98357A_GAIN_DB       9       // GAIN conectado ao GND = 9dB
+#define MAX98357A_GAIN_DB       15      // GAIN conectado ao 3.3V = 15dB (máximo)
 
 // Diagnóstico de áudio
 #define AUDIO_DIAGNOSTICS       1       // Habilitar logs detalhados de áudio

@@ -1375,13 +1375,13 @@
                 idle: {
                     mode: idleMode.value,
                     color: idleColor.value,
-                    speed: Number(idleSpeed.value),
+                    speed: 101 - Number(idleSpeed.value),
                     maxBrightness: Number(idleBrightness.value)
                 },
                 trigger: {
                     mode: triggerMode.value,
                     color: triggerColor.value,
-                    speed: Number(triggerSpeed.value),
+                    speed: 101 - Number(triggerSpeed.value),
                     duration: Number(triggerDuration.value),
                     maxBrightness: Number(triggerBrightness.value)
                 }
@@ -1581,8 +1581,9 @@
                     idleColor.value = data.idle.color || '#ff3366';
                     idleBrightness.value = data.idle.maxBrightness || 120;
                     idleBrightnessVal.textContent = data.idle.maxBrightness || 120;
-                    idleSpeed.value = data.idle.speed || 50;
-                    idleSpeedVal.textContent = data.idle.speed || 50;
+                    const idleSpeedFromServer = data.idle.speed || 50;
+                    idleSpeed.value = 101 - idleSpeedFromServer;
+                    idleSpeedVal.textContent = 101 - idleSpeedFromServer;
                 }
                 
                 if (data.trigger) {
@@ -1590,8 +1591,9 @@
                     triggerColor.value = data.trigger.color || '#00ff00';
                     triggerBrightness.value = data.trigger.maxBrightness || 150;
                     triggerBrightnessVal.textContent = data.trigger.maxBrightness || 150;
-                    triggerSpeed.value = data.trigger.speed || 70;
-                    triggerSpeedVal.textContent = data.trigger.speed || 70;
+                    const triggerSpeedFromServer = data.trigger.speed || 70;
+                    triggerSpeed.value = 101 - triggerSpeedFromServer;
+                    triggerSpeedVal.textContent = 101 - triggerSpeedFromServer;
                     triggerDuration.value = data.trigger.duration || 30;
                 }
                 
