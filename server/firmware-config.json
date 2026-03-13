@@ -1,5 +1,5 @@
 {
-  "autoPublish": false,
+  "autoPublish": true,
   "firmwareVersion": "v4.1.0-led205",
   "firmwareUrl": "https://totem-server.onrender.com/firmware/firmware-v4.1.0-led205.bin",
   "totemId": "printpixel"
