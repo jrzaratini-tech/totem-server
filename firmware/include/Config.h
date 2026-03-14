@@ -39,8 +39,8 @@
 #define FAILSAFE_BRIGHTNESS     30
 
 // ========== HARDWARE - LEDS ==========
-#define NUM_LEDS_MAIN           200
-#define NUM_LEDS_HEART          5
+#define NUM_LEDS_MAIN           198
+#define NUM_LEDS_HEART          9
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
 #define LED_MAIN_PIN            1       // ESP32-S3 - Longe do I2S para evitar interferência

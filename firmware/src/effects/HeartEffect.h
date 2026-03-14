@@ -11,17 +11,17 @@ public:
         
         // Primeiro batimento: PUM (0-150ms)
         if (p < 80) return (uint8_t)map(p, 0, 80, 0, 255);        // Subida rápida
-        if (p < 150) return (uint8_t)map(p, 80, 150, 255, 20);    // Descida rápida
+        if (p < 150) return (uint8_t)map(p, 80, 150, 255, 0);     // Descida rápida até apagar
         
         // Pausa curta entre batimentos (150-200ms)
-        if (p < 200) return 10;
+        if (p < 200) return 0;  // Totalmente apagado
         
         // Segundo batimento: PUM (200-350ms)
         if (p < 280) return (uint8_t)map(p, 200, 280, 0, 255);    // Subida rápida
-        if (p < 350) return (uint8_t)map(p, 280, 350, 255, 20);   // Descida rápida
+        if (p < 350) return (uint8_t)map(p, 280, 350, 255, 0);    // Descida rápida até apagar
         
         // Pausa longa (350-1200ms) - coração em repouso
-        return 5;  // Brilho mínimo durante a pausa
+        return 0;  // Totalmente apagado durante a pausa
     }
 };
 

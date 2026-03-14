@@ -96,6 +96,12 @@ void AudioManager::loop() {
     if (playing) {
         audio.loop();
         
+        static unsigned long lastWdtReset = 0;
+        if (millis() - lastWdtReset > 1000) {
+            esp_task_wdt_reset();
+            lastWdtReset = millis();
+        }
+        
         if (!audio.isRunning()) {
             playing = false;
             Serial.println("[Audio] Playback finished");
@@ -113,6 +119,8 @@ void AudioManager::play() {
         Serial.println("[Audio] Already playing - ignoring play request");
         return;
     }
+    
+    esp_task_wdt_reset();
     
     Serial.println("[Audio] ========================================");
     Serial.println("[Audio] STARTING PLAYBACK");
@@ -133,6 +141,8 @@ void AudioManager::play() {
     size_t fileSize = f.size();
     f.close();
     
+    esp_task_wdt_reset();
+    
     Serial.printf("[Audio] File: %s (%d bytes)\n", AUDIO_FILENAME, fileSize);
     Serial.printf("[Audio] Heap before playback: %d bytes\n", ESP.getFreeHeap());
     
@@ -145,7 +155,11 @@ void AudioManager::play() {
         equalizer->resetMetrics();
     }
     
+    esp_task_wdt_reset();
+    
     bool success = audio.connecttoFS(SPIFFS, AUDIO_FILENAME);
+    
+    esp_task_wdt_reset();
     if (success) {
         playing = true;
         Serial.println("[Audio] ✓ Playback started successfully");
@@ -189,6 +203,8 @@ int AudioManager::getVersion() const { return currentVersion; }
 void AudioManager::setVersion(int v) { currentVersion = max(0, v); }
 
 bool AudioManager::downloadFileToTemp(const String &url) {
+    esp_task_wdt_reset();
+    
     Serial.printf("[Audio] Download: %s\n", url.c_str());
     Serial.printf("[Audio] Heap: %d bytes\n", ESP.getFreeHeap());
 
@@ -258,6 +274,8 @@ bool AudioManager::downloadFileToTemp(const String &url) {
         return false;
     }
 
+    esp_task_wdt_reset();
+    
     File tmp = SPIFFS.open(AUDIO_TEMP_FILENAME, FILE_WRITE);
     if (!tmp) {
         http.end();
@@ -353,6 +371,8 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         return false;
     }
 
+    esp_task_wdt_reset();
+    
     downloading = true;
     downloadStartMs = millis();
     Serial.println("[Audio] Checking server...");
@@ -388,6 +408,8 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         http.addHeader("X-Device-Token", deviceToken);
     }
 
+    esp_task_wdt_reset();
+    
     int code = http.GET();
     Serial.printf("[Audio] API: %d\n", code);
     if (code != 200) {
@@ -435,6 +457,8 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         return true;
     }
 
+    esp_task_wdt_reset();
+    
     if (!downloadFileToTemp(url)) {
         downloading = false;
         if (outError) *outError = "download_failed";

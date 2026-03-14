@@ -19,8 +19,8 @@ Este documento descreve o mapeamento de pinos adaptado do ESP32 original para o 
 #### LEDs (WS2812B)
 | Função | ESP32 Original | ESP32-S3 | Notas |
 |--------|---------------|----------|-------|
-| LED Principal | GPIO19 | **GPIO8** | Fita LED principal (220 LEDs) |
-| LED Coração | GPIO18 | **GPIO9** | Fita LED coração (15 LEDs) |
+| LED Principal | GPIO19 | **GPIO1** | Fita LED principal (199 LEDs) |
+| LED Coração | GPIO18 | **GPIO9** | Fita LED coração (9 LEDs) |
 | Heartbeat LED 1 | GPIO15 | **GPIO1** | LED de status |
 | Heartbeat LED 2 | GPIO18 | **GPIO2** | LED de status |
 
@@ -93,7 +93,7 @@ Este documento descreve o mapeamento de pinos adaptado do ESP32 original para o 
 ### Checklist
 - [ ] Compilação sem erros
 - [ ] Upload via USB funcional
-- [ ] LEDs WS2812B funcionando (GPIO8 e GPIO9)
+- [ ] LEDs WS2812B funcionando (GPIO1 e GPIO9)
 - [ ] Botão trigger respondendo (GPIO10)
 - [ ] Áudio I2S funcionando (GPIO4-7)
 - [ ] WiFi conectando
@@ -134,7 +134,7 @@ pio device monitor -b 115200
 - **Solução**: Use `pio run -t erase` e tente novamente
 
 ### Problema: LEDs não acendem
-- **Solução**: Verifique conexões nos GPIO8 e GPIO9
+- **Solução**: Verifique conexões nos GPIO1 e GPIO9
 
 ### Problema: Áudio não funciona
 - **Solução**: Verifique conexões I2S nos GPIO4-7 e o pino GAIN

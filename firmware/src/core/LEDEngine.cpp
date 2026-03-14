@@ -52,14 +52,14 @@ void LEDEngine::begin(int mainLedCount, int heartLedCount) {
         allLeds = new CRGB[totalCount];
         
         // CRITICAL FIX: Use only ONE FastLED controller for both strips
-        // Main strip (200 LEDs) on GPIO 1
-        // Heart strip (5 LEDs) follows immediately after in the array
+        // Main strip (198 LEDs) on GPIO 1
+        // Heart strip (9 LEDs) follows immediately after in the array
         // This avoids RMT channel conflicts on ESP32-S3
         FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(allLeds, totalCount);
         
         Serial.printf("[LEDEngine] ✓ Single FastLED controller initialized on GPIO %d\n", LED_MAIN_PIN);
-        Serial.println("[LEDEngine] Main LEDs: indices 0-199");
-        Serial.println("[LEDEngine] Heart LEDs: indices 200-204");
+        Serial.println("[LEDEngine] Main LEDs: indices 0-197");
+        Serial.println("[LEDEngine] Heart LEDs: indices 198-206");
         Serial.println("[LEDEngine] NOTE: Heart LEDs are PHYSICALLY on GPIO 9, wire accordingly");
     }
 
@@ -120,9 +120,13 @@ void LEDEngine::loop() {
             CRGB* heartLeds = getHeartLeds();
             if (heartLeds && heartCount > 0) {
                 uint8_t level = heartEffect.beatLevel(heartbeatElapsed);
-                CRGB heartColor = CRGB::Red;
-                heartColor.nscale8(level);
-                fill_solid(heartLeds, heartCount, heartColor);
+                if (level == 0) {
+                    fill_solid(heartLeds, heartCount, CRGB::Black);
+                } else {
+                    CRGB heartColor = CRGB::Red;
+                    heartColor.nscale8(level);
+                    fill_solid(heartLeds, heartCount, heartColor);
+                }
             }
             
             FastLED.show();
@@ -139,7 +143,7 @@ void LEDEngine::loop() {
     CRGB* mainLeds = getMainLeds();
     CRGB* heartLeds = getHeartLeds();
 
-    // EFEITO PRINCIPAL: Aplicar nos primeiros 220 LEDs
+    // EFEITO PRINCIPAL: Aplicar nos primeiros 198 LEDs
     switch (cfg.mode) {
         case SOLID:
             if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, baseColor);
@@ -188,12 +192,16 @@ void LEDEngine::loop() {
             break;
     }
 
-    // EFEITO CARDÍACO: SEMPRE aplicar nos últimos 15 LEDs (contínuo)
+    // EFEITO CARDÍACO: SEMPRE aplicar nos últimos 9 LEDs (contínuo)
     if (heartLeds && heartCount > 0) {
         uint8_t level = heartEffect.beatLevel(elapsed);
-        CRGB heartColor = CRGB::Red;
-        heartColor.nscale8(level);
-        fill_solid(heartLeds, heartCount, heartColor);
+        if (level == 0) {
+            fill_solid(heartLeds, heartCount, CRGB::Black);
+        } else {
+            CRGB heartColor = CRGB::Red;
+            heartColor.nscale8(level);
+            fill_solid(heartLeds, heartCount, heartColor);
+        }
     }
 
     FastLED.show();

@@ -31,7 +31,7 @@ Os LEDs WS2812B geram ruído por:
 
 1. **Sinal de alta frequência** (800kHz)
 2. **Transições rápidas** (0V → 5V em nanosegundos)
-3. **Picos de corrente** (até 60mA por LED × 235 LEDs = 14A)
+3. **Picos de corrente** (até 60mA por LED × 208 LEDs = 12.5A)
 4. **Acoplamento capacitivo** entre pinos adjacentes
 5. **Ruído no GND comum** (queda de tensão)
 
@@ -60,7 +60,7 @@ GPIO 7 → I2S LRC (áudio)
 
 ```
 ESP32-S3:
-├─ GPIO 1 → DIN da Fita LED (235 LEDs em série)
+├─ GPIO 1 → DIN da Fita LED (208 LEDs em série)
 ├─ GPIO 5 → DIN do MAX98357A
 ├─ GPIO 6 → BCLK do MAX98357A
 └─ GPIO 7 → LRC do MAX98357A
@@ -151,7 +151,7 @@ Adicione ferrite beads (contas de ferrite) nos cabos:
 │                                    │
 │  ════════════════════════════      │ ← Separação física
 │                                    │
-│  [Fita LED 235 LEDs]               │
+│  [Fita LED 208 LEDs]               │
 │                                    │
 └────────────────────────────────────┘
 ```
@@ -194,7 +194,7 @@ Fonte 5V 2A (ESP32-S3 + Amplificador):
 ┌──────┐  ┌──────┐  ┌─────────┐         ┌─────────────┐
 │ ESP  │  │ MAX  │  │  Fita   │         │  Cabo USB   │
 │ S3   │  │98357A│  │  LED    │         │  Modificado │
-│      │  │      │  │ 235 LEDs│         │             │
+│      │  │      │  │ 208 LEDs│         │             │
 │ GND  │  │ GND  │  │  GND    │         │ Vermelho 5V │
 │      │  │      │  │         │         │ Preto GND   │
 │ 3.3V ├──┤ GAIN │  │  5V     │         └──────┬──────┘

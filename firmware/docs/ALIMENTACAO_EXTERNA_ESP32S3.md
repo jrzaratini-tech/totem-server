@@ -163,8 +163,8 @@ IMPORTANTE: GNDs devem estar conectados (terra comum)
                                       └──────────────┘
 
       ┌────────────────────────────────────┐
-      │ Fita LED WS2812B (235 LEDs)        │
-      │ DIN ◄─── GPIO 8                    │
+      │ Fita LED WS2812B (208 LEDs)        │
+      │ DIN ◄─── GPIO 1                    │
       │ 5V  ◄─── Fonte 5V 10A              │
       │ GND ◄─── GND Comum                 │
       └────────────────────────────────────┘
@@ -215,7 +215,7 @@ Após ligar:
 ### LEDs piscam ou apagam
 **Causa**: Fonte insuficiente ou cabos finos
 **Solução**:
-- Verificar fonte (mínimo 10A para 235 LEDs)
+- Verificar fonte (mínimo 10A para 208 LEDs)
 - Usar cabos mais grossos (AWG 18 ou menor)
 - Alimentar LEDs em múltiplos pontos
 
@@ -253,9 +253,9 @@ Após ligar:
 - Idle: ~10mA
 - Reproduzindo: ~500mA (3W @ 4Ω)
 
-**LEDs WS2812B (235 LEDs):**
+**LEDs WS2812B (208 LEDs):**
 - Por LED: ~60mA máximo (branco total)
-- 235 LEDs: ~14A máximo
+- 208 LEDs: ~12.5A máximo
 - Uso típico (50% brilho, cores): ~4-7A
 
 **Total:**

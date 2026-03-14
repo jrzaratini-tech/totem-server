@@ -148,10 +148,13 @@ static void setupMQTTCallbacks() {
                 
                 // AUTO-PLAY: Disparar efeito automaticamente quando configuração de trigger é atualizada
                 if (stateMachine.canPlay() && SPIFFS.exists(AUDIO_FILENAME)) {
+                    if (gWdtStarted) esp_task_wdt_reset();
                     Serial.println("[MAIN] *** AUTO-PLAY: Trigger config updated, playing automatically ***");
                     if (stateMachine.setState(PLAYING)) {
                         ledEngine.startEffect(triggerConfig);
+                        if (gWdtStarted) esp_task_wdt_reset();
                         audioManager.play();
+                        if (gWdtStarted) esp_task_wdt_reset();
                         playEndMs = millis() + (unsigned long)triggerConfig.duration * 1000UL;
                     }
                 }
@@ -201,6 +204,8 @@ static void setupMQTTCallbacks() {
         }
         
         if (topic.endsWith("/trigger")) {
+            if (gWdtStarted) esp_task_wdt_reset();
+            
             triggerStartMs = millis();
             Serial.println("[MAIN] ========================================");
             Serial.println("[MAIN] TRIGGER COMMAND RECEIVED");
@@ -236,6 +241,10 @@ static void setupMQTTCallbacks() {
                 ledEngine.startEffect(cfg);
                 Serial.println("[MAIN] ✓ LED effect started");
 
+                if (gWdtStarted) esp_task_wdt_reset();
+                
+                if (gWdtStarted) esp_task_wdt_reset();
+                
                 // Verificar se arquivo de áudio existe
                 Serial.printf("[MAIN] Checking for audio file: %s\n", AUDIO_FILENAME);
                 if (!SPIFFS.exists(AUDIO_FILENAME)) {
@@ -258,8 +267,12 @@ static void setupMQTTCallbacks() {
                     }
                 }
 
+                if (gWdtStarted) esp_task_wdt_reset();
+                
                 Serial.println("[MAIN] Starting audio playback...");
+                if (gWdtStarted) esp_task_wdt_reset();
                 audioManager.play();
+                if (gWdtStarted) esp_task_wdt_reset();
                 playEndMs = millis() + (unsigned long)cfg.duration * 1000UL;
                 unsigned long latency = millis() - triggerStartMs;
                 Serial.printf("[MAIN] ✓ Playback started - Latency: %lu ms\n", latency);
@@ -309,12 +322,16 @@ static void setupMQTTCallbacks() {
             storageManager.setAudioVersion(audioManager.getVersion());
             configManager.setAudioVersion(audioManager.getVersion());
 
+            if (gWdtStarted) esp_task_wdt_reset();
+            
             // AUTO-PLAY: Reproduzir automaticamente quando novo áudio é baixado
             Serial.println("[MAIN] *** AUTO-PLAY: New audio downloaded, playing automatically ***");
             if (stateMachine.setState(PLAYING)) {
                 ConfigData cfg = (triggerConfig.duration > 0) ? triggerConfig : configManager.getEffectConfig();
                 ledEngine.startEffect(cfg);
+                if (gWdtStarted) esp_task_wdt_reset();
                 audioManager.play();
+                if (gWdtStarted) esp_task_wdt_reset();
                 playEndMs = millis() + (unsigned long)cfg.duration * 1000UL;
                 Serial.printf("[MAIN] Auto-play started - Duration: %d sec\n", cfg.duration);
             } else {

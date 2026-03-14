@@ -3,8 +3,8 @@
 ## Problema Identificado
 
 O firmware estava tentando controlar duas fitas WS2812B separadas usando dois controladores FastLED:
-- **Fita Principal**: 220 LEDs no GPIO 8
-- **Fita Coração**: 15 LEDs no GPIO 9
+- **Fita Principal**: 199 LEDs no GPIO 1
+- **Fita Coração**: 9 LEDs no GPIO 9
 
 ### Causa Raiz
 
@@ -17,26 +17,26 @@ O ESP32-S3 tem limitações de canais RMT (Remote Control) que causavam:
 
 ### Mudança no Código
 
-O código foi refatorado para usar **um único array concatenado** de 235 LEDs (220 + 15) conectados em série no GPIO 8:
+O código foi refatorado para usar **um único array concatenado** de 208 LEDs (199 + 9) conectados em série no GPIO 1:
 
 ```cpp
 // ANTES (PROBLEMÁTICO)
-FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(mainLeds, 220);
-FastLED.addLeds<LED_TYPE, LED_HEART_PIN, COLOR_ORDER>(heartLeds, 15);
+FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(mainLeds, 199);
+FastLED.addLeds<LED_TYPE, LED_HEART_PIN, COLOR_ORDER>(heartLeds, 9);
 
 // DEPOIS (CORRIGIDO)
-FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(allLeds, 235);
-// Índices 0-219: Fita principal (efeitos configuráveis)
-// Índices 220-234: Fita coração (batimento cardíaco CONTÍNUO)
+FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(allLeds, 208);
+// Índices 0-198: Fita principal (efeitos configuráveis)
+// Índices 199-207: Fita coração (batimento cardíaco CONTÍNUO)
 ```
 
 ### Comportamento
 
-**Primeiros 220 LEDs (índices 0-219):**
+**Primeiros 199 LEDs (índices 0-198):**
 - Executam o efeito principal configurado (SOLID, RAINBOW, BLINK, BREATH, RUNNING, METEOR, etc.)
 - Controlados via MQTT/painel do cliente
 
-**Últimos 15 LEDs (índices 220-234):**
+**Últimos 9 LEDs (índices 199-207):**
 - **SEMPRE** executam batimento cardíaco vermelho contínuo
 - Funcionam independentemente do efeito principal
 - Não param nunca (exceto quando o sistema está em IDLE sem efeito ativo)
@@ -56,12 +56,12 @@ FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(allLeds, 235);
 Conecte as duas fitas **em série** (uma após a outra):
 
 ```
-ESP32-S3 GPIO 8 → Fita Principal (220 LEDs) → Fita Coração (15 LEDs)
+ESP32-S3 GPIO 1 → Fita Principal (199 LEDs) → Fita Coração (9 LEDs)
                    DIN ────────────────────→ DOUT → DIN
 ```
 
 **Passos:**
-1. Conecte o pino de dados (DIN) da **fita principal** ao **GPIO 8**
+1. Conecte o pino de dados (DIN) da **fita principal** ao **GPIO 1**
 2. Conecte o pino de saída (DOUT) da **fita principal** ao pino de entrada (DIN) da **fita coração**
 3. **Não use o GPIO 9** - deixe desconectado
 4. Alimente ambas as fitas com 5V (use fonte externa adequada)
@@ -73,7 +73,7 @@ ESP32-S3 GPIO 8 → Fita Principal (220 LEDs) → Fita Coração (15 LEDs)
 
 ### Opção 2: Manter Pinos Separados (Requer Modificação)
 
-Se você **precisa** manter as fitas em pinos separados (GPIO 8 e GPIO 9), será necessário:
+Se você **precisa** manter as fitas em pinos separados (GPIO 1 e GPIO 9), será necessário:
 
 1. Usar uma biblioteca diferente (não FastLED)
 2. Implementar controle manual via RMT
@@ -87,28 +87,28 @@ Se você **precisa** manter as fitas em pinos separados (GPIO 8 e GPIO 9), será
 ┌─────────────┐
 │  ESP32-S3   │
 │             │
-│   GPIO 8 ───┼──→ DIN [Fita Principal 220 LEDs] DOUT ──→ DIN [Fita Coração 15 LEDs]
+│   GPIO 1 ───┼──→ DIN [Fita Principal 199 LEDs] DOUT ──→ DIN [Fita Coração 9 LEDs]
 │   GPIO 9    │    (não conectado)
 │             │
 │   5V ───────┼──→ 5V (ambas as fitas)
 │   GND ──────┼──→ GND (ambas as fitas)
 └─────────────┘
 
-IMPORTANTE: Use fonte externa de 5V adequada para 235 LEDs (~14A máximo)
+IMPORTANTE: Use fonte externa de 5V adequada para 208 LEDs (~12.5A máximo)
 ```
 
 ## Mapeamento de Índices no Código
 
-O código agora trabalha com um array único de 235 LEDs:
+O código agora trabalha com um array único de 208 LEDs:
 
 ```cpp
-// Fita Principal (220 LEDs) - Efeitos configuráveis
+// Fita Principal (199 LEDs) - Efeitos configuráveis
 allLeds[0]   = Primeiro LED da fita principal
-allLeds[219] = Último LED da fita principal
+allLeds[198] = Último LED da fita principal
 
-// Fita Coração (15 LEDs) - Batimento cardíaco CONTÍNUO
-allLeds[220] = Primeiro LED da fita coração
-allLeds[234] = Último LED da fita coração
+// Fita Coração (9 LEDs) - Batimento cardíaco CONTÍNUO
+allLeds[199] = Primeiro LED da fita coração
+allLeds[207] = Último LED da fita coração
 ```
 
 ### Lógica de Renderização
@@ -117,23 +117,23 @@ O código separa logicamente as duas fitas usando ponteiros:
 
 ```cpp
 CRGB* mainLeds = allLeds;           // Aponta para índice 0
-CRGB* heartLeds = allLeds + 220;    // Aponta para índice 220
+CRGB* heartLeds = allLeds + 199;    // Aponta para índice 199
 
-// 1. Aplicar efeito principal nos primeiros 220 LEDs
+// 1. Aplicar efeito principal nos primeiros 199 LEDs
 switch (cfg.mode) {
-    case SOLID: fill_solid(mainLeds, 220, baseColor); break;
-    case RAINBOW: rainbowEffect.render(mainLeds, 220, ...); break;
+    case SOLID: fill_solid(mainLeds, 199, baseColor); break;
+    case RAINBOW: rainbowEffect.render(mainLeds, 199, ...); break;
     // ... outros efeitos
 }
 
-// 2. SEMPRE aplicar batimento cardíaco nos últimos 15 LEDs
+// 2. SEMPRE aplicar batimento cardíaco nos últimos 9 LEDs
 uint8_t level = heartEffect.beatLevel(elapsed);
 CRGB heartColor = CRGB::Red;
 heartColor.nscale8(level);
-fill_solid(heartLeds, 15, heartColor);
+fill_solid(heartLeds, 9, heartColor);
 ```
 
-**Resultado**: Os 15 LEDs do coração **sempre pulsam** em vermelho, independente do efeito principal!
+**Resultado**: Os 9 LEDs do coração **sempre pulsam** em vermelho, independente do efeito principal!
 
 ## Teste e Verificação
 
@@ -142,16 +142,16 @@ Após fazer a fiação em série:
 1. **Compile e faça upload** do firmware corrigido
 2. **Verifique os logs** serial:
    ```
-   [LEDEngine] Initializing with 220 main LEDs + 15 heart LEDs = 235 total
-   [LEDEngine] ✓ Single FastLED controller initialized on GPIO 8
-   [LEDEngine] Main LEDs: indices 0-219
-   [LEDEngine] Heart LEDs: indices 220-234
+   [LEDEngine] Initializing with 199 main LEDs + 9 heart LEDs = 208 total
+   [LEDEngine] ✓ Single FastLED controller initialized on GPIO 1
+   [LEDEngine] Main LEDs: indices 0-198
+   [LEDEngine] Heart LEDs: indices 199-207
    ```
 3. **Teste os efeitos**:
    - **Modo SOLID**: Fita principal cor sólida + **coração pulsando vermelho**
    - **Modo RAINBOW**: Fita principal arco-íris + **coração pulsando vermelho**
    - **Modo HEART**: Fita principal apagada + **coração pulsando vermelho**
-   - **Qualquer modo**: Os últimos 15 LEDs **SEMPRE** fazem batimento cardíaco contínuo!
+   - **Qualquer modo**: Os últimos 9 LEDs **SEMPRE** fazem batimento cardíaco contínuo!
 
 ## Troubleshooting
 
@@ -176,12 +176,12 @@ Após fazer a fiação em série:
 
 **O que mudou:**
 - ✅ Código refatorado para usar 1 controlador FastLED
-- ✅ Array único de 235 LEDs
+- ✅ Array único de 208 LEDs
 - ✅ Elimina conflitos de RMT e I2S
 
 **O que você precisa fazer:**
 - 🔧 Refazer fiação: conectar fitas em série
-- 🔧 GPIO 8 → Fita Principal → Fita Coração
+- 🔧 GPIO 1 → Fita Principal → Fita Coração
 - 🔧 Não usar GPIO 9
 - 📤 Fazer upload do firmware corrigido
 
