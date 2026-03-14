@@ -52,14 +52,14 @@ void LEDEngine::begin(int mainLedCount, int heartLedCount) {
         allLeds = new CRGB[totalCount];
         
         // CRITICAL FIX: Use only ONE FastLED controller for both strips
-        // Main strip (198 LEDs) on GPIO 1
+        // Main strip (199 LEDs) on GPIO 1
         // Heart strip (9 LEDs) follows immediately after in the array
         // This avoids RMT channel conflicts on ESP32-S3
         FastLED.addLeds<LED_TYPE, LED_MAIN_PIN, COLOR_ORDER>(allLeds, totalCount);
         
         Serial.printf("[LEDEngine] ✓ Single FastLED controller initialized on GPIO %d\n", LED_MAIN_PIN);
-        Serial.println("[LEDEngine] Main LEDs: indices 0-197");
-        Serial.println("[LEDEngine] Heart LEDs: indices 198-206");
+        Serial.println("[LEDEngine] Main LEDs: indices 0-198");
+        Serial.println("[LEDEngine] Heart LEDs: indices 199-207");
         Serial.println("[LEDEngine] NOTE: Heart LEDs are PHYSICALLY on GPIO 9, wire accordingly");
     }
 
@@ -143,7 +143,7 @@ void LEDEngine::loop() {
     CRGB* mainLeds = getMainLeds();
     CRGB* heartLeds = getHeartLeds();
 
-    // EFEITO PRINCIPAL: Aplicar nos primeiros 198 LEDs
+    // EFEITO PRINCIPAL: Aplicar nos primeiros 199 LEDs
     switch (cfg.mode) {
         case SOLID:
             if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, baseColor);

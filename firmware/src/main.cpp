@@ -108,6 +108,7 @@ static int currentVolume = 10; // Volume máximo por padrão
 
 static void setupMQTTCallbacks() {
     mqttManager.onMessage([](const String &topic, const String &payload) {
+        if (gWdtStarted) esp_task_wdt_reset();
         Serial.printf("[MAIN] MQTT callback - Topic: %s, Payload: %s\n", topic.c_str(), payload.c_str());
         
         // Sistema Dual v4.1.0 - Config Idle
@@ -457,12 +458,25 @@ void loop() {
     if (gWdtStarted) esp_task_wdt_reset();
 
     wifiManager.loop();
+    if (gWdtStarted) esp_task_wdt_reset();
+    
     mqttManager.loop();
+    if (gWdtStarted) esp_task_wdt_reset();
+    
     buttonManager.loop();
+    if (gWdtStarted) esp_task_wdt_reset();
+    
     ledEngine.loop();
+    if (gWdtStarted) esp_task_wdt_reset();
+    
     audioManager.loop();
+    if (gWdtStarted) esp_task_wdt_reset();
+    
     otaManager.loop();
+    if (gWdtStarted) esp_task_wdt_reset();
+    
     heartbeatLED.update();
+    if (gWdtStarted) esp_task_wdt_reset();
 
     if (stateMachine.getState() == PLAYING) {
         static unsigned long lastPlayingLog = 0;

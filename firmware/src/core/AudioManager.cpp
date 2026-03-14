@@ -157,12 +157,20 @@ void AudioManager::play() {
     
     esp_task_wdt_reset();
     
+    Serial.println("[Audio] >>> Calling audio.connecttoFS() - this may take several seconds...");
+    Serial.printf("[Audio] >>> Heap before connecttoFS: %d bytes\n", ESP.getFreeHeap());
+    unsigned long connectStart = millis();
+    
     bool success = audio.connecttoFS(SPIFFS, AUDIO_FILENAME);
+    
+    unsigned long connectDuration = millis() - connectStart;
+    Serial.printf("[Audio] >>> connecttoFS completed in %lu ms\n", connectDuration);
+    Serial.printf("[Audio] >>> Heap after connecttoFS: %d bytes\n", ESP.getFreeHeap());
     
     esp_task_wdt_reset();
     if (success) {
         playing = true;
-        Serial.println("[Audio] ✓ Playback started successfully");
+        Serial.println("[Audio] Playback started successfully");
         Serial.printf("[Audio] Volume: %d/10 (EQ profile)\n", 
                      equalizer ? equalizer->getProfile().volume : 0);
         Serial.printf("[Audio] Amplifier Gain: %ddB\n", 

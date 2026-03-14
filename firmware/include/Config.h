@@ -29,8 +29,8 @@
 // Útil para testes e ambientes onde não foi provisionado o CA.
 #define ALLOW_INSECURE_HTTPS    1
 
-// Watchdog
-#define WDT_TIMEOUT_SECONDS     8
+// Watchdog - 90 segundos para suportar áudios de até 60 segundos sem interrupção
+#define WDT_TIMEOUT_SECONDS     90
 
 // Debug/segurança: evita loop de reboot por chamadas de ESP.restart() em callbacks
 #define DISABLE_AUTO_RESTART    1
@@ -39,7 +39,7 @@
 #define FAILSAFE_BRIGHTNESS     30
 
 // ========== HARDWARE - LEDS ==========
-#define NUM_LEDS_MAIN           198
+#define NUM_LEDS_MAIN           199
 #define NUM_LEDS_HEART          9
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
@@ -75,7 +75,7 @@
 #define AUDIO_CHANNELS          2
 
 #define I2S_DMA_BUFFER_COUNT    8
-#define I2S_DMA_BUFFER_SIZE     512
+#define I2S_DMA_BUFFER_SIZE     1024
 
 #define DEFAULT_VOLUME          10      // Volume máximo por padrão
 #define MIN_VOLUME              0
