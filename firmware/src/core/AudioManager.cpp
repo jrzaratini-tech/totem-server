@@ -1,5 +1,4 @@
 #include "core/AudioManager.h"
-#include "core/AudioEqualizer.h"
 #include "Config.h"
 #include <WiFiClientSecure.h>
 #include <esp_task_wdt.h>
@@ -17,7 +16,6 @@ AudioManager::AudioManager() {
     lastMetricsLog = 0;
     samplesProcessed = 0;
     clippedSamples = 0;
-    equalizer = nullptr;
     gAudioManagerInstance = this;
 }
 
@@ -40,9 +38,6 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     Serial.println("[Audio] INITIALIZING AUDIO SYSTEM");
     Serial.println("[Audio] ========================================");
     
-    equalizer = new AudioEqualizer();
-    equalizer->begin();
-    
     Serial.printf("[Audio] Heap before SPIFFS: %d bytes\n", ESP.getFreeHeap());
     
     if (!SPIFFS.begin(true)) {
@@ -58,10 +53,8 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
     Serial.println("[Audio] I2S pins configured");
     
-    int mappedVol = map(equalizer->getProfile().volume, MIN_VOLUME, MAX_VOLUME, 0, 21);
-    audio.setVolume(mappedVol);
-    Serial.printf("[Audio] Volume set to %d/21 (profile: %d/10)\n", 
-                 mappedVol, equalizer->getProfile().volume);
+    audio.setVolume(21);
+    Serial.println("[Audio] Volume set to 21/21 (max)");
     
     Serial.println("[Audio] ===== I2S CONFIGURATION =====");
     Serial.println("[Audio] DAC: MAX98357A");
@@ -151,10 +144,6 @@ void AudioManager::play() {
     clippedSamples = 0;
     lastMetricsLog = millis();
     
-    if (equalizer) {
-        equalizer->resetMetrics();
-    }
-    
     esp_task_wdt_reset();
     
     Serial.println("[Audio] >>> Calling audio.connecttoFS() - this may take several seconds...");
@@ -171,10 +160,6 @@ void AudioManager::play() {
     if (success) {
         playing = true;
         Serial.println("[Audio] Playback started successfully");
-        Serial.printf("[Audio] Volume: %d/10 (EQ profile)\n", 
-                     equalizer ? equalizer->getProfile().volume : 0);
-        Serial.printf("[Audio] Amplifier Gain: %ddB\n", 
-                     equalizer ? equalizer->getProfile().amplifierGain : 15);
         Serial.println("[Audio] ========================================");
     } else {
         Serial.println("[Audio] ✗ Failed to start playback");
@@ -197,9 +182,6 @@ void AudioManager::stop() {
 
 void AudioManager::setVolume(int vol) {
     int clampedVol = constrain(vol, MIN_VOLUME, MAX_VOLUME);
-    if (equalizer) {
-        equalizer->setVolume(clampedVol);
-    }
     int mappedVol = map(clampedVol, MIN_VOLUME, MAX_VOLUME, 0, 21);
     audio.setVolume(mappedVol);
     Serial.printf("[Audio] Volume set: %d/10 (mapped to %d/21)\n", clampedVol, mappedVol);
@@ -538,8 +520,4 @@ void AudioManager::playTestTone(int durationMs) {
     Serial.println("[Audio] ========================================");
     
     free(samples);
-}
-
-AudioEqualizer* AudioManager::getEqualizer() {
-    return equalizer;
 }

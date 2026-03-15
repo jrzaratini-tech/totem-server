@@ -149,12 +149,12 @@ void LEDEngine::loop() {
             if (mainLeds && mainCount > 0) fill_solid(mainLeds, mainCount, baseColor);
             break;
         case RAINBOW: {
-            uint8_t hue = (uint8_t)((elapsed / (uint32_t)max(1, cfg.speed)) & 0xFF);
+            uint8_t hue = (uint8_t)((elapsed * (uint32_t)max(1, cfg.speed) / 50) & 0xFF);
             rainbowEffect.render(mainLeds, mainCount, nullptr, 0, hue);
             break;
         }
         case BLINK: {
-            uint32_t period = (uint32_t)max(50, cfg.speed * 10);
+            uint32_t period = (uint32_t)max(100, 1000 / max(1, cfg.speed));
             bool on = (elapsed % period) < (period / 2);
             blinkEffect.render(mainLeds, mainCount, nullptr, 0, baseColor, on);
             break;
@@ -167,7 +167,7 @@ void LEDEngine::loop() {
             break;
         }
         case RUNNING: {
-            int pos = (int)((elapsed / (uint32_t)max(1, cfg.speed)) % (uint32_t)max(1, mainCount));
+            int pos = (int)((elapsed * (uint32_t)max(1, cfg.speed) / 50) % (uint32_t)max(1, mainCount));
             runningEffect.render(mainLeds, mainCount, nullptr, 0, baseColor, pos);
             break;
         }

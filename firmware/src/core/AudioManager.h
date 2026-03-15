@@ -6,11 +6,9 @@
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
 #include "AudioWrapper.h"
-#include "AudioEqualizer.h"
 
 class AudioManager {
 private:
-    AudioEqualizer* equalizer;
     Audio audio;
     int16_t peakSample;
     unsigned long lastMetricsLog;
@@ -41,7 +39,6 @@ public:
     int getVersion() const;
     void setVersion(int v);
     bool checkAndDownloadFromServer(String *outError = nullptr);
-    AudioEqualizer* getEqualizer();
 };
 
 #endif
