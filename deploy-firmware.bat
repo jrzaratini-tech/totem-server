@@ -35,6 +35,7 @@ if "%msg%"=="" (
     set msg=Atualizar firmware OTA
 )
 
+git add firmware/
 git add server/public/firmware/firmware-v4.1.0-led205.bin
 git add server/firmware-config.json
 git commit -m "%msg%"

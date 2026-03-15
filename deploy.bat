@@ -17,7 +17,16 @@ echo.
 echo Enviando atualizacao...
 echo.
 
-git add .
+git add server/
+git add docs/
+git add .env.example
+git add .gitignore
+git add package.json
+git add package-lock.json
+git add server.js
+git add deploy.bat
+git add deploy-firmware.bat
+git add DEPLOY-FIRMWARE.md
 git commit -m "%msg%"
 git push
 
