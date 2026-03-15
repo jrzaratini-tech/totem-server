@@ -23,6 +23,7 @@ private:
     unsigned long downloadStartMs;
     bool downloadFileToTemp(const String &url);
     bool activateTempAsCurrent();
+    bool validateMP3File(const char* filename);
     static void audio_info(const char *info);
     static void audio_eof_mp3(const char *info);
 

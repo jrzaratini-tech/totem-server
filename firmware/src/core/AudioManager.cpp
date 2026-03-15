@@ -89,12 +89,6 @@ void AudioManager::loop() {
     if (playing) {
         audio.loop();
         
-        static unsigned long lastWdtReset = 0;
-        if (millis() - lastWdtReset > 1000) {
-            esp_task_wdt_reset();
-            lastWdtReset = millis();
-        }
-        
         if (!audio.isRunning()) {
             playing = false;
             Serial.println("[Audio] Playback finished");
@@ -107,13 +101,49 @@ void AudioManager::loop() {
     }
 }
 
+bool AudioManager::validateMP3File(const char* filename) {
+    File f = SPIFFS.open(filename, FILE_READ);
+    if (!f) {
+        Serial.println("[Audio] Validation: Cannot open file");
+        return false;
+    }
+    
+    size_t fileSize = f.size();
+    if (fileSize < 128) {
+        Serial.println("[Audio] Validation: File too small to be valid MP3");
+        f.close();
+        return false;
+    }
+    
+    uint8_t header[10];
+    size_t bytesRead = f.read(header, 10);
+    f.close();
+    
+    if (bytesRead < 10) {
+        Serial.println("[Audio] Validation: Cannot read header");
+        return false;
+    }
+    
+    // Check for ID3 tag or MP3 frame sync
+    bool hasID3 = (header[0] == 'I' && header[1] == 'D' && header[2] == '3');
+    bool hasMP3Sync = (header[0] == 0xFF && (header[1] & 0xE0) == 0xE0);
+    
+    if (!hasID3 && !hasMP3Sync) {
+        Serial.println("[Audio] Validation: Invalid MP3 header");
+        Serial.printf("[Audio] Header bytes: %02X %02X %02X %02X\n", 
+                     header[0], header[1], header[2], header[3]);
+        return false;
+    }
+    
+    Serial.printf("[Audio] Validation: OK - %s header detected\n", hasID3 ? "ID3" : "MP3");
+    return true;
+}
+
 void AudioManager::play() {
     if (playing) {
         Serial.println("[Audio] Already playing - ignoring play request");
         return;
     }
-    
-    esp_task_wdt_reset();
     
     Serial.println("[Audio] ========================================");
     Serial.println("[Audio] STARTING PLAYBACK");
@@ -134,9 +164,17 @@ void AudioManager::play() {
     size_t fileSize = f.size();
     f.close();
     
-    esp_task_wdt_reset();
-    
     Serial.printf("[Audio] File: %s (%d bytes)\n", AUDIO_FILENAME, fileSize);
+    
+    // Validate MP3 file before attempting playback
+    if (!validateMP3File(AUDIO_FILENAME)) {
+        Serial.println("[Audio] ✗ MP3 validation failed - file is corrupted");
+        Serial.println("[Audio] Deleting corrupted file...");
+        SPIFFS.remove(AUDIO_FILENAME);
+        Serial.println("[Audio] ========================================");
+        return;
+    }
+    
     Serial.printf("[Audio] Heap before playback: %d bytes\n", ESP.getFreeHeap());
     
     peakSample = 0;
@@ -144,19 +182,26 @@ void AudioManager::play() {
     clippedSamples = 0;
     lastMetricsLog = millis();
     
-    esp_task_wdt_reset();
-    
     Serial.println("[Audio] >>> Calling audio.connecttoFS() - this may take several seconds...");
     Serial.printf("[Audio] >>> Heap before connecttoFS: %d bytes\n", ESP.getFreeHeap());
     unsigned long connectStart = millis();
     
+    // Feed watchdog during long operation
+    esp_task_wdt_reset();
+    
     bool success = audio.connecttoFS(SPIFFS, AUDIO_FILENAME);
+    
+    // Feed watchdog after long operation
+    esp_task_wdt_reset();
     
     unsigned long connectDuration = millis() - connectStart;
     Serial.printf("[Audio] >>> connecttoFS completed in %lu ms\n", connectDuration);
     Serial.printf("[Audio] >>> Heap after connecttoFS: %d bytes\n", ESP.getFreeHeap());
     
-    esp_task_wdt_reset();
+    if (connectDuration > 10000) {
+        Serial.printf("[Audio] ⚠ WARNING: connecttoFS took %lu ms (>10s)\n", connectDuration);
+    }
+    
     if (success) {
         playing = true;
         Serial.println("[Audio] Playback started successfully");
@@ -169,6 +214,8 @@ void AudioManager::play() {
         Serial.println("[Audio]   - Insufficient memory");
         Serial.println("[Audio]   - I2S hardware issue");
         Serial.printf("[Audio] Heap: %d bytes\n", ESP.getFreeHeap());
+        Serial.println("[Audio] Deleting potentially corrupted file...");
+        SPIFFS.remove(AUDIO_FILENAME);
         Serial.println("[Audio] ========================================");
     }
 }
@@ -193,8 +240,6 @@ int AudioManager::getVersion() const { return currentVersion; }
 void AudioManager::setVersion(int v) { currentVersion = max(0, v); }
 
 bool AudioManager::downloadFileToTemp(const String &url) {
-    esp_task_wdt_reset();
-    
     Serial.printf("[Audio] Download: %s\n", url.c_str());
     Serial.printf("[Audio] Heap: %d bytes\n", ESP.getFreeHeap());
 
@@ -264,8 +309,6 @@ bool AudioManager::downloadFileToTemp(const String &url) {
         return false;
     }
 
-    esp_task_wdt_reset();
-    
     File tmp = SPIFFS.open(AUDIO_TEMP_FILENAME, FILE_WRITE);
     if (!tmp) {
         http.end();
@@ -284,14 +327,8 @@ bool AudioManager::downloadFileToTemp(const String &url) {
     
     int total = 0;
     int lastPercent = -1;
-    unsigned long lastWdtReset = millis();
     
     while (http.connected() && total < len) {
-        if (millis() - lastWdtReset > 500) {
-            esp_task_wdt_reset();
-            lastWdtReset = millis();
-        }
-        
         if (millis() - downloadStartMs > DOWNLOAD_TIMEOUT) {
             tmp.close();
             http.end();
@@ -340,6 +377,13 @@ bool AudioManager::activateTempAsCurrent() {
         return false;
     }
 
+    // Validate downloaded file before activating
+    if (!validateMP3File(AUDIO_TEMP_FILENAME)) {
+        Serial.println("[Audio] Downloaded file validation failed - corrupted MP3");
+        SPIFFS.remove(AUDIO_TEMP_FILENAME);
+        return false;
+    }
+
     if (SPIFFS.exists(AUDIO_FILENAME)) {
         SPIFFS.remove(AUDIO_FILENAME);
     }
@@ -361,8 +405,6 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         return false;
     }
 
-    esp_task_wdt_reset();
-    
     downloading = true;
     downloadStartMs = millis();
     Serial.println("[Audio] Checking server...");
@@ -398,8 +440,6 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         http.addHeader("X-Device-Token", deviceToken);
     }
 
-    esp_task_wdt_reset();
-    
     int code = http.GET();
     Serial.printf("[Audio] API: %d\n", code);
     if (code != 200) {
@@ -447,8 +487,6 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         return true;
     }
 
-    esp_task_wdt_reset();
-    
     if (!downloadFileToTemp(url)) {
         downloading = false;
         if (outError) *outError = "download_failed";
