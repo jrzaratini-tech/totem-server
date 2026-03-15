@@ -114,7 +114,7 @@ static void setupMQTTCallbacks() {
         // Sistema Dual v4.1.0 - Config Idle
         if (topic.endsWith("/config/idle")) {
             Serial.println("[MAIN] Received IDLE config");
-            StaticJsonDocument<256> doc;
+            StaticJsonDocument<512> doc;
             if (deserializeJson(doc, payload) == DeserializationError::Ok) {
                 idleConfig.mode = configManager.modeFromString(doc["mode"] | "BREATH");
                 idleConfig.color = configManager.parseColor(doc["color"] | "#ff3366");
@@ -137,7 +137,7 @@ static void setupMQTTCallbacks() {
         // Sistema Dual v4.1.0 - Config Trigger
         if (topic.endsWith("/config/trigger")) {
             Serial.println("[MAIN] Received TRIGGER config");
-            StaticJsonDocument<256> doc;
+            StaticJsonDocument<512> doc;
             if (deserializeJson(doc, payload) == DeserializationError::Ok) {
                 triggerConfig.mode = configManager.modeFromString(doc["mode"] | "RAINBOW");
                 triggerConfig.color = configManager.parseColor(doc["color"] | "#00ff00");
