@@ -29,7 +29,7 @@ require('dotenv').config({ path: path.join(projectRoot, '.env') });
 
 // ========== CONFIGURAÇÕES ==========
 const PORT = process.env.PORT || 3000;
-const SESSION_SECRET = process.env.SESSION_SECRET;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'totem-secret-key-default-' + Math.random().toString(36);
 const MQTT_BROKER = 'broker.hivemq.com';
 const MQTT_PORT = 1883;
 const SERVER_URL = process.env.SERVER_URL || 'https://totem-server.onrender.com';
