@@ -312,8 +312,15 @@ async function buscarSenhaAdmin() {
     // Prioridade 1: Senha do Firebase
     if (firebaseInicializado && db) {
         try {
-            const doc = await db.collection('config').doc('admin').get();
-            console.log('Documento admin existe:', doc.exists);
+            // Tenta primeiro o novo caminho: adminConfig/auth
+            let doc = await db.collection('adminConfig').doc('auth').get();
+            console.log('Documento adminConfig/auth existe:', doc.exists);
+            
+            // Se não encontrar, tenta o caminho antigo: config/admin
+            if (!doc.exists) {
+                doc = await db.collection('config').doc('admin').get();
+                console.log('Documento config/admin existe:', doc.exists);
+            }
             
             if (doc.exists) {
                 const data = doc.data();
@@ -330,8 +337,8 @@ async function buscarSenhaAdmin() {
                     console.log('Campos disponíveis:', data ? Object.keys(data) : 'nenhum');
                 }
             } else {
-                console.log('⚠️ Documento config/admin NÃO EXISTE no Firestore');
-                console.log('💡 Crie o documento: Firestore > config > admin > senha: "sua_senha_segura"');
+                console.log('⚠️ Documento NÃO EXISTE no Firestore');
+                console.log('💡 Crie o documento: Firestore > adminConfig > auth > password: "sua_senha_segura"');
             }
         } catch (error) {
             console.error('❌ Erro ao buscar senha admin do Firebase:', error.message);
