@@ -277,24 +277,28 @@
     </div>
     
     <script>
-        // PWA - Redirecionamento automático para totem salvo
-        const savedTotemId = localStorage.getItem('totemId');
-        
-        if (savedTotemId) {
-            console.log(' Redirecionando automaticamente para dashboard:', savedTotemId);
-            window.location.href = '/cliente/dashboard/' + savedTotemId;
-        }
-        
         // PWA - Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(registration => {
-                        console.log(' Service Worker registrado:', registration.scope);
+                        console.log('✅ Service Worker registrado:', registration.scope);
                     })
                     .catch(error => {
-                        console.log(' Falha ao registrar Service Worker:', error);
+                        console.log('❌ Falha ao registrar Service Worker:', error);
                     });
+            });
+        }
+
+        // Salvar totemId no localStorage ao submeter o formulário
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const totemId = document.getElementById('totemId').value.trim();
+                if (totemId) {
+                    localStorage.setItem('totemId', totemId);
+                    console.log('✅ TotemId salvo no localStorage:', totemId);
+                }
             });
         }
     </script>
