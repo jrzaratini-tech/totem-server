@@ -117,7 +117,7 @@ bool MQTTManager::publish(const String &topic, const String &payload, bool retai
     return client.publish(topic.c_str(), payload.c_str(), retained);
 }
 
-void MQTTManager::internalCallback(char *topic, byte *payload, unsigned int length) {
+void MQTTManager::internalCallback(char *topic, uint8_t *payload, unsigned int length) {
     String t(topic);
     String p;
     p.reserve(length);

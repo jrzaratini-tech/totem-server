@@ -21,7 +21,7 @@ private:
 
     String topicBase() const;
 
-    void internalCallback(char *topic, byte *payload, unsigned int length);
+    void internalCallback(char *topic, uint8_t *payload, unsigned int length);
 
 public:
     MQTTManager();
