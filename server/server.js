@@ -241,18 +241,14 @@ const fileFilter = (req, file, cb) => {
         'audio/wav',
         'audio/x-wav',
         'audio/mp4',
-        'audio/x-m4a',
-        'audio/aac'
+        'audio/x-m4a'
     ];
-    const allowedExt = ['.mp3', '.webm', '.ogg', '.wav', '.m4a', '.mp4', '.aac'];
     
-    const ext = path.extname(file.originalname).toLowerCase();
-    const mimetype = file.mimetype.toLowerCase();
-    
-    if (allowedTypes.includes(mimetype) || allowedExt.includes(ext)) {
+    // Com streaming HTTP, podemos aceitar diversos formatos de áudio
+    if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
         cb(null, true);
     } else {
-        cb(new Error('Apenas arquivos de áudio são permitidos!'), false);
+        cb(new Error('Formato não suportado. Use arquivos de áudio (MP3, WAV, OGG, WebM).'));
     }
 };
 
@@ -260,7 +256,7 @@ const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: { 
-        fileSize: 5 * 1024 * 1024 // 5MB
+        fileSize: 10 * 1024 * 1024 // 10MB - streaming HTTP permite arquivos maiores
     }
 });
 
