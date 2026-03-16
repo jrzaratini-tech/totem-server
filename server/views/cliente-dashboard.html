@@ -1007,9 +1007,6 @@
                 </div>
             </div>
 
-            <div class="button-group" style="margin-top: 16px;">
-                <button type="button" class="btn btn-primary" id="btnApplyConfig"><i class="fas fa-flask"></i> Testar efeitos</button>
-            </div>
         </div>
 
         <!-- CARDS INFERIORES (Totem ID, Instagram, Expiração) -->
@@ -1088,7 +1085,6 @@
         const triggerSpeedVal = document.getElementById('triggerSpeedVal');
         const triggerDuration = document.getElementById('triggerDuration');
 
-        const btnApplyConfig = document.getElementById('btnApplyConfig');
         const btnApplyVolume = document.getElementById('btnApplyVolume');
         const btnApplyIdleLed = document.getElementById('btnApplyIdleLed');
         const btnApplyTriggerLed = document.getElementById('btnApplyTriggerLed');
@@ -1547,44 +1543,6 @@
                     showAlert('✅ Efeitos de iluminação ao disparar aplicados com sucesso!', 'success');
                 } else {
                     showAlert('❌ Erro ao aplicar: ' + (result.error || 'Falha'), 'error');
-                }
-            } catch (e) {
-                showAlert('❌ Erro de conexão.', 'error');
-            } finally {
-                loading.classList.remove('active');
-            }
-        });
-
-        // Aplicar configurações (idle + trigger)
-        btnApplyConfig.addEventListener('click', async function() {
-            const payload = {
-                idle: {
-                    mode: idleMode.value,
-                    color: idleColor.value,
-                    speed: Number(idleSpeed.value),
-                    maxBrightness: Number(idleBrightness.value)
-                },
-                trigger: {
-                    mode: triggerMode.value,
-                    color: triggerColor.value,
-                    speed: 101 - Number(triggerSpeed.value),
-                    duration: Number(triggerDuration.value),
-                    maxBrightness: Number(triggerBrightness.value)
-                }
-            };
-            loading.classList.add('active');
-            showAlert('', '');
-            try {
-                const response = await fetch(`/cliente/config/${totemId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    showAlert('✅ Testando efeitos! O totem irá disparar o efeito configurado.', 'success');
-                } else {
-                    showAlert('❌ Erro ao testar: ' + (result.error || 'Falha'), 'error');
                 }
             } catch (e) {
                 showAlert('❌ Erro de conexão.', 'error');
