@@ -324,14 +324,11 @@ async function buscarSenhaAdmin() {
                 const data = doc.data();
                 console.log('Dados do documento admin encontrados');
                 
-                // Aceita tanto 'senha' quanto 'password'
-                const senhaAdmin = data.senha || data.password;
-                
-                if (senhaAdmin) {
+                if (data && data.senha) {
                     console.log('✅ Senha encontrada no Firebase');
-                    return senhaAdmin;
+                    return data.senha;
                 } else {
-                    console.log('⚠️ Documento existe mas não tem campo "senha" ou "password"');
+                    console.log('⚠️ Documento existe mas não tem campo "senha"');
                 }
             } else {
                 console.log('⚠️ Documento config/admin NÃO EXISTE no Firestore');
