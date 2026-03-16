@@ -89,6 +89,13 @@
             border-bottom: 1px solid #3d3d3d;
             vertical-align: middle;
         }
+        td a {
+            color: #fff;
+            text-decoration: none;
+        }
+        td a:hover {
+            text-decoration: underline;
+        }
         tr:last-child td {
             border-bottom: none;
         }
@@ -107,7 +114,7 @@
         }
         .btn-editar {
             background: #ffc107;
-            color: #000;
+            color: #fff;
         }
         .btn-excluir {
             background: #dc3545;
@@ -302,9 +309,7 @@
                 msg.style.display = 'block';
                 msg.textContent = '✅ Link do App copiado: ' + link;
                 
-                setTimeout(() => {
-                    msg.style.display = 'none';
-                }, 3000);
+                setTimeout(() => { msg.style.display = 'none'; }, 3000);
             }, function() {
                 alert('❌ Erro ao copiar. Selecione manualmente: ' + link);
             });
