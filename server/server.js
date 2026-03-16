@@ -862,7 +862,12 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                 console.warn('Erro ao remover temporário:', e);
             }
         } else {
-            const base = String(SERVER_URL || '').replace(/\/$/, '');
+            let base = String(SERVER_URL || '').replace(/\/$/, '');
+            // Garantir que a URL use HTTPS (ESP32 requer HTTPS para streaming)
+            if (base.startsWith('http://')) {
+                base = base.replace('http://', 'https://');
+                console.log('⚠️ Convertendo HTTP para HTTPS para compatibilidade com ESP32');
+            }
             audioUrl = `${base}/uploads/${encodeURIComponent(finalFileName)}`;
             audioData.url = audioUrl;
             audioData.storagePath = null;
