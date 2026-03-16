@@ -114,12 +114,20 @@ try {
 
 // ========== MQTT ==========
 let mqttClient = null;
+let mqttReconnectAttempts = 0;
 
 function conectarMQTT() {
     try {
-        mqttClient = mqtt.connect(`mqtt://${MQTT_BROKER}:${MQTT_PORT}`);
+        mqttClient = mqtt.connect(`mqtt://${MQTT_BROKER}:${MQTT_PORT}`, {
+            reconnectPeriod: 5000,
+            connectTimeout: 30000,
+            keepalive: 60,
+            clean: true,
+            clientId: `totem-server-${Date.now()}`
+        });
         
         mqttClient.on('connect', () => {
+            mqttReconnectAttempts = 0;
             console.log('✅ MQTT conectado ao broker HiveMQ');
             
             // Verificar se deve publicar atualização de firmware
@@ -149,6 +157,23 @@ function conectarMQTT() {
             }, 2000); // Aguarda 2s para garantir que a conexão está estável
         });
         
+        mqttClient.on('reconnect', () => {
+            mqttReconnectAttempts++;
+            console.log(`🔄 MQTT tentando reconectar... (tentativa ${mqttReconnectAttempts})`);
+        });
+        
+        mqttClient.on('close', () => {
+            console.log('⚠️ MQTT conexão fechada');
+        });
+        
+        mqttClient.on('disconnect', () => {
+            console.log('⚠️ MQTT desconectado');
+        });
+        
+        mqttClient.on('offline', () => {
+            console.log('⚠️ MQTT offline');
+        });
+        
         mqttClient.on('error', (err) => {
             console.error('❌ Erro MQTT:', err.message);
         });
@@ -163,8 +188,13 @@ conectarMQTT();
 function publicarPlay(totemId) {
     if (mqttClient && mqttClient.connected) {
         const topico = `totem/${totemId}/trigger`;
-        mqttClient.publish(topico, 'play');
-        console.log(`📤 MQTT publicado: ${topico} = play`);
+        mqttClient.publish(topico, 'play', { qos: 1 }, (err) => {
+            if (err) {
+                console.error(`❌ Erro ao publicar trigger para ${totemId}:`, err.message);
+            } else {
+                console.log(`📤 MQTT publicado: ${topico} = play`);
+            }
+        });
         return true;
     } else {
         console.warn(`⚠️ MQTT não disponível para publicar em ${totemId}`);
@@ -181,11 +211,16 @@ function notificarAtualizacaoAudio(totemId, versao) {
             timestamp: Date.now(),
             versao: versao
         });
-        mqttClient.publish(topicoAudio, mensagem, { retain: true });
-        
-        console.log(`📤 MQTT publicado: ${topicoAudio} = ${mensagem}`);
+        mqttClient.publish(topicoAudio, mensagem, { retain: true, qos: 1 }, (err) => {
+            if (err) {
+                console.error(`❌ Erro ao publicar audioUpdate para ${totemId}:`, err.message);
+            } else {
+                console.log(`📤 MQTT publicado: ${topicoAudio} = ${mensagem}`);
+            }
+        });
         return true;
     }
+    console.warn(`⚠️ MQTT não disponível para notificar áudio em ${totemId}`);
     return false;
 }
 
@@ -196,8 +231,13 @@ function notificarAtualizacaoConfig(totemId, payload) {
         const mensagem = JSON.stringify(payload);
 
         // Retained para o ESP32 receber ao reconectar
-        mqttClient.publish(topico, mensagem, { retain: true });
-        console.log(`📤 Config MQTT publicada: ${topico} = ${mensagem}`);
+        mqttClient.publish(topico, mensagem, { retain: true, qos: 1 }, (err) => {
+            if (err) {
+                console.error(`❌ Erro ao publicar configUpdate para ${totemId}:`, err.message);
+            } else {
+                console.log(`📤 Config MQTT publicada: ${topico} = ${mensagem}`);
+            }
+        });
         return true;
     }
     console.warn(`⚠️ MQTT não disponível para publicar config em ${totemId}`);
@@ -208,8 +248,13 @@ function notificarAtualizacaoConfig(totemId, payload) {
 function publicarAtualizacaoFirmware(totemId, firmwareUrl) {
     if (mqttClient && mqttClient.connected) {
         const topico = `totem/${totemId}/firmwareUpdate`;
-        mqttClient.publish(topico, firmwareUrl, { retain: true });
-        console.log(`📤 Firmware Update MQTT publicado: ${topico} = ${firmwareUrl}`);
+        mqttClient.publish(topico, firmwareUrl, { retain: true, qos: 1 }, (err) => {
+            if (err) {
+                console.error(`❌ Erro ao publicar firmwareUpdate para ${totemId}:`, err.message);
+            } else {
+                console.log(`📤 Firmware Update MQTT publicado: ${topico} = ${firmwareUrl}`);
+            }
+        });
         return true;
     }
     console.warn(`⚠️ MQTT não disponível para publicar firmware update em ${totemId}`);
@@ -611,20 +656,54 @@ app.post('/cliente/config/:id', async (req, res) => {
 
     try {
         if (db) {
-            await db.collection('totens').doc(id).set({
-                idleConfig,
-                triggerConfig,
-                volume,
-                ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            const maxRetries = 3;
+            let retries = 0;
+            let success = false;
+
+            while (!success && retries < maxRetries) {
+                try {
+                    await db.collection('totens').doc(id).set({
+                        idleConfig,
+                        triggerConfig,
+                        volume,
+                        ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    success = true;
+                } catch (dbError) {
+                    console.error(`❌ Erro ao salvar no Firestore para ${id}:`, dbError.message);
+                    retries++;
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Espera 500ms antes de tentar novamente
+                }
+            }
+
+            if (!success) {
+                console.error(`❌ Falha ao salvar no Firestore após ${maxRetries} tentativas para ${id}`);
+            }
         }
 
         // Publica configurações via MQTT em tópicos separados (retained)
         if (mqttClient && mqttClient.connected) {
-            mqttClient.publish(`totem/${id}/config/idle`, JSON.stringify(idleConfig), { retain: true });
-            mqttClient.publish(`totem/${id}/config/trigger`, JSON.stringify(triggerConfig), { retain: true });
-            mqttClient.publish(`totem/${id}/config/volume`, String(volume), { retain: true });
-            console.log(`📤 Config MQTT publicada: idle, trigger e volume para ${id}`);
+            mqttClient.publish(`totem/${id}/config/idle`, JSON.stringify(idleConfig), { retain: true, qos: 1 }, (err) => {
+                if (err) {
+                    console.error(`❌ Erro ao publicar idle MQTT para ${id}:`, err.message);
+                } else {
+                    console.log(`📤 Config Idle MQTT publicada para ${id}`);
+                }
+            });
+            mqttClient.publish(`totem/${id}/config/trigger`, JSON.stringify(triggerConfig), { retain: true, qos: 1 }, (err) => {
+                if (err) {
+                    console.error(`❌ Erro ao publicar trigger MQTT para ${id}:`, err.message);
+                } else {
+                    console.log(`📤 Config Trigger MQTT publicada para ${id}`);
+                }
+            });
+            mqttClient.publish(`totem/${id}/config/volume`, String(volume), { retain: true, qos: 1 }, (err) => {
+                if (err) {
+                    console.error(`❌ Erro ao publicar volume MQTT para ${id}:`, err.message);
+                } else {
+                    console.log(`📤 Volume MQTT publicado: ${volume} para ${id}`);
+                }
+            });
         }
 
         return res.json({
@@ -643,41 +722,7 @@ app.post('/cliente/config/:id', async (req, res) => {
     }
 });
 
-// Endpoint para cliente carregar configuração atual
-app.get('/cliente/config/:id', async (req, res) => {
-    const id = req.params.id;
-    
-    if (!id) {
-        return res.status(400).json({ error: 'ID do totem não fornecido' });
-    }
-
-    if (!db) {
-        return res.json({
-            volume: 8,
-            idle: null,
-            trigger: null,
-            message: 'Firebase não disponível'
-        });
-    }
-
-    try {
-        const doc = await db.collection('totens').doc(id).get();
-        if (!doc.exists) {
-            return res.status(404).json({ error: 'Totem não encontrado' });
-        }
-
-        const data = doc.data();
-        return res.json({
-            volume: data.volume ?? 8,
-            idle: data.idleConfig || null,
-            trigger: data.triggerConfig || null,
-            updatedAt: data.ultimaAtualizacaoConfig || null
-        });
-    } catch (error) {
-        console.error('Erro ao buscar config:', error);
-        return res.status(500).json({ error: 'Erro interno no servidor' });
-    }
-});
+// ... (restante do código)
 
 // Endpoint para atualizar apenas o volume
 app.post('/cliente/volume/:id', async (req, res) => {
@@ -690,16 +735,38 @@ app.post('/cliente/volume/:id', async (req, res) => {
 
     try {
         if (db) {
-            await db.collection('totens').doc(id).set({
-                volume,
-                ultimaAtualizacaoVolume: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            const maxRetries = 3;
+            let retries = 0;
+            let success = false;
+
+            while (!success && retries < maxRetries) {
+                try {
+                    await db.collection('totens').doc(id).set({
+                        volume,
+                        ultimaAtualizacaoVolume: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    success = true;
+                } catch (dbError) {
+                    console.error(`❌ Erro ao salvar volume no Firestore para ${id}:`, dbError.message);
+                    retries++;
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Espera 500ms antes de tentar novamente
+                }
+            }
+
+            if (!success) {
+                console.error(`❌ Falha ao salvar volume no Firestore após ${maxRetries} tentativas para ${id}`);
+            }
         }
 
         // Publica volume via MQTT (retained)
         if (mqttClient && mqttClient.connected) {
-            mqttClient.publish(`totem/${id}/config/volume`, String(volume), { retain: true });
-            console.log(`📤 Volume MQTT publicado: ${volume} para ${id}`);
+            mqttClient.publish(`totem/${id}/config/volume`, String(volume), { retain: true, qos: 1 }, (err) => {
+                if (err) {
+                    console.error(`❌ Erro ao publicar volume MQTT para ${id}:`, err.message);
+                } else {
+                    console.log(`📤 Volume MQTT publicado: ${volume} para ${id}`);
+                }
+            });
         }
 
         return res.json({
@@ -715,6 +782,8 @@ app.post('/cliente/volume/:id', async (req, res) => {
         });
     }
 });
+
+// ... (restante do código)
 
 // Endpoint para atualizar apenas LED Idle
 app.post('/cliente/led-idle/:id', async (req, res) => {
@@ -744,16 +813,38 @@ app.post('/cliente/led-idle/:id', async (req, res) => {
 
     try {
         if (db) {
-            await db.collection('totens').doc(id).set({
-                idleConfig,
-                ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            const maxRetries = 3;
+            let retries = 0;
+            let success = false;
+
+            while (!success && retries < maxRetries) {
+                try {
+                    await db.collection('totens').doc(id).set({
+                        idleConfig,
+                        ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    success = true;
+                } catch (dbError) {
+                    console.error(`❌ Erro ao salvar idle config no Firestore para ${id}:`, dbError.message);
+                    retries++;
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Espera 500ms antes de tentar novamente
+                }
+            }
+
+            if (!success) {
+                console.error(`❌ Falha ao salvar idle config no Firestore após ${maxRetries} tentativas para ${id}`);
+            }
         }
 
         // Publica configuração idle via MQTT (retained)
         if (mqttClient && mqttClient.connected) {
-            mqttClient.publish(`totem/${id}/config/idle`, JSON.stringify(idleConfig), { retain: true });
-            console.log(`📤 Config Idle MQTT publicada para ${id}`);
+            mqttClient.publish(`totem/${id}/config/idle`, JSON.stringify(idleConfig), { retain: true, qos: 1 }, (err) => {
+                if (err) {
+                    console.error(`❌ Erro ao publicar idle MQTT para ${id}:`, err.message);
+                } else {
+                    console.log(`📤 Config Idle MQTT publicada para ${id}`);
+                }
+            });
         }
 
         return res.json({
@@ -769,6 +860,8 @@ app.post('/cliente/led-idle/:id', async (req, res) => {
         });
     }
 });
+
+// ... (restante do código)
 
 // Endpoint para atualizar apenas LED Trigger
 app.post('/cliente/led-trigger/:id', async (req, res) => {
@@ -800,16 +893,38 @@ app.post('/cliente/led-trigger/:id', async (req, res) => {
 
     try {
         if (db) {
-            await db.collection('totens').doc(id).set({
-                triggerConfig,
-                ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            const maxRetries = 3;
+            let retries = 0;
+            let success = false;
+
+            while (!success && retries < maxRetries) {
+                try {
+                    await db.collection('totens').doc(id).set({
+                        triggerConfig,
+                        ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    success = true;
+                } catch (dbError) {
+                    console.error(`❌ Erro ao salvar trigger config no Firestore para ${id}:`, dbError.message);
+                    retries++;
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Espera 500ms antes de tentar novamente
+                }
+            }
+
+            if (!success) {
+                console.error(`❌ Falha ao salvar trigger config no Firestore após ${maxRetries} tentativas para ${id}`);
+            }
         }
 
         // Publica configuração trigger via MQTT (retained)
         if (mqttClient && mqttClient.connected) {
-            mqttClient.publish(`totem/${id}/config/trigger`, JSON.stringify(triggerConfig), { retain: true });
-            console.log(`📤 Config Trigger MQTT publicada para ${id}`);
+            mqttClient.publish(`totem/${id}/config/trigger`, JSON.stringify(triggerConfig), { retain: true, qos: 1 }, (err) => {
+                if (err) {
+                    console.error(`❌ Erro ao publicar trigger MQTT para ${id}:`, err.message);
+                } else {
+                    console.log(`📤 Config Trigger MQTT publicada para ${id}`);
+                }
+            });
         }
 
         return res.json({
