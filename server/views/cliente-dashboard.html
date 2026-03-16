@@ -1090,7 +1090,7 @@
         let mediaRecorder = null;
         let recTimerInterval = null;
         let recStartedAt = 0;
-        const MAX_RECORD_TIME = 600; // 10 minutos
+        const MAX_RECORD_TIME = 600; // 10 minutos (limite de segurança, mas o limite real é 10MB)
 
         // Função para iniciar gravação
         async function startRecording() {
@@ -1169,7 +1169,7 @@
                     const elapsed = (Date.now() - recStartedAt) / 1000;
                     if (elapsed >= MAX_RECORD_TIME) {
                         stopRecording();
-                        showAlert('⏱️ Tempo máximo atingido (10min). Enviando...', 'info');
+                        showAlert('⏱️ Gravação muito longa. Enviando...', 'info');
                     } else {
                         const mins = Math.floor(elapsed / 60);
                         const secs = Math.floor(elapsed % 60);
