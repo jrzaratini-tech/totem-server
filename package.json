@@ -1,7 +1,7 @@
 {
   "name": "totem-server",
-  "version": "4.0.0",
-  "description": "Servidor de Totens Interativos IoT com áudio personalizado",
+  "version": "4.2.1",
+  "description": "Servidor de Totens Interativos IoT com validação robusta de áudio em múltiplas camadas",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",

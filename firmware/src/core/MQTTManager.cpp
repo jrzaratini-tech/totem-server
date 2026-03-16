@@ -19,6 +19,8 @@ String MQTTManager::topicAudioUpdate() const { return topicBase() + "/audioUpdat
 String MQTTManager::topicAudioConfig() const { return topicBase() + "/audioConfig"; }
 String MQTTManager::topicFirmwareUpdate() const { return topicBase() + "/firmwareUpdate"; }
 String MQTTManager::topicStatus() const { return topicBase() + "/status"; }
+String MQTTManager::topicHeartbeat() const { return topicBase() + "/heartbeat"; }
+String MQTTManager::topicDownloadStatus() const { return topicBase() + "/downloadStatus"; }
 
 void MQTTManager::begin(const String &totemId, const String &deviceToken) {
     this->totemId = totemId;
@@ -133,4 +135,35 @@ void MQTTManager::onMessage(std::function<void(const String&, const String&)> cb
 
 bool MQTTManager::isConnected() {
     return connected && client.connected();
+}
+
+void MQTTManager::publishHeartbeat() {
+    if (!isConnected()) return;
+    
+    String payload = "{\"timestamp\":" + String(millis()) + ",\"heap\":" + String(ESP.getFreeHeap()) + "}";
+    publish(topicHeartbeat(), payload, false);
+    Serial.println("[MQTT] Heartbeat published");
+}
+
+void MQTTManager::publishDownloadStatus(const String& status, const String& message) {
+    if (!isConnected()) return;
+    
+    String payload = "{\"status\":\"" + status + "\"";
+    if (message.length() > 0) {
+        payload += ",\"message\":\"" + message + "\"";
+    }
+    payload += ",\"timestamp\":" + String(millis()) + "}";
+    
+    publish(topicDownloadStatus(), payload, false);
+    Serial.printf("[MQTT] Download status published: %s\n", status.c_str());
+}
+
+void MQTTManager::publishConfigConfirmation(const String& configType) {
+    if (!isConnected()) return;
+    
+    String payload = "{\"configType\":\"" + configType + "\",\"received\":true,\"timestamp\":" + String(millis()) + "}";
+    String topic = topicBase() + "/configConfirm";
+    
+    publish(topic, payload, false);
+    Serial.printf("[MQTT] Config confirmation published: %s\n", configType.c_str());
 }

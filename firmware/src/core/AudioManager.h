@@ -7,6 +7,8 @@
 #include <ArduinoJson.h>
 #include "AudioWrapper.h"
 
+class MQTTManager;
+
 class AudioManager {
 private:
     Audio audio;
@@ -21,6 +23,7 @@ private:
     String lastUrl;
     int currentVersion;
     unsigned long downloadStartMs;
+    MQTTManager* mqttManager;
     bool downloadFileToTemp(const String &url);
     bool activateTempAsCurrent();
     bool validateMP3File(const char* filename);
@@ -30,6 +33,7 @@ private:
 public:
     AudioManager();
     void begin(const String &totemId, const String &deviceToken);
+    void setMQTTManager(MQTTManager* mqtt);
     void loop();
     void play();
     void stop();

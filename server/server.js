@@ -1,7 +1,7 @@
 // ============================================
-// TOTEM INTERATIVO IoT v4.1.0 - CORRIGIDO
-// Servidor Principal com Suporte a Áudio Personalizado
-// Firebase + MQTT + Upload de MP3 + OTA
+// TOTEM INTERATIVO IoT v4.2.1 - SISTEMA ROBUSTO
+// Servidor com Validação de Áudio em Múltiplas Camadas
+// Firebase + MQTT + Upload de MP3 + OTA + FFprobe
 // ============================================
 
 const express = require('express');
@@ -707,7 +707,7 @@ app.get('/api/config/:id', async (req, res) => {
     }
 });
 
-// ========== ROTA DE UPLOAD CORRIGIDA ==========
+// ========== ROTA DE UPLOAD COM VALIDAÇÃO RIGOROSA (v4.2.1) ==========
 app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
         return res.status(401).json({ error: 'Não autorizado' });
@@ -729,6 +729,47 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
     let finalFileName = null;
 
     try {
+        // ========== CAMADA 2: VALIDAÇÃO SERVIDOR (FFPROBE) ==========
+        console.log('🔍 Validando arquivo com ffprobe...');
+        
+        await new Promise((resolve, reject) => {
+            ffmpeg.ffprobe(file.path, (err, metadata) => {
+                if (err) {
+                    console.error('❌ FFprobe falhou:', err.message);
+                    reject(new Error('Arquivo inválido ou corrompido'));
+                    return;
+                }
+                
+                // Verificar se tem stream de áudio
+                const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+                if (!audioStream) {
+                    console.error('❌ Arquivo não contém stream de áudio');
+                    reject(new Error('Arquivo não contém áudio'));
+                    return;
+                }
+                
+                // Verificar codec (deve ser MP3 ou conversível)
+                const codecsSuportados = ['mp3', 'aac', 'vorbis', 'opus', 'pcm_s16le'];
+                if (!codecsSuportados.includes(audioStream.codec_name)) {
+                    console.error(`❌ Codec não suportado: ${audioStream.codec_name}`);
+                    reject(new Error(`Codec não suportado: ${audioStream.codec_name}. Use MP3, AAC, OGG ou WAV.`));
+                    return;
+                }
+                
+                // Verificar duração (máx 60s)
+                const duracao = metadata.format.duration;
+                if (duracao > 60) {
+                    console.error(`❌ Duração excede 60s: ${Math.round(duracao)}s`);
+                    reject(new Error(`Duração excede 60s (${Math.round(duracao)}s)`));
+                    return;
+                }
+                
+                console.log(`✅ Validação ffprobe OK: codec=${audioStream.codec_name}, duração=${Math.round(duracao)}s`);
+                resolve();
+            });
+        });
+        
+        // Se passou na validação, prosseguir com conversão/upload
         const storagePodeSerUsado = !!bucket;
 
         if (storagePodeSerUsado && storageDisponivel === null) {
@@ -745,7 +786,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
         }
 
         const usarFirebaseStorage = storagePodeSerUsado && storageDisponivel !== false;
-        
+
         const ext = path.extname(file.filename).toLowerCase();
         finalFilePath = file.path;
         finalFileName = file.filename;
@@ -789,13 +830,13 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
             filename: finalFileName,
             mimetype: 'audio/mpeg'
         };
- 
+
         let audioUrl = null;
 
         if (usarFirebaseStorage) {
             const destination = `audios/${id}/${finalFileName}`;
             console.log(`📤 Enviando para Firebase Storage: ${destination}`);
-            
+
             await bucket.upload(finalFilePath, { 
                 destination,
                 metadata: {
@@ -807,16 +848,16 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                     }
                 }
             });
-            
+
             const fileRef = bucket.file(destination);
             await fileRef.makePublic();
-            
+
             audioUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
             audioData.url = audioUrl;
             audioData.storagePath = destination;
-            
+
             console.log(`✅ Áudio público em: ${audioUrl}`);
-            
+
             // Limpa arquivo temporário após upload bem-sucedido
             try {
                 fs.removeSync(finalFilePath);
@@ -842,7 +883,7 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
 
         // NOTIFICA O ESP32 IMEDIATAMENTE
         notificarAtualizacaoAudio(id, audioData.dataUpload);
-        
+
         return res.json({
             success: true,
             message: 'Áudio enviado com sucesso',
@@ -853,24 +894,39 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                 versao: audioData.dataUpload
             }
         });
-        
+
     } catch (error) {
         console.error('❌ Erro no upload:', error);
-        if (error && error.code === 404 && String(error.message || '').toLowerCase().includes('bucket')) {
-            console.error(`❌ Firebase Storage retornou 404 (bucket não existe). Bucket configurado: ${bucket && bucket.name ? bucket.name : 'desconhecido'}`);
-        }
+
+        // Remover arquivo inválido imediatamente
         try {
-            if (file && file.path && fs.existsSync(file.path)) fs.removeSync(file.path);
+            if (file && file.path && fs.existsSync(file.path)) {
+                fs.removeSync(file.path);
+                console.log('🗑️ Arquivo inválido removido');
+            }
         } catch (e) {
             console.warn('Erro ao limpar arquivo temporário (file.path) após falha:', e);
         }
         try {
-            if (typeof finalFilePath === 'string' && fs.existsSync(finalFilePath)) fs.removeSync(finalFilePath);
+            if (typeof finalFilePath === 'string' && fs.existsSync(finalFilePath)) {
+                fs.removeSync(finalFilePath);
+            }
         } catch (e) {
             console.warn('Erro ao limpar arquivo temporário (finalFilePath) após falha:', e);
         }
-        return res.status(500).json({ 
-            error: 'Erro interno: ' + error.message 
+
+        // Retornar erro específico
+        if (error && error.code === 404 && String(error.message || '').toLowerCase().includes('bucket')) {
+            console.error(`❌ Firebase Storage retornou 404 (bucket não existe). Bucket configurado: ${bucket && bucket.name ? bucket.name : 'desconhecido'}`);
+            return res.status(500).json({ 
+                success: false,
+                error: 'Erro no Firebase Storage' 
+            });
+        }
+
+        return res.status(400).json({ 
+            success: false,
+            error: error.message || 'Arquivo de áudio inválido'
         });
     }
 });
@@ -1174,7 +1230,7 @@ app.post('/admin/disparar/:id', adminAuth, async (req, res) => {
 
 app.listen(PORT, () => {
     console.log('\n' + '='.repeat(50));
-    console.log('🚀 TOTEM SERVER v4.1.0 CORRIGIDO rodando!');
+    console.log('🚀 TOTEM SERVER v4.2.1 - SISTEMA ROBUSTO');
     console.log('='.repeat(50));
     console.log(`📡 Porta: ${PORT}`);
     console.log(`🌐 URL: ${SERVER_URL}`);

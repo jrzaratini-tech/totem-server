@@ -1265,29 +1265,97 @@
         }
 
         // Upload de arquivo
-        fileInput.addEventListener('change', function(e) {
+        fileInput.addEventListener('change', async function(e) {
             const file = e.target.files[0];
-            if (file) {
-                if (file.size > 5 * 1024 * 1024) {
-                    showAlert('❌ Arquivo muito grande! Máximo 5MB.', 'error');
-                    fileInput.value = '';
-                    fileInfo.textContent = 'Nenhum selecionado';
-                    audioPreview.style.display = 'none';
-                    return;
-                }
+            if (!file) {
+                fileInfo.textContent = 'Nenhum selecionado';
+                audioPreview.style.display = 'none';
+                return;
+            }
+
+            // Validação 1: Tamanho (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showAlert('❌ Arquivo muito grande! Máximo 5MB.', 'error');
+                fileInput.value = '';
+                fileInfo.textContent = 'Nenhum selecionado';
+                audioPreview.style.display = 'none';
+                return;
+            }
+
+            // Desabilitar botão durante validação
+            btnUpload.disabled = true;
+            btnUpload.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validando arquivo...';
+            fileInfo.textContent = '🔍 Validando...';
+            showAlert('🔍 Validando arquivo de áudio...', 'info');
+
+            // Validação 2: Teste real de carregamento no navegador
+            const isValid = await validarArquivoAntesDeEnviar(file);
+
+            if (isValid) {
+                // Arquivo válido: mostrar preview e habilitar upload
                 fileInfo.textContent = `📁 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
                 const url = URL.createObjectURL(file);
                 const sourceEl = audioPlayer.querySelector('source');
                 sourceEl.src = url;
-                sourceEl.type = file.type || sourceEl.type;
+                sourceEl.type = file.type || 'audio/mpeg';
                 audioPlayer.load();
                 audioPreview.style.display = 'flex';
-                showAlert('', '');
+                btnUpload.disabled = false;
+                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar arquivo';
+                showAlert('✅ Arquivo válido! Pronto para enviar.', 'success');
             } else {
-                fileInfo.textContent = 'Nenhum selecionado';
+                // Arquivo inválido: rejeitar
+                fileInput.value = '';
+                fileInfo.textContent = 'Arquivo inválido - selecione outro';
                 audioPreview.style.display = 'none';
+                btnUpload.disabled = false;
+                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar arquivo';
             }
         });
+
+        // Função de validação robusta (3 camadas no frontend)
+        async function validarArquivoAntesDeEnviar(file) {
+            return new Promise((resolve) => {
+                const audio = new Audio();
+                const url = URL.createObjectURL(file);
+                
+                // Timeout de segurança (5s)
+                const timeoutId = setTimeout(() => {
+                    URL.revokeObjectURL(url);
+                    showAlert('❌ Arquivo muito complexo ou inválido (timeout)', 'error');
+                    resolve(false);
+                }, 5000);
+                
+                // Sucesso: áudio carregou completamente
+                audio.addEventListener('canplaythrough', () => {
+                    clearTimeout(timeoutId);
+                    URL.revokeObjectURL(url);
+                    
+                    // Verificar duração real
+                    if (audio.duration > 60) {
+                        showAlert(`❌ Áudio muito longo (${Math.round(audio.duration)}s). Máximo 60s`, 'error');
+                        resolve(false);
+                    } else if (isNaN(audio.duration) || audio.duration <= 0) {
+                        showAlert('❌ Não foi possível determinar a duração do áudio', 'error');
+                        resolve(false);
+                    } else {
+                        console.log(`✅ Validação frontend OK: duração=${Math.round(audio.duration)}s`);
+                        resolve(true);
+                    }
+                }, { once: true });
+                
+                // Falha: arquivo inválido ou corrompido
+                audio.addEventListener('error', () => {
+                    clearTimeout(timeoutId);
+                    URL.revokeObjectURL(url);
+                    showAlert('❌ Arquivo de áudio inválido ou corrompido', 'error');
+                    resolve(false);
+                }, { once: true });
+                
+                audio.src = url;
+                audio.load();
+            });
+        }
 
         stopPreviewBtn.addEventListener('click', function() {
             audioPlayer.pause();

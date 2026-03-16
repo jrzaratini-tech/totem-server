@@ -7,7 +7,7 @@
 #define TOTEM_ID                "printpixel"
 #define DEFAULT_TOTEM_ID        TOTEM_ID
 #define FORCE_TOTEM_ID          TOTEM_ID
-#define FIRMWARE_VERSION        "4.1.0"
+#define FIRMWARE_VERSION        "4.2.1"
 #define SERVER_URL              "https://totem-server.onrender.com"
 
 // ========== CONFIGURAÇÕES DE REDE ==========
@@ -38,13 +38,13 @@
 // Failsafe
 #define FAILSAFE_BRIGHTNESS     30
 
-// ========== HARDWARE - LEDS ==========
-#define NUM_LEDS_MAIN           199
-#define NUM_LEDS_HEART          9
+// ========== HARDWARE - LEDS (v4.2.1 - PINAGEM DEFINITIVA) ==========
+#define NUM_LEDS_MAIN           200     // Fita principal WS2812B (GPIO 8)
+#define NUM_LEDS_HEART          9       // Batimento cardíaco (9 LEDs - GPIO 9)
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
-#define LED_MAIN_PIN            1       // ESP32-S3 - Longe do I2S para evitar interferência
-#define LED_HEART_PIN           9       // ESP32-S3 safe GPIO (não usado fisicamente)
+#define LED_MAIN_PIN            8       // GPIO 8 - Fita principal (200 LEDs)
+#define LED_HEART_PIN           9       // GPIO 9 - LEDs do coração (9 LEDs, efeito fixo)
 #define MAX_BRIGHTNESS          180
 #define DEFAULT_BRIGHTNESS      120
 
@@ -63,19 +63,21 @@
 #define PIN_BTN_CORACAO         10      // Mesmo que trigger
 #define PIN_BTN_CORACAO_ALIAS   PIN_BTN_TRIGGER
 
-// ========== HARDWARE - ÁUDIO I2S ==========
+// ========== HARDWARE - ÁUDIO I2S (v4.2.1 - OTIMIZADO) ==========
 // MAX98357A DAC Configuration
-#define I2S_BCLK                6       // ESP32-S3 → MAX98357A BCLK
-#define I2S_LRC                 7       // ESP32-S3 → MAX98357A LRC
-#define I2S_DOUT                5       // ESP32-S3 → MAX98357A DIN
-// GAIN: GND=9dB, Flutuante=12dB, 3.3V=15dB (RECOMENDADO: conectar ao 3.3V)
+#define I2S_BCLK                6       // GPIO 6 - Bit Clock
+#define I2S_LRC                 7       // GPIO 7 - Left/Right Clock
+#define I2S_DOUT                5       // GPIO 5 - Data Out para MAX98357A
+// GAIN: GND=9dB, Flutuante=12dB, 3.3V=15dB (RECOMENDADO: conectar ao GND = 9dB fixo)
 
 #define AUDIO_SAMPLE_RATE       44100
 #define AUDIO_BITS_PER_SAMPLE   16
 #define AUDIO_CHANNELS          2
 
-#define I2S_DMA_BUFFER_COUNT    8
+// ⚡ BUFFERS OTIMIZADOS (evita travamentos)
+#define I2S_DMA_BUFFER_COUNT    16      // Aumentado para double buffering
 #define I2S_DMA_BUFFER_SIZE     1024
+#define AUDIO_PREALLOC_SIZE     4096    // Pré-alocação de buffer
 
 #define DEFAULT_VOLUME          10      // Volume máximo por padrão
 #define MIN_VOLUME              0
@@ -100,7 +102,8 @@
 #define STATUS_INTERVAL         60000
 #define DOWNLOAD_TIMEOUT        300000
 #define OTA_TIMEOUT             300000
-#define MAX_AUDIO_SIZE          (8 * 1024 * 1024)
+#define MAX_AUDIO_SIZE          (5 * 1024 * 1024)  // 5MB máximo (validado em múltiplas camadas)
+#define DOWNLOAD_BUFFER_SIZE    2048                // Buffer de download
 
 // ========== TOPICS MQTT ==========
 // Os tópicos são montados em runtime com o TOTEM_ID provisionado.

@@ -1,4 +1,5 @@
 #include "core/AudioManager.h"
+#include "core/MQTTManager.h"
 #include "Config.h"
 #include <WiFiClientSecure.h>
 #include <esp_task_wdt.h>
@@ -16,7 +17,12 @@ AudioManager::AudioManager() {
     lastMetricsLog = 0;
     samplesProcessed = 0;
     clippedSamples = 0;
+    mqttManager = nullptr;
     gAudioManagerInstance = this;
+}
+
+void AudioManager::setMQTTManager(MQTTManager* mqtt) {
+    mqttManager = mqtt;
 }
 
 void AudioManager::audio_info(const char *info) {
@@ -377,25 +383,55 @@ bool AudioManager::activateTempAsCurrent() {
         return false;
     }
 
-    // Validate downloaded file before activating
+    // ========== CAMADA 3: VALIDAÇÃO FIRMWARE (PÓS-DOWNLOAD) ==========
+    // Valida integridade do MP3 antes de substituir o áudio atual
+    // Se inválido: mantém áudio anterior e deleta o corrompido
+    Serial.println("[Audio] ========================================");
+    Serial.println("[Audio] VALIDAÇÃO PÓS-DOWNLOAD (Camada 3)");
+    Serial.println("[Audio] ========================================");
+    
     if (!validateMP3File(AUDIO_TEMP_FILENAME)) {
-        Serial.println("[Audio] Downloaded file validation failed - corrupted MP3");
+        Serial.println("[Audio] ❌ VALIDAÇÃO FALHOU - Arquivo MP3 corrompido");
+        Serial.println("[Audio] 🔄 Mantendo áudio anterior (fallback automático)");
+        
+        // Publicar falha de validação via MQTT
+        if (mqttManager) {
+            mqttManager->publishDownloadStatus("validation_failed", "Corrupted MP3 file, keeping previous audio");
+        }
+        
         SPIFFS.remove(AUDIO_TEMP_FILENAME);
         return false;
     }
+    
+    Serial.println("[Audio] ✅ Validação OK - Arquivo MP3 íntegro");
+    
+    // Publicar status de sucesso via MQTT
+    if (mqttManager) {
+        mqttManager->publishDownloadStatus("validated", "MP3 file validated successfully");
+    }
 
+    // Backup: remove áudio antigo apenas após validação bem-sucedida
     if (SPIFFS.exists(AUDIO_FILENAME)) {
+        Serial.println("[Audio] Removendo áudio anterior...");
         SPIFFS.remove(AUDIO_FILENAME);
     }
 
+    // Renomeia .tmp para .mp3 (só se válido)
     bool ok = SPIFFS.rename(AUDIO_TEMP_FILENAME, AUDIO_FILENAME);
     if (!ok) {
-        Serial.println("[Audio] Rename failed");
+        Serial.println("[Audio] ❌ Falha ao renomear arquivo");
         SPIFFS.remove(AUDIO_TEMP_FILENAME);
         return false;
     }
 
-    Serial.println("[Audio] Activated");
+    Serial.println("[Audio] ✅ Áudio ativado com sucesso");
+    Serial.println("[Audio] ========================================");
+    
+    // Publicar confirmação de download bem-sucedido via MQTT
+    if (mqttManager) {
+        mqttManager->publishDownloadStatus("success", "Audio file downloaded and activated");
+    }
+    
     return true;
 }
 
@@ -487,15 +523,29 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         return true;
     }
 
+    if (mqttManager) {
+        mqttManager->publishDownloadStatus("downloading", "Starting audio download");
+    }
+    
     if (!downloadFileToTemp(url)) {
         downloading = false;
         if (outError) *outError = "download_failed";
+        
+        if (mqttManager) {
+            mqttManager->publishDownloadStatus("failed", "Download failed");
+        }
+        
         return false;
     }
 
     if (!activateTempAsCurrent()) {
         downloading = false;
         if (outError) *outError = "activate_failed";
+        
+        if (mqttManager) {
+            mqttManager->publishDownloadStatus("failed", "Activation failed");
+        }
+        
         return false;
     }
 

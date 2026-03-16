@@ -45,8 +45,15 @@ public:
     String topicAudioConfig() const;
     String topicFirmwareUpdate() const;
     String topicStatus() const;
+    String topicHeartbeat() const;
+    String topicDownloadStatus() const;
 
     void onMessage(std::function<void(const String&, const String&)> cb);
+    
+    // v4.2.1 - Confirmações e heartbeat
+    void publishHeartbeat();
+    void publishDownloadStatus(const String& status, const String& message = "");
+    void publishConfigConfirmation(const String& configType);
 };
 
 #endif
