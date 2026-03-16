@@ -86,12 +86,8 @@ static void setupButtonCallbacks() {
 
     buttonManager.onButtonCoracao([](bool longPress) {
         (void)longPress;
-        if (!stateMachine.canPlay()) return;
-        if (!stateMachine.setState(PLAYING)) return;
-
-        ledEngine.startEffect(configManager.getEffectConfig());
-        audioManager.play();
-        playEndMs = millis() + (unsigned long)configManager.getEffectConfig().duration * 1000UL;
+        Serial.println("[MAIN] Heartbeat button pressed - triggering 5-second heartbeat effect on main strip");
+        ledEngine.triggerHeartbeatEffect(5000);
     });
 
     buttonManager.onButtonHeartbeat([](bool longPress) {
@@ -412,7 +408,7 @@ void setup() {
     otaManager.begin();
     Serial.println("[BOOT] OTA manager initialized");
 
-    heartbeatLED.begin(1, 2);
+    heartbeatLED.begin(9, 9);
     Serial.println("[BOOT] Standalone heartbeat LED initialized");
 
     stateMachine.setState(IDLE);

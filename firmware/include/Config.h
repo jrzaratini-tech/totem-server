@@ -75,7 +75,6 @@
 #define DEFAULT_VOLUME          10
 #define MIN_VOLUME              0
 #define MAX_VOLUME              10
-#define MAX98357A_GAIN_DB       15
 #define AUDIO_DIAGNOSTICS       1
 #define AUDIO_TEST_TONE_FREQ    1000
 #define AUDIO_TEST_TONE_DUR     5

@@ -67,7 +67,7 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     Serial.printf("[Audio] BCLK (Bit Clock):   GPIO%d → MAX98357A BCLK\n", I2S_BCLK);
     Serial.printf("[Audio] LRC (Word Select):  GPIO%d → MAX98357A LRC\n", I2S_LRC);
     Serial.printf("[Audio] DOUT (Data Out):    GPIO%d → MAX98357A DIN\n", I2S_DOUT);
-    Serial.println("[Audio] GAIN:               GND (9dB fixed)");
+    Serial.println("[Audio] GAIN:               Floating (12dB)");
     Serial.printf("[Audio] Sample Rate:        %d Hz\n", AUDIO_SAMPLE_RATE);
     Serial.printf("[Audio] Bit Depth:          %d-bit\n", AUDIO_BITS_PER_SAMPLE);
     Serial.printf("[Audio] Channels:           %d (Stereo)\n", AUDIO_CHANNELS);
@@ -155,14 +155,14 @@ void AudioManager::play() {
     Serial.println("[Audio] STARTING PLAYBACK");
     
     if (!SPIFFS.exists(AUDIO_FILENAME)) {
-        Serial.println("[Audio] ✗ File not found: " AUDIO_FILENAME);
+        Serial.println("[Audio] File not found: " AUDIO_FILENAME);
         Serial.println("[Audio] ========================================");
         return;
     }
     
     File f = SPIFFS.open(AUDIO_FILENAME, FILE_READ);
     if (!f) {
-        Serial.println("[Audio] ✗ Failed to open file");
+        Serial.println("[Audio] Failed to open file");
         Serial.println("[Audio] ========================================");
         return;
     }
@@ -174,7 +174,7 @@ void AudioManager::play() {
     
     // Validate MP3 file before attempting playback
     if (!validateMP3File(AUDIO_FILENAME)) {
-        Serial.println("[Audio] ✗ MP3 validation failed - file is corrupted");
+        Serial.println("[Audio] MP3 validation failed - file is corrupted");
         Serial.println("[Audio] Deleting corrupted file...");
         SPIFFS.remove(AUDIO_FILENAME);
         Serial.println("[Audio] ========================================");
@@ -188,8 +188,8 @@ void AudioManager::play() {
     clippedSamples = 0;
     lastMetricsLog = millis();
     
-    Serial.println("[Audio] >>> Calling audio.connecttoFS() - this may take several seconds...");
-    Serial.printf("[Audio] >>> Heap before connecttoFS: %d bytes\n", ESP.getFreeHeap());
+    Serial.println("[Audio] Calling audio.connecttoFS() - this may take several seconds...");
+    Serial.printf("[Audio] Heap before connecttoFS: %d bytes\n", ESP.getFreeHeap());
     unsigned long connectStart = millis();
     
     // Feed watchdog during long operation
@@ -201,8 +201,8 @@ void AudioManager::play() {
     esp_task_wdt_reset();
     
     unsigned long connectDuration = millis() - connectStart;
-    Serial.printf("[Audio] >>> connecttoFS completed in %lu ms\n", connectDuration);
-    Serial.printf("[Audio] >>> Heap after connecttoFS: %d bytes\n", ESP.getFreeHeap());
+    Serial.printf("[Audio] connecttoFS completed in %lu ms\n", connectDuration);
+    Serial.printf("[Audio] Heap after connecttoFS: %d bytes\n", ESP.getFreeHeap());
     
     if (connectDuration > 10000) {
         Serial.printf("[Audio] WARNING: connecttoFS took %lu ms (>10s)\n", connectDuration);
@@ -217,7 +217,7 @@ void AudioManager::play() {
         Serial.println("[Audio]   1. MAX98357A power (VIN = 5V, GND connected)");
         Serial.println("[Audio]   2. I2S connections (BCLK=GPIO6, LRC=GPIO7, DIN=GPIO5)");
         Serial.println("[Audio]   3. Speaker connected (4-8Ω between OUT+ and OUT-)");
-        Serial.println("[Audio]   4. GAIN pin (GND=9dB, Float=12dB, 3.3V=15dB)");
+        Serial.println("[Audio]   4. GAIN pin: Floating (12dB gain)");
         Serial.printf("[Audio]   5. Volume level: %d/21 (library scale)\n", audio.getVolume());
         Serial.println("[Audio] ========================================");
     } else {
@@ -405,8 +405,8 @@ bool AudioManager::activateTempAsCurrent() {
     Serial.println("[Audio] ========================================");
     
     if (!validateMP3File(AUDIO_TEMP_FILENAME)) {
-        Serial.println("[Audio] ❌ VALIDAÇÃO FALHOU - Arquivo MP3 corrompido");
-        Serial.println("[Audio] 🔄 Mantendo áudio anterior (fallback automático)");
+        Serial.println("[Audio] VALIDAÇÃO FALHOU - Arquivo MP3 corrompido");
+        Serial.println("[Audio] Mantendo áudio anterior (fallback automático)");
         
         // Publicar falha de validação via MQTT
         if (mqttManager) {
@@ -417,7 +417,7 @@ bool AudioManager::activateTempAsCurrent() {
         return false;
     }
     
-    Serial.println("[Audio] ✅ Validação OK - Arquivo MP3 íntegro");
+    Serial.println("[Audio] Validação OK - Arquivo MP3 íntegro");
     
     // Publicar status de sucesso via MQTT
     if (mqttManager) {
@@ -433,12 +433,12 @@ bool AudioManager::activateTempAsCurrent() {
     // Renomeia .tmp para .mp3 (só se válido)
     bool ok = SPIFFS.rename(AUDIO_TEMP_FILENAME, AUDIO_FILENAME);
     if (!ok) {
-        Serial.println("[Audio] ❌ Falha ao renomear arquivo");
+        Serial.println("[Audio] Falha ao renomear arquivo");
         SPIFFS.remove(AUDIO_TEMP_FILENAME);
         return false;
     }
 
-    Serial.println("[Audio] ✅ Áudio ativado com sucesso");
+    Serial.println("[Audio] Áudio ativado com sucesso");
     Serial.println("[Audio] ========================================");
     
     // Publicar confirmação de download bem-sucedido via MQTT
@@ -614,7 +614,7 @@ void AudioManager::playTestTone(int durationMs) {
     Serial.printf("[Audio]    - BCLK (GPIO%d): ~1.4 MHz square wave\n", I2S_BCLK);
     Serial.printf("[Audio]    - LRC (GPIO%d): 44.1 kHz square wave\n", I2S_LRC);
     Serial.printf("[Audio]    - DOUT (GPIO%d): Variable data during playback\n", I2S_DOUT);
-    Serial.println("[Audio]    - GAIN: Connected to GND (9dB fixed gain)");
+    Serial.println("[Audio]    - GAIN: Floating (12dB gain)");
     Serial.println("[Audio] 4. MAX98357A connections:");
     Serial.println("[Audio]    - VIN: 5V power supply");
     Serial.println("[Audio]    - GND: Ground");

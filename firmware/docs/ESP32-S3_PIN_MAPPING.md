@@ -39,7 +39,7 @@ Este documento descreve o mapeamento de pinos adaptado do ESP32 original para o 
 | BCLK (Bit Clock) | GPIO27 | **GPIO6** | Clock de bit I2S |
 | LRC (Word Select) | GPIO25 | **GPIO7** | Word select / LRCLK |
 | DOUT (Data Out) | GPIO26 | **GPIO5** | Saída de dados |
-| GAIN | - | **GND** | Conectar ao GND (9dB fixo) |
+| GAIN | - | **Flutuante** | Deixar desconectado (12dB) |
 
 #### SD Card (Opcional)
 | Função | ESP32 Original | ESP32-S3 | Notas |
@@ -137,7 +137,7 @@ pio device monitor -b 115200
 - **Solução**: Verifique conexões nos GPIO8 e GPIO9
 
 ### Problema: Áudio não funciona
-- **Solução**: Verifique conexões I2S nos GPIO5-7 e GAIN conectado ao GND
+- **Solução**: Verifique conexões I2S nos GPIO5-7 (GAIN deve estar flutuante para 12dB)
 
 ## Referências
 

@@ -17,10 +17,8 @@ public:
     void begin(int ledCount, int pin) {
         numLeds = ledCount;
         leds = new CRGB[numLeds];
-        if (pin == 1) {
-            FastLED.addLeds<WS2812B, 1, GRB>(leds, numLeds).setCorrection(TypicalLEDStrip);
-        } else if (pin == 2) {
-            FastLED.addLeds<WS2812B, 2, GRB>(leds, numLeds).setCorrection(TypicalLEDStrip);
+        if (pin == 9) {
+            FastLED.addLeds<WS2812B, 9, GRB>(leds, numLeds).setCorrection(TypicalLEDStrip);
         }
         FastLED.setBrightness(255);
         lastBeat = millis();
