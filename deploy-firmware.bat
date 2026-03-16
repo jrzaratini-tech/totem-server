@@ -19,7 +19,7 @@ cd ..
 REM Copiar .bin para pasta pública
 echo.
 echo [2/4] Copiando firmware para servidor...
-copy /Y "firmware\.pio\build\esp32-s3-devkitc-1\firmware.bin" "server\public\firmware\firmware-v4.1.0-led205.bin"
+copy /Y "firmware\.pio\build\esp32-s3-devkitc-1\firmware.bin" "server\public\firmware\firmware-v4.2.1.bin"
 
 REM Habilitar auto-publish no config
 echo.
@@ -36,7 +36,7 @@ if "%msg%"=="" (
 )
 
 git add firmware/
-git add server/public/firmware/firmware-v4.1.0-led205.bin
+git add server/public/firmware/firmware-v4.2.1.bin
 git add server/firmware-config.json
 git commit -m "%msg%"
 git push

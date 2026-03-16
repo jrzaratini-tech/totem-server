@@ -1228,7 +1228,7 @@ app.post('/admin/disparar/:id', adminAuth, async (req, res) => {
 
 // ========== INICIAR SERVIDOR ==========
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log('\n' + '='.repeat(50));
     console.log('🚀 TOTEM SERVER v4.2.1 - SISTEMA ROBUSTO');
     console.log('='.repeat(50));
@@ -1240,3 +1240,8 @@ app.listen(PORT, () => {
     console.log(`🔥 Firebase: ${firebaseInicializado ? '✅ Conectado' : '❌ Não disponível'}`);
     console.log('='.repeat(50) + '\n');
 });
+
+// Configurar timeout do servidor para evitar conexões travadas
+server.timeout = 180000; // 3 minutos (suficiente para upload de 5MB)
+server.keepAliveTimeout = 65000; // 65 segundos
+server.headersTimeout = 70000; // 70 segundos

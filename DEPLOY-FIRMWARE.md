@@ -59,8 +59,8 @@ deploy-firmware.bat
 ```json
 {
   "autoPublish": false,
-  "firmwareVersion": "v4.1.0-led205",
-  "firmwareUrl": "https://totem-server.onrender.com/firmware/firmware-v4.1.0-led205.bin",
+  "firmwareVersion": "4.2.1",
+  "firmwareUrl": "https://totem-server.onrender.com/firmware/firmware-v4.2.1.bin",
   "totemId": "printpixel"
 }
 ```
@@ -117,7 +117,7 @@ totem-server/
 │   ├── firmware-config.json      # Configuração de auto-publish
 │   └── public/
 │       └── firmware/
-│           └── firmware-v4.1.0-led205.bin  # Firmware compilado
+│           └── firmware-v4.2.1.bin  # Firmware compilado
 └── firmware/
     └── .pio/build/esp32-s3-devkitc-1/
         └── firmware.bin          # Firmware compilado (fonte)
@@ -137,4 +137,4 @@ totem-server/
 
 ---
 
-**Versão Atual:** v4.1.0-led205 (200 LEDs principais + 5 LEDs batimento cardíaco)
+**Versão Atual:** v4.2.1 (200 LEDs principais + 9 LEDs coração)

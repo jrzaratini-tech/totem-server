@@ -1268,16 +1268,28 @@
         fileInput.addEventListener('change', async function(e) {
             const file = e.target.files[0];
             if (!file) {
-                fileInfo.textContent = 'Nenhum selecionado';
+                fileInfo.textContent = 'Apenas arquivos MP3 (máx 5MB, 60s)';
                 audioPreview.style.display = 'none';
                 return;
             }
 
-            // Validação 1: Tamanho (5MB)
+            // Validação 1: Formato (apenas MP3 recomendado)
+            const fileName = file.name.toLowerCase();
+            const isMP3 = fileName.endsWith('.mp3') || file.type === 'audio/mpeg' || file.type === 'audio/mp3';
+            
+            if (!isMP3) {
+                showAlert('⚠️ ATENÇÃO: Apenas arquivos MP3 são recomendados para melhor compatibilidade com o ESP32. Outros formatos podem falhar.', 'error');
+                fileInput.value = '';
+                fileInfo.textContent = 'Apenas arquivos MP3 (máx 5MB, 60s)';
+                audioPreview.style.display = 'none';
+                return;
+            }
+
+            // Validação 2: Tamanho (5MB)
             if (file.size > 5 * 1024 * 1024) {
                 showAlert('❌ Arquivo muito grande! Máximo 5MB.', 'error');
                 fileInput.value = '';
-                fileInfo.textContent = 'Nenhum selecionado';
+                fileInfo.textContent = 'Apenas arquivos MP3 (máx 5MB, 60s)';
                 audioPreview.style.display = 'none';
                 return;
             }
@@ -1293,7 +1305,7 @@
 
             if (isValid) {
                 // Arquivo válido: mostrar preview e habilitar upload
-                fileInfo.textContent = `📁 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                fileInfo.textContent = `✅ ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
                 const url = URL.createObjectURL(file);
                 const sourceEl = audioPlayer.querySelector('source');
                 sourceEl.src = url;
@@ -1301,12 +1313,12 @@
                 audioPlayer.load();
                 audioPreview.style.display = 'flex';
                 btnUpload.disabled = false;
-                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar arquivo';
-                showAlert('✅ Arquivo válido! Pronto para enviar.', 'success');
+                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar para ESP32';
+                showAlert('✅ Arquivo MP3 válido! Pronto para enviar ao ESP32.', 'success');
             } else {
                 // Arquivo inválido: rejeitar
                 fileInput.value = '';
-                fileInfo.textContent = 'Arquivo inválido - selecione outro';
+                fileInfo.textContent = 'Arquivo inválido - use MP3 válido';
                 audioPreview.style.display = 'none';
                 btnUpload.disabled = false;
                 btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar arquivo';
@@ -1364,27 +1376,37 @@
 
         btnUpload.addEventListener('click', async function() {
             if (!fileInput.files[0]) {
-                showAlert('❌ Selecione um arquivo MP3', 'error');
+                showAlert(' Selecione um arquivo MP3', 'error');
                 return;
             }
+            
+            const file = fileInput.files[0];
             const formData = new FormData();
-            formData.append('audio', fileInput.files[0]);
+            formData.append('audio', file);
+            
             loading.classList.add('active');
-            showAlert('', '');
+            showAlert(' Enviando para servidor... Aguarde.', 'info');
+            
             try {
                 const response = await fetch(`/cliente/audio/${totemId}`, { method: 'POST', body: formData });
                 const result = await response.json();
+                
                 if (response.ok && result.success) {
-                    showAlert('✅ Áudio enviado com sucesso!', 'success');
+                    showAlert(' Áudio enviado! O ESP32 receberá em instantes. Aguarde a sincronização...', 'success');
                     btnRemove.style.display = 'inline-flex';
                     fileInput.value = '';
-                    fileInfo.textContent = 'Nenhum selecionado';
+                    fileInfo.textContent = 'Apenas arquivos MP3 (máx 5MB, 60s)';
                     audioPreview.style.display = 'none';
                 } else {
-                    showAlert('❌ Erro: ' + (result.error || 'Falha no upload'), 'error');
+                    const errorMsg = result.error || 'Falha no upload';
+                    if (errorMsg.includes('Codec não suportado') || errorMsg.includes('corrompido')) {
+                        showAlert(' Arquivo incompatível: ' + errorMsg + '. Use apenas MP3 válidos.', 'error');
+                    } else {
+                        showAlert(' Erro: ' + errorMsg, 'error');
+                    }
                 }
             } catch (error) {
-                showAlert('❌ Erro de conexão com o servidor', 'error');
+                showAlert(' Erro de conexão com o servidor. Verifique sua internet.', 'error');
             } finally {
                 loading.classList.remove('active');
             }
