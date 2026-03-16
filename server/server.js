@@ -716,6 +716,116 @@ app.post('/cliente/volume/:id', async (req, res) => {
     }
 });
 
+// Endpoint para atualizar apenas LED Idle
+app.post('/cliente/led-idle/:id', async (req, res) => {
+    const id = req.params.id;
+    
+    if (!id) {
+        return res.status(400).json({ error: 'ID do totem não fornecido' });
+    }
+
+    const body = req.body || {};
+    
+    if (!body.idle) {
+        return res.status(400).json({ error: 'Configuração idle não fornecida' });
+    }
+
+    const idleConfig = {
+        mode: String(body.idle.mode || 'BREATH').toUpperCase(),
+        color: String(body.idle.color || '#FF3366'),
+        speed: Number(body.idle.speed ?? 50),
+        maxBrightness: Number(body.idle.maxBrightness ?? 120),
+        updatedAt: new Date().toISOString()
+    };
+
+    // Sanitização
+    idleConfig.speed = Math.max(1, Math.trunc(idleConfig.speed));
+    idleConfig.maxBrightness = Math.max(0, Math.min(180, Math.trunc(idleConfig.maxBrightness)));
+
+    try {
+        if (db) {
+            await db.collection('totens').doc(id).set({
+                idleConfig,
+                ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        // Publica configuração idle via MQTT (retained)
+        if (mqttClient && mqttClient.connected) {
+            mqttClient.publish(`totem/${id}/config/idle`, JSON.stringify(idleConfig), { retain: true });
+            console.log(`📤 Config Idle MQTT publicada para ${id}`);
+        }
+
+        return res.json({
+            success: true,
+            message: 'Configuração de iluminação em espera atualizada com sucesso',
+            idleConfig
+        });
+    } catch (error) {
+        console.error('❌ Erro ao salvar config idle:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Erro interno: ' + error.message
+        });
+    }
+});
+
+// Endpoint para atualizar apenas LED Trigger
+app.post('/cliente/led-trigger/:id', async (req, res) => {
+    const id = req.params.id;
+    
+    if (!id) {
+        return res.status(400).json({ error: 'ID do totem não fornecido' });
+    }
+
+    const body = req.body || {};
+    
+    if (!body.trigger) {
+        return res.status(400).json({ error: 'Configuração trigger não fornecida' });
+    }
+
+    const triggerConfig = {
+        mode: String(body.trigger.mode || 'RAINBOW').toUpperCase(),
+        color: String(body.trigger.color || '#00FF00'),
+        speed: Number(body.trigger.speed ?? 70),
+        duration: Number(body.trigger.duration ?? 30),
+        maxBrightness: Number(body.trigger.maxBrightness ?? 150),
+        updatedAt: new Date().toISOString()
+    };
+
+    // Sanitização
+    triggerConfig.speed = Math.max(1, Math.trunc(triggerConfig.speed));
+    triggerConfig.duration = Math.max(1, Math.trunc(triggerConfig.duration));
+    triggerConfig.maxBrightness = Math.max(0, Math.min(180, Math.trunc(triggerConfig.maxBrightness)));
+
+    try {
+        if (db) {
+            await db.collection('totens').doc(id).set({
+                triggerConfig,
+                ultimaAtualizacaoConfig: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        // Publica configuração trigger via MQTT (retained)
+        if (mqttClient && mqttClient.connected) {
+            mqttClient.publish(`totem/${id}/config/trigger`, JSON.stringify(triggerConfig), { retain: true });
+            console.log(`📤 Config Trigger MQTT publicada para ${id}`);
+        }
+
+        return res.json({
+            success: true,
+            message: 'Configuração de iluminação ao disparar atualizada com sucesso',
+            triggerConfig
+        });
+    } catch (error) {
+        console.error('❌ Erro ao salvar config trigger:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Erro interno: ' + error.message
+        });
+    }
+});
+
 // ========== ROTA DE UPLOAD COM VALIDAÇÃO RIGOROSA (v4.2.1) ==========
 
 app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {

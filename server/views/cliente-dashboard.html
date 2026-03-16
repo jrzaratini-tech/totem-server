@@ -949,6 +949,10 @@
                 <div class="simulator-container" style="margin-top: 16px; padding: 12px;">
                     <canvas id="ledCanvas" width="600" height="30"></canvas>
                 </div>
+                
+                <div class="button-group" style="margin-top: 16px;">
+                    <button type="button" class="btn btn-success" id="btnApplyIdleLed"><i class="fas fa-lightbulb"></i> Aplicar efeitos no LED</button>
+                </div>
             </div>
 
             <!-- ILUMINAÇÃO AO DISPARAR -->
@@ -997,10 +1001,14 @@
                 <div class="simulator-container" style="margin-top: 16px; padding: 12px;">
                     <canvas id="ledCanvasTrigger" width="600" height="30"></canvas>
                 </div>
+                
+                <div class="button-group" style="margin-top: 16px;">
+                    <button type="button" class="btn btn-success" id="btnApplyTriggerLed"><i class="fas fa-lightbulb"></i> Aplicar efeitos no LED</button>
+                </div>
             </div>
 
             <div class="button-group" style="margin-top: 16px;">
-                <button type="button" class="btn btn-primary" id="btnApplyConfig"><i class="fas fa-check"></i> Aplicar configurações</button>
+                <button type="button" class="btn btn-primary" id="btnApplyConfig"><i class="fas fa-flask"></i> Testar efeitos</button>
             </div>
         </div>
 
@@ -1082,6 +1090,8 @@
 
         const btnApplyConfig = document.getElementById('btnApplyConfig');
         const btnApplyVolume = document.getElementById('btnApplyVolume');
+        const btnApplyIdleLed = document.getElementById('btnApplyIdleLed');
+        const btnApplyTriggerLed = document.getElementById('btnApplyTriggerLed');
 
         // INICIALIZAR CONTROLES COM AS CONFIGURAÇÕES RECEBIDAS DO SERVIDOR
         volumeSlider.value = {{VOLUME}};
@@ -1482,6 +1492,69 @@
             }
         });
 
+        // Aplicar apenas LED Idle
+        btnApplyIdleLed.addEventListener('click', async function() {
+            const payload = {
+                idle: {
+                    mode: idleMode.value,
+                    color: idleColor.value,
+                    speed: Number(idleSpeed.value),
+                    maxBrightness: Number(idleBrightness.value)
+                }
+            };
+            loading.classList.add('active');
+            showAlert('', '');
+            try {
+                const response = await fetch(`/cliente/led-idle/${totemId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showAlert('✅ Efeitos de iluminação em espera aplicados com sucesso!', 'success');
+                } else {
+                    showAlert('❌ Erro ao aplicar: ' + (result.error || 'Falha'), 'error');
+                }
+            } catch (e) {
+                showAlert('❌ Erro de conexão.', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
+
+        // Aplicar apenas LED Trigger
+        btnApplyTriggerLed.addEventListener('click', async function() {
+            const payload = {
+                trigger: {
+                    mode: triggerMode.value,
+                    color: triggerColor.value,
+                    speed: 101 - Number(triggerSpeed.value),
+                    duration: Number(triggerDuration.value),
+                    maxBrightness: Number(triggerBrightness.value)
+                }
+            };
+            loading.classList.add('active');
+            showAlert('', '');
+            try {
+                const response = await fetch(`/cliente/led-trigger/${totemId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showAlert('✅ Efeitos de iluminação ao disparar aplicados com sucesso!', 'success');
+                } else {
+                    showAlert('❌ Erro ao aplicar: ' + (result.error || 'Falha'), 'error');
+                }
+            } catch (e) {
+                showAlert('❌ Erro de conexão.', 'error');
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
+
         // Aplicar configurações (idle + trigger)
         btnApplyConfig.addEventListener('click', async function() {
             const payload = {
@@ -1509,9 +1582,9 @@
                 });
                 const result = await response.json();
                 if (response.ok && result.success) {
-                    showAlert('✅ Configurações aplicadas com sucesso! Aguarde sincronização...', 'success');
+                    showAlert('✅ Testando efeitos! O totem irá disparar o efeito configurado.', 'success');
                 } else {
-                    showAlert('❌ Erro ao aplicar: ' + (result.error || 'Falha'), 'error');
+                    showAlert('❌ Erro ao testar: ' + (result.error || 'Falha'), 'error');
                 }
             } catch (e) {
                 showAlert('❌ Erro de conexão.', 'error');
