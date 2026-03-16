@@ -1089,7 +1089,7 @@
         let mediaRecorder = null;
         let recTimerInterval = null;
         let recStartedAt = 0;
-        const MAX_RECORD_TIME = 60;
+        const MAX_RECORD_TIME = 600; // 10 minutos
 
         // Função para iniciar gravação
         async function startRecording() {
@@ -1314,8 +1314,8 @@
                 audioPlayer.load();
                 audioPreview.style.display = 'flex';
                 btnUpload.disabled = false;
-                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar para ESP32';
-                showAlert('✅ Arquivo de áudio válido! Pronto para enviar ao ESP32.', 'success');
+                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar áudio';
+                showAlert('✅ Arquivo de áudio válido! Pronto para enviar.', 'success');
             } else {
                 // Arquivo inválido: rejeitar
                 fileInput.value = '';
