@@ -752,14 +752,8 @@ app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
                     return;
                 }
                 
-                // Verificar duração (máx 60s)
+                // Log da duração (sem limite - streaming HTTP suporta arquivos longos)
                 const duracao = metadata.format.duration;
-                if (duracao > 60) {
-                    console.error(`❌ Duração excede 60s: ${Math.round(duracao)}s`);
-                    reject(new Error(`Duração excede 60s (${Math.round(duracao)}s)`));
-                    return;
-                }
-                
                 console.log(`✅ Validação ffprobe OK: codec=${audioStream.codec_name}, duração=${Math.round(duracao)}s`);
                 resolve();
             });
