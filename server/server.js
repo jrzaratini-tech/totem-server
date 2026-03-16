@@ -397,23 +397,34 @@ app.get('/', (req, res) => {
 
 app.get('/totem/:id', async (req, res) => {
     const id = req.params.id;
+    console.log(`========================================`);
     console.log(`🔍 Totem acessado: ${id}`);
+    console.log(`📱 User-Agent: ${req.headers['user-agent']}`);
+    console.log(`🌐 IP: ${req.ip}`);
     
     const totem = await buscarTotem(id);
     
     if (!totem) {
         console.log(`❌ Totem não encontrado: ${id}`);
+        console.log(`========================================`);
         return res.status(404).send('Totem não encontrado');
     }
     
+    console.log(`✅ Totem encontrado no Firebase`);
+    console.log(`📅 Data expiração: ${totem.dataExpiracao}`);
+    
     if (dataExpirada(totem.dataExpiracao)) {
         console.log(`⛔ Totem expirado: ${id} (data: ${totem.dataExpiracao})`);
+        console.log(`========================================`);
         return res.redirect('/expirado');
     }
     
-    publicarPlay(id);
+    console.log(`📡 MQTT conectado: ${mqttClient && mqttClient.connected ? 'SIM' : 'NÃO'}`);
+    const mqttPublished = publicarPlay(id);
+    console.log(`📤 MQTT publicado: ${mqttPublished ? 'SUCESSO' : 'FALHOU'}`);
     
-    console.log(`✅ Totem ativo: ${id} → ${totem.link}`);
+    console.log(`✅ Redirecionando para: ${totem.link}`);
+    console.log(`========================================`);
     
     // Redirect direto e imperceptível para o Instagram (sem tela intermediária)
     res.redirect(302, totem.link);
