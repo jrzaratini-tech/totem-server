@@ -1205,7 +1205,7 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
                 <td>${audioCell}</td>
                 <td>
                     <button class="btn-qr" onclick="copiarLinkQR('${totem.id}')">📋 Copiar Link QR</button>
-                    <button class="btn-qr" onclick="gerarLinkDireto('${totem.id}')" style="margin-left: 5px;">🔗 Link App</button>
+                    <button class="btn-qr" onclick="gerarLinkDireto('${totem.id}')" style="margin-left: 5px; background: #17a2b8;">🔗 Link App</button>
                 </td>
                 <td>
                     <a href="/admin/editar/${totem.id}">✏️ Editar</a> | 
