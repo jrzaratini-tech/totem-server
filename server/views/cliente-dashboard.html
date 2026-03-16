@@ -879,7 +879,7 @@
             </div>
 
             <div class="button-group">
-                <button type="button" class="btn btn-primary" id="btnUpload"><i class="fas fa-upload"></i> Enviar arquivo</button>
+                <button type="button" class="btn btn-primary" id="btnUpload"><i class="fas fa-upload"></i> Enviar áudio</button>
                 <button type="button" class="btn btn-danger" id="btnRemove" style="display: none;"><i class="fas fa-trash-alt"></i> Remover áudio</button>
             </div>
 
@@ -1168,7 +1168,7 @@
                     const elapsed = (Date.now() - recStartedAt) / 1000;
                     if (elapsed >= MAX_RECORD_TIME) {
                         stopRecording();
-                        showAlert('⏱️ Tempo máximo atingido (60s). Enviando...', 'info');
+                        showAlert('⏱️ Tempo máximo atingido (10min). Enviando...', 'info');
                     } else {
                         const mins = Math.floor(elapsed / 60);
                         const secs = Math.floor(elapsed % 60);
@@ -1322,7 +1322,7 @@
                 fileInfo.textContent = 'Arquivo inválido - use MP3 válido';
                 audioPreview.style.display = 'none';
                 btnUpload.disabled = false;
-                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar arquivo';
+                btnUpload.innerHTML = '<i class="fas fa-upload"></i> Enviar áudio';
             }
         });
 
@@ -1392,7 +1392,7 @@
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
-                    showAlert(' Áudio enviado! O ESP32 receberá em instantes. Aguarde a sincronização...', 'success');
+                    showAlert('✅ Áudio enviado com sucesso! Aguarde a sincronização...', 'success');
                     btnRemove.style.display = 'inline-flex';
                     fileInput.value = '';
                     fileInfo.textContent = 'Arquivos de áudio (MP3, WAV, OGG - máx 10MB)';
