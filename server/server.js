@@ -447,36 +447,6 @@ app.get('/expirado', (req, res) => {
 
 // ========== ROTAS DE CLIENTE ==========
 
-app.get('/cliente/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'cliente-login.html'));
-});
-
-app.post('/cliente/login', async (req, res) => {
-    const { totemId } = req.body;
-    
-    if (!totemId) {
-        return res.redirect('/cliente/login?erro=ID_obrigatorio');
-    }
-    
-    try {
-        const totemDoc = await admin.firestore()
-            .collection('totens')
-            .doc(totemId)
-            .get();
-        
-        if (!totemDoc.exists) {
-            return res.redirect('/cliente/login?erro=totem_nao_encontrado');
-        }
-        
-        // Redirecionar para o novo formato de URL
-        res.redirect(`/app/${totemId}`);
-        
-    } catch (error) {
-        console.error('Erro no login:', error);
-        res.redirect('/cliente/login?erro=erro_interno');
-    }
-});
-
 app.get('/app/:id', verificarAcessoCliente, async (req, res) => {
     try {
         const totem = req.totem;
@@ -566,67 +536,24 @@ function renderClienteDashboard(dados) {
             .replace(/\{\{TRIGGER_SPEED\}\}/g, dados.TRIGGER_SPEED)
             .replace(/\{\{TRIGGER_DURATION\}\}/g, dados.TRIGGER_DURATION);
     } catch (error) {
-        console.error('Erro ao ler template:', error);
         return '<h1>Erro ao carregar dashboard</h1>';
     }
 }
 
-// Rota de redirecionamento para compatibilidade
+// Rota de redirecionamento para compatibilidade (antiga URL cliente/dashboard)
 app.get('/cliente/dashboard/:id', (req, res) => {
     res.redirect(`/app/${req.params.id}`);
-});
-
-// Rota antiga mantida para compatibilidade (não será mais usada diretamente)
-app.get('/cliente/dashboard-old/:id', async (req, res) => {
-    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
-        return res.redirect('/cliente/login');
-    }
-    
-    const id = req.params.id;
-    const totem = await buscarTotem(id);
-    
-    if (!totem) {
-        return res.status(404).send('Totem não encontrado');
-    }
-    
-    let audioInfo = { nome: 'padrao.mp3', url: null, dataUpload: null };
-    
-    if (firebaseInicializado && db) {
-        try {
-            const doc = await db.collection('totens').doc(id).get();
-            if (doc.exists && doc.data().audio) {
-                audioInfo = doc.data().audio;
-            }
-        } catch (error) {
-            console.error('Erro ao buscar áudio:', error);
-        }
-    }
-    
-    let html = fs.readFileSync(path.join(__dirname, 'views', 'cliente-dashboard.html'), 'utf8');
-    
-    html = html.replace(/{{ID}}/g, id);
-    html = html.replace(/{{LINK}}/g, totem.link || '');
-    html = html.replace(/{{DATA_EXPIRACAO}}/g, formatarData(totem.dataExpiracao));
-    html = html.replace(/{{AUDIO_NOME}}/g, audioInfo.nome || 'Nenhum áudio personalizado');
-    html = html.replace(/{{AUDIO_DATA}}/g, audioInfo.dataUpload ? formatarData(audioInfo.dataUpload.split('T')[0]) : '---');
-    
-    res.send(html);
-});
-
-app.get('/cliente/logout', (req, res) => {
-    req.session.destroy(() => {
-        res.redirect('/cliente/login');
-    });
 });
 
 // ========== ROTA DE CONFIGURAÇÃO (ILUMINAÇÃO / EFEITOS) ==========
 
 app.post('/cliente/config/:id', async (req, res) => {
-    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
-        return res.status(401).json({ error: 'Não autorizado' });
-    }
-
     const id = req.params.id;
+    
+    // Verificar se o totem existe
+    if (!id) {
+        return res.status(400).json({ error: 'ID do totem não fornecido' });
+    }
     const body = req.body || {};
 
     // Suporta tanto o formato antigo (único config) quanto o novo (idle + trigger + volume)
@@ -718,11 +645,11 @@ app.post('/cliente/config/:id', async (req, res) => {
 
 // Endpoint para cliente carregar configuração atual
 app.get('/cliente/config/:id', async (req, res) => {
-    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
-        return res.status(401).json({ error: 'Não autorizado' });
-    }
-
     const id = req.params.id;
+    
+    if (!id) {
+        return res.status(400).json({ error: 'ID do totem não fornecido' });
+    }
 
     if (!db) {
         return res.json({
@@ -754,11 +681,11 @@ app.get('/cliente/config/:id', async (req, res) => {
 
 // Endpoint para atualizar apenas o volume
 app.post('/cliente/volume/:id', async (req, res) => {
-    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
-        return res.status(401).json({ error: 'Não autorizado' });
-    }
-
     const id = req.params.id;
+    
+    if (!id) {
+        return res.status(400).json({ error: 'ID do totem não fornecido' });
+    }
     const volume = Math.max(0, Math.min(10, Math.trunc(Number(req.body.volume ?? 8))));
 
     try {
@@ -789,41 +716,14 @@ app.post('/cliente/volume/:id', async (req, res) => {
     }
 });
 
-// Endpoint para consulta/debug da configuração atual (API pública)
-app.get('/api/config/:id', async (req, res) => {
-    const id = req.params.id;
-
-    if (!db) {
-        return res.json({
-            config: null,
-            message: 'Firebase não disponível'
-        });
-    }
-
-    try {
-        const doc = await db.collection('totens').doc(id).get();
-        if (!doc.exists) {
-            return res.status(404).json({ error: 'Totem não encontrado' });
-        }
-
-        const data = doc.data();
-        return res.json({
-            config: data.config || null,
-            updatedAt: data.ultimaAtualizacaoConfig || null
-        });
-    } catch (error) {
-        console.error('Erro ao buscar config:', error);
-        return res.status(500).json({ error: 'Erro interno no servidor' });
-    }
-});
-
 // ========== ROTA DE UPLOAD COM VALIDAÇÃO RIGOROSA (v4.2.1) ==========
+
 app.post('/cliente/audio/:id', upload.single('audio'), async (req, res) => {
-    if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
-        return res.status(401).json({ error: 'Não autorizado' });
-    }
-    
     const id = req.params.id;
+    
+    if (!id) {
+        return res.status(400).json({ error: 'ID do totem não fornecido' });
+    }
     const file = req.file;
     
     if (!file) {
@@ -1093,12 +993,12 @@ app.get('/api/audio/:id', async (req, res) => {
 });
 
 app.delete('/api/audio/:id', async (req, res) => {
-    if (!req.session || 
-        (!req.session.adminAutenticado && req.session.clienteTotemId !== req.params.id)) {
-        return res.status(401).json({ error: 'Não autorizado' });
-    }
-    
     const id = req.params.id;
+    
+    // Permitir apenas se for admin autenticado
+    if (!req.session || !req.session.adminAutenticado) {
+        return res.status(401).json({ error: 'Não autorizado - apenas admin' });
+    }
     
     try {
         if (db) {
