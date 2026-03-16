@@ -70,12 +70,13 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
 
     WiFiClient *stream = http.getStreamPtr();
     size_t written = 0;
-    uint8_t buf[1024];
+    uint8_t buf[4096];  // Buffer maior para OTA mais rápido (4KB)
 
     unsigned long lastProg = millis();
     unsigned long otaStartMs = millis();
     
     Serial.println("[OTA] Starting firmware download...");
+    Serial.printf("[OTA] Firmware size: %.2f MB\n", len / 1024.0 / 1024.0);
     
     while (http.connected() && written < (size_t)len) {
         // Timeout de 5 minutos para OTA completo
@@ -94,10 +95,16 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
                 Update.write(buf, (size_t)r);
                 written += (size_t)r;
             }
+        } else {
+            delay(1);  // Pequeno delay se não há dados disponíveis
         }
-        if (millis() - lastProg > 250) {
+        
+        if (millis() - lastProg > 2000) {  // Atualiza progresso a cada 2s
             progress = (int)((written * 100UL) / (unsigned long)len);
-            Serial.printf("[OTA] Progress: %d%% (%d/%d bytes)\n", progress, written, len);
+            Serial.printf("[OTA] Progress: %d%% (%.2f/%.2f MB)\n", 
+                         progress, 
+                         written / 1024.0 / 1024.0, 
+                         len / 1024.0 / 1024.0);
             lastProg = millis();
             yield();
         }
@@ -114,11 +121,21 @@ bool OTAManager::startUpdateFromUrl(const String &url) {
     progress = ok ? 100 : 0;
 
     if (ok) {
-        Serial.println("[OTA] SUCCESS! Firmware updated, restarting...");
-        delay(1000);
+        unsigned long downloadTime = (millis() - otaStartMs) / 1000;
+        float speedKBps = (written / 1024.0) / downloadTime;
+        Serial.println("[OTA] ========================================");
+        Serial.println("[OTA] SUCCESS! Firmware updated");
+        Serial.printf("[OTA] Downloaded: %.2f MB in %lu seconds\n", written / 1024.0 / 1024.0, downloadTime);
+        Serial.printf("[OTA] Average speed: %.2f KB/s\n", speedKBps);
+        Serial.println("[OTA] Restarting in 2 seconds...");
+        Serial.println("[OTA] ========================================");
+        delay(2000);
         ESP.restart();
     } else {
+        Serial.println("[OTA] ========================================");
         Serial.printf("[OTA] FAILED! Error: %s\n", Update.errorString());
+        Serial.printf("[OTA] Downloaded: %d/%d bytes before failure\n", written, len);
+        Serial.println("[OTA] ========================================");
     }
 
     return ok;

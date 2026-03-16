@@ -87,10 +87,10 @@
 // ========== COMPORTAMENTO ==========
 #define EFEITO_TEMPO_PADRAO     30
 #define STATUS_INTERVAL         60000
-#define DOWNLOAD_TIMEOUT        300000
+#define DOWNLOAD_TIMEOUT        120000
 #define OTA_TIMEOUT             300000
 #define MAX_AUDIO_SIZE          (5 * 1024 * 1024)
-#define DOWNLOAD_BUFFER_SIZE    2048
+#define DOWNLOAD_BUFFER_SIZE    4096
 
 
 // ========== ARQUIVOS ==========

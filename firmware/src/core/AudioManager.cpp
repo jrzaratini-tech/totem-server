@@ -331,13 +331,13 @@ bool AudioManager::downloadFileToTemp(const String &url) {
 
     File tmp = SPIFFS.open(AUDIO_TEMP_FILENAME, FILE_WRITE);
     if (!tmp) {
+        Serial.println("[Audio] Failed to open temp file");
         http.end();
-        Serial.println("[Audio] Open temp failed");
         return false;
     }
 
     WiFiClient *stream = http.getStreamPtr();
-    uint8_t *buf = (uint8_t*)malloc(1024);
+    uint8_t *buf = (uint8_t*)malloc(4096);
     if (!buf) {
         tmp.close();
         http.end();
@@ -347,6 +347,7 @@ bool AudioManager::downloadFileToTemp(const String &url) {
     
     int total = 0;
     int lastPercent = -1;
+    unsigned long lastProgressMs = millis();
     
     while (http.connected() && total < len) {
         if (millis() - downloadStartMs > DOWNLOAD_TIMEOUT) {
@@ -354,25 +355,35 @@ bool AudioManager::downloadFileToTemp(const String &url) {
             http.end();
             free(buf);
             Serial.println("[Audio] Timeout");
+            if (mqttManager) {
+                mqttManager->publishDownloadStatus("timeout", "Download exceeded 2 minutes");
+            }
             return false;
         }
 
         size_t avail = stream->available();
         if (avail) {
-            size_t toRead = min(avail, (size_t)1024);
+            size_t toRead = min(avail, (size_t)4096);
             int r = stream->readBytes(buf, toRead);
             if (r > 0) {
                 tmp.write(buf, (size_t)r);
                 total += r;
                 
                 int percent = (total * 100) / len;
-                if (percent != lastPercent && percent % 25 == 0) {
-                    Serial.printf("[Audio] %d%%\n", percent);
+                if (percent != lastPercent && percent % 10 == 0) {
+                    Serial.printf("[Audio] %d%% (%d/%d bytes)\n", percent, total, len);
                     lastPercent = percent;
+                    
+                    if (mqttManager && (millis() - lastProgressMs > 5000)) {
+                        char msg[64];
+                        snprintf(msg, sizeof(msg), "Downloading: %d%%", percent);
+                        mqttManager->publishDownloadStatus("progress", msg);
+                        lastProgressMs = millis();
+                    }
                 }
             }
         } else {
-            delay(10);
+            delay(5);
         }
         yield();
     }
