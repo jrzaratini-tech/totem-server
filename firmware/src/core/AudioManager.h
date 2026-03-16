@@ -36,6 +36,7 @@ public:
     void setMQTTManager(MQTTManager* mqtt);
     void loop();
     void play();
+    void playFromURL(const String &url);
     void stop();
     void setVolume(int vol);
     void playTestTone(int durationMs = 3000);
@@ -44,6 +45,7 @@ public:
     int getVersion() const;
     void setVersion(int v);
     bool checkAndDownloadFromServer(String *outError = nullptr);
+    String currentAudioUrl;
 };
 
 #endif

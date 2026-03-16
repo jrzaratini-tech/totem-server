@@ -151,91 +151,72 @@ void AudioManager::play() {
         return;
     }
     
+    // Se temos URL armazenada, fazer streaming HTTP
+    if (currentAudioUrl.length() > 0) {
+        playFromURL(currentAudioUrl);
+    } else {
+        Serial.println("[Audio] No audio URL configured");
+    }
+}
+
+void AudioManager::playFromURL(const String &url) {
+    if (playing) {
+        Serial.println("[Audio] Already playing - stopping first");
+        stop();
+        delay(100);
+    }
+    
     Serial.println("[Audio] ========================================");
-    Serial.println("[Audio] STARTING PLAYBACK");
-    
-    if (!SPIFFS.exists(AUDIO_FILENAME)) {
-        Serial.println("[Audio] File not found: " AUDIO_FILENAME);
-        Serial.println("[Audio] ========================================");
-        return;
-    }
-    
-    File f = SPIFFS.open(AUDIO_FILENAME, FILE_READ);
-    if (!f) {
-        Serial.println("[Audio] Failed to open file");
-        Serial.println("[Audio] ========================================");
-        return;
-    }
-    
-    size_t fileSize = f.size();
-    f.close();
-    
-    Serial.printf("[Audio] File: %s (%d bytes)\n", AUDIO_FILENAME, fileSize);
-    
-    // Validate MP3 file before attempting playback
-    if (!validateMP3File(AUDIO_FILENAME)) {
-        Serial.println("[Audio] MP3 validation failed - file is corrupted");
-        Serial.println("[Audio] Deleting corrupted file...");
-        SPIFFS.remove(AUDIO_FILENAME);
-        Serial.println("[Audio] ========================================");
-        return;
-    }
-    
-    Serial.printf("[Audio] Heap before playback: %d bytes\n", ESP.getFreeHeap());
+    Serial.println("[Audio] STARTING HTTP STREAMING PLAYBACK");
+    Serial.printf("[Audio] URL: %s\n", url.c_str());
+    Serial.printf("[Audio] Heap before streaming: %d bytes\n", ESP.getFreeHeap());
     
     peakSample = 0;
     samplesProcessed = 0;
     clippedSamples = 0;
     lastMetricsLog = millis();
     
-    Serial.println("[Audio] Calling audio.connecttoFS() - this may take several seconds...");
-    Serial.printf("[Audio] Heap before connecttoFS: %d bytes\n", ESP.getFreeHeap());
-    unsigned long connectStart = millis();
-    
     // Feed watchdog during long operation
     esp_task_wdt_reset();
     
-    bool success = audio.connecttoFS(SPIFFS, AUDIO_FILENAME);
+    unsigned long connectStart = millis();
+    
+    // Usar connecttohost para streaming HTTP direto
+    bool success = audio.connecttohost(url.c_str());
     
     // Feed watchdog after long operation
     esp_task_wdt_reset();
     
     unsigned long connectDuration = millis() - connectStart;
-    Serial.printf("[Audio] connecttoFS completed in %lu ms\n", connectDuration);
-    Serial.printf("[Audio] Heap after connecttoFS: %d bytes\n", ESP.getFreeHeap());
-    
-    if (connectDuration > 10000) {
-        Serial.printf("[Audio] WARNING: connecttoFS took %lu ms (>10s)\n", connectDuration);
-    }
+    Serial.printf("[Audio] connecttohost completed in %lu ms\n", connectDuration);
+    Serial.printf("[Audio] Heap after connect: %d bytes\n", ESP.getFreeHeap());
     
     if (success) {
         playing = true;
-        Serial.println("[Audio] Playback started successfully");
+        currentAudioUrl = url;
         Serial.println("[Audio] ========================================");
-        Serial.println("[Audio] AUDIO SHOULD BE PLAYING NOW!");
+        Serial.println("[Audio] HTTP STREAMING STARTED SUCCESSFULLY!");
+        Serial.println("[Audio] Audio is streaming directly from server");
+        Serial.println("[Audio] No download required - instant playback!");
         Serial.println("[Audio] If you don't hear sound, check:");
         Serial.println("[Audio]   1. MAX98357A power (VIN = 5V, GND connected)");
         Serial.println("[Audio]   2. I2S connections (BCLK=GPIO6, LRC=GPIO7, DIN=GPIO5)");
         Serial.println("[Audio]   3. Speaker connected (4-8Ω between OUT+ and OUT-)");
         Serial.println("[Audio]   4. GAIN pin: Floating (12dB gain)");
         Serial.printf("[Audio]   5. Volume level: %d/21 (library scale)\n", audio.getVolume());
+        Serial.println("[Audio]   6. Internet connection stable");
         Serial.println("[Audio] ========================================");
     } else {
-        Serial.println("[Audio] FAILED to start playback");
         Serial.println("[Audio] ========================================");
-        Serial.println("[Audio] CRITICAL ERROR - audio.connecttoFS() returned false");
+        Serial.println("[Audio] FAILED to start HTTP streaming");
         Serial.println("[Audio] Possible causes:");
-        Serial.println("[Audio]   - Corrupted MP3 file (invalid header/codec)");
-        Serial.println("[Audio]   - Unsupported codec (library only supports MP3)");
+        Serial.println("[Audio]   - Invalid URL or server unreachable");
+        Serial.println("[Audio]   - Unsupported audio format (use MP3)");
         Serial.println("[Audio]   - Insufficient memory (need ~100KB free heap)");
-        Serial.println("[Audio]   - I2S hardware not responding");
-        Serial.println("[Audio]   - SPIFFS file system corrupted");
+        Serial.println("[Audio]   - WiFi connection unstable");
+        Serial.println("[Audio]   - Server not responding or timeout");
         Serial.printf("[Audio] Current heap: %d bytes\n", ESP.getFreeHeap());
         Serial.printf("[Audio] Min heap: %d bytes\n", ESP.getMinFreeHeap());
-        Serial.println("[Audio] ========================================");
-        Serial.println("[Audio] RECOVERY: Deleting potentially corrupted file...");
-        SPIFFS.remove(AUDIO_FILENAME);
-        Serial.println("[Audio] File deleted. Next trigger will re-download from server.");
         Serial.println("[Audio] ========================================");
     }
 }
@@ -552,33 +533,23 @@ bool AudioManager::checkAndDownloadFromServer(String *outError) {
         mqttManager->publishDownloadStatus("downloading", "Starting audio download");
     }
     
-    if (!downloadFileToTemp(url)) {
-        downloading = false;
-        if (outError) *outError = "download_failed";
-        
-        if (mqttManager) {
-            mqttManager->publishDownloadStatus("failed", "Download failed");
-        }
-        
-        return false;
-    }
-
-    if (!activateTempAsCurrent()) {
-        downloading = false;
-        if (outError) *outError = "activate_failed";
-        
-        if (mqttManager) {
-            mqttManager->publishDownloadStatus("failed", "Activation failed");
-        }
-        
-        return false;
-    }
-
+    // Armazenar URL para streaming direto (sem download)
+    currentAudioUrl = url;
     lastUrl = String(url);
     if (newVersion != 0) currentVersion = newVersion;
 
     downloading = false;
-    Serial.printf("[Audio] Updated to v%d\n", newVersion);
+    
+    Serial.println("[Audio] ========================================");
+    Serial.println("[Audio] NEW AUDIO URL CONFIGURED");
+    Serial.printf("[Audio] URL: %s\n", url.c_str());
+    Serial.printf("[Audio] Version: %d\n", newVersion);
+    Serial.println("[Audio] Ready for HTTP streaming (no download)");
+    Serial.println("[Audio] ========================================");
+    
+    if (mqttManager) {
+        mqttManager->publishDownloadStatus("ready", "Audio URL configured for streaming");
+    }
     return true;
 }
 
