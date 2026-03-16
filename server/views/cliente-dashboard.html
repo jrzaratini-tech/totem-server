@@ -1386,21 +1386,16 @@
             loading.classList.add('active');
             
             try {
-                // Converter para MP3 compatível antes de enviar
-                const mp3Blob = await converterParaMP3Compativel(file);
-                
                 const formData = new FormData();
-                const fileName = file.name.replace(/\.[^/.]+$/, '') + '.mp3';
-                formData.append('audio', mp3Blob, fileName);
+                formData.append('audio', file);
                 
                 showAlert(' Enviando para servidor... Aguarde.', 'info');
             
-            try {
                 const response = await fetch(`/cliente/audio/${totemId}`, { method: 'POST', body: formData });
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
-                    showAlert('✅ Áudio enviado com sucesso! Aguarde a sincronização...', 'success');
+                    showAlert(' Áudio enviado com sucesso! Aguarde a sincronização...', 'success');
                     btnRemove.style.display = 'inline-flex';
                     fileInput.value = '';
                     fileInfo.textContent = 'Arquivos de áudio (MP3, WAV, OGG - máx 10MB)';
