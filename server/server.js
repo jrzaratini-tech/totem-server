@@ -23,7 +23,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 console.log('✅ FFmpeg configurado:', ffmpegPath);
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
-const { adminAuth, logger } = require('./middlewares/auth');
+const { adminAuth, logger, verificarAcessoCliente } = require('./middlewares/auth');
 const projectRoot = path.resolve(__dirname, '..');
 require('dotenv').config({ path: path.join(projectRoot, '.env') });
 
@@ -444,32 +444,129 @@ app.post('/cliente/login', async (req, res) => {
     const { totemId } = req.body;
     
     if (!totemId) {
-        return res.send(`
-            <html><body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ ID é obrigatório</h2>
-                <p><a href="/cliente/login">Voltar</a></p>
-            </body></html>
-        `);
+        return res.redirect('/cliente/login?erro=ID_obrigatorio');
     }
     
-    const totem = await buscarTotem(totemId);
-    
-    if (!totem) {
-        return res.send(`
-            <html><body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ Totem não encontrado</h2>
-                <p><a href="/cliente/login">Tentar novamente</a></p>
-            </body></html>
-        `);
+    try {
+        const totemDoc = await admin.firestore()
+            .collection('totens')
+            .doc(totemId)
+            .get();
+        
+        if (!totemDoc.exists) {
+            return res.redirect('/cliente/login?erro=totem_nao_encontrado');
+        }
+        
+        // Redirecionar para o novo formato de URL
+        res.redirect(`/app/${totemId}`);
+        
+    } catch (error) {
+        console.error('Erro no login:', error);
+        res.redirect('/cliente/login?erro=erro_interno');
     }
-    
-    req.session.clienteTotemId = totemId;
-    req.session.isCliente = true;
-    
-    res.redirect(`/cliente/dashboard/${totemId}`);
 });
 
-app.get('/cliente/dashboard/:id', async (req, res) => {
+app.get('/app/:id', verificarAcessoCliente, async (req, res) => {
+    try {
+        const totem = req.totem;
+        
+        // Buscar configurações atuais do totem
+        let configuracoes = {
+            volume: 8,
+            idle: {
+                mode: 'BREATH',
+                color: '#ff3366',
+                maxBrightness: 120,
+                speed: 50
+            },
+            trigger: {
+                mode: 'RAINBOW',
+                color: '#00ff00',
+                maxBrightness: 150,
+                speed: 70,
+                duration: 30
+            }
+        };
+        
+        try {
+            const configRef = await admin.firestore()
+                .collection('totens')
+                .doc(req.params.id)
+                .get();
+            
+            if (configRef.exists) {
+                const data = configRef.data();
+                configuracoes.volume = data.volume ?? 8;
+                if (data.idleConfig) configuracoes.idle = { ...configuracoes.idle, ...data.idleConfig };
+                if (data.triggerConfig) configuracoes.trigger = { ...configuracoes.trigger, ...data.triggerConfig };
+            }
+        } catch (e) {
+            console.log('Usando configurações padrão');
+        }
+        
+        // Preparar dados para o template
+        const dados = {
+            ID: req.params.id,
+            LINK: totem.link || 'Não configurado',
+            DATA_EXPIRACAO: totem.dataExpiracao ? 
+                new Date(totem.dataExpiracao).toLocaleDateString('pt-BR') : 
+                'Sem expiração',
+            AUDIO_NOME: totem.audio?.nome || 'Nenhum áudio personalizado',
+            VOLUME: configuracoes.volume || 8,
+            IDLE_MODE: configuracoes.idle?.mode || 'BREATH',
+            IDLE_COLOR: configuracoes.idle?.color || '#ff3366',
+            IDLE_BRIGHTNESS: configuracoes.idle?.maxBrightness || 120,
+            IDLE_SPEED: configuracoes.idle?.speed || 50,
+            TRIGGER_MODE: configuracoes.trigger?.mode || 'RAINBOW',
+            TRIGGER_COLOR: configuracoes.trigger?.color || '#00ff00',
+            TRIGGER_BRIGHTNESS: configuracoes.trigger?.maxBrightness || 150,
+            TRIGGER_SPEED: configuracoes.trigger?.speed || 70,
+            TRIGGER_DURATION: configuracoes.trigger?.duration || 30
+        };
+
+        // Renderizar o dashboard do cliente
+        res.send(renderClienteDashboard(dados));
+        
+    } catch (error) {
+        console.error('Erro ao carregar dashboard:', error);
+        res.status(500).send('Erro ao carregar dashboard');
+    }
+});
+
+function renderClienteDashboard(dados) {
+    try {
+        // Carregar o template HTML
+        const template = fs.readFileSync(path.join(__dirname, 'views', 'cliente-dashboard.html'), 'utf8');
+        
+        // Substituir as variáveis
+        return template
+            .replace(/\{\{ID\}\}/g, dados.ID)
+            .replace(/\{\{LINK\}\}/g, dados.LINK)
+            .replace(/\{\{DATA_EXPIRACAO\}\}/g, dados.DATA_EXPIRACAO)
+            .replace(/\{\{AUDIO_NOME\}\}/g, dados.AUDIO_NOME)
+            .replace(/\{\{VOLUME\}\}/g, dados.VOLUME)
+            .replace(/\{\{IDLE_MODE\}\}/g, dados.IDLE_MODE)
+            .replace(/\{\{IDLE_COLOR\}\}/g, dados.IDLE_COLOR)
+            .replace(/\{\{IDLE_BRIGHTNESS\}\}/g, dados.IDLE_BRIGHTNESS)
+            .replace(/\{\{IDLE_SPEED\}\}/g, dados.IDLE_SPEED)
+            .replace(/\{\{TRIGGER_MODE\}\}/g, dados.TRIGGER_MODE)
+            .replace(/\{\{TRIGGER_COLOR\}\}/g, dados.TRIGGER_COLOR)
+            .replace(/\{\{TRIGGER_BRIGHTNESS\}\}/g, dados.TRIGGER_BRIGHTNESS)
+            .replace(/\{\{TRIGGER_SPEED\}\}/g, dados.TRIGGER_SPEED)
+            .replace(/\{\{TRIGGER_DURATION\}\}/g, dados.TRIGGER_DURATION);
+    } catch (error) {
+        console.error('Erro ao ler template:', error);
+        return '<h1>Erro ao carregar dashboard</h1>';
+    }
+}
+
+// Rota de redirecionamento para compatibilidade
+app.get('/cliente/dashboard/:id', (req, res) => {
+    res.redirect(`/app/${req.params.id}`);
+});
+
+// Rota antiga mantida para compatibilidade (não será mais usada diretamente)
+app.get('/cliente/dashboard-old/:id', async (req, res) => {
     if (!req.session.clienteTotemId || req.session.clienteTotemId !== req.params.id) {
         return res.redirect('/cliente/login');
     }

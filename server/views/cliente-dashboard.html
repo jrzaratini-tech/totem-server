@@ -1081,6 +1081,26 @@
         const triggerDuration = document.getElementById('triggerDuration');
 
         const btnApplyConfig = document.getElementById('btnApplyConfig');
+        const btnApplyVolume = document.getElementById('btnApplyVolume');
+
+        // INICIALIZAR CONTROLES COM AS CONFIGURAÇÕES RECEBIDAS DO SERVIDOR
+        volumeSlider.value = {{VOLUME}};
+        volumeValue.textContent = {{VOLUME}};
+        
+        idleMode.value = '{{IDLE_MODE}}';
+        idleColor.value = '{{IDLE_COLOR}}';
+        idleBrightness.value = {{IDLE_BRIGHTNESS}};
+        idleBrightnessVal.textContent = {{IDLE_BRIGHTNESS}};
+        idleSpeed.value = {{IDLE_SPEED}};
+        idleSpeedVal.textContent = {{IDLE_SPEED}};
+        
+        triggerMode.value = '{{TRIGGER_MODE}}';
+        triggerColor.value = '{{TRIGGER_COLOR}}';
+        triggerBrightness.value = {{TRIGGER_BRIGHTNESS}};
+        triggerBrightnessVal.textContent = {{TRIGGER_BRIGHTNESS}};
+        triggerSpeed.value = {{TRIGGER_SPEED}};
+        triggerSpeedVal.textContent = {{TRIGGER_SPEED}};
+        triggerDuration.value = {{TRIGGER_DURATION}};
 
         // Variáveis de gravação
         let isRecording = false;
@@ -1428,14 +1448,13 @@
                     showAlert('❌ Erro: ' + (result.error || 'Falha ao remover'), 'error');
                 }
             } catch (error) {
-                showAlert('❌ Erro de conexão com o servidor', 'error');
+                showAlert(' Erro de conexão com o servidor', 'error');
             } finally {
                 loading.classList.remove('active');
             }
         });
 
         // Aplicar apenas volume
-        const btnApplyVolume = document.getElementById('btnApplyVolume');
         btnApplyVolume.addEventListener('click', async function() {
             const payload = {
                 volume: Number(volumeSlider.value)

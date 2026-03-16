@@ -293,6 +293,23 @@
             });
         }
 
+        function gerarLinkDireto(totemId) {
+            const baseUrl = window.location.origin;
+            const link = `${baseUrl}/app/${totemId}`;
+            
+            navigator.clipboard.writeText(link).then(function() {
+                const msg = document.getElementById('copiadoMsg');
+                msg.style.display = 'block';
+                msg.textContent = '✅ Link do App copiado: ' + link;
+                
+                setTimeout(() => {
+                    msg.style.display = 'none';
+                }, 3000);
+            }, function() {
+                alert('❌ Erro ao copiar. Selecione manualmente: ' + link);
+            });
+        }
+
         function filtrar(tipo) {
             const linhas = document.querySelectorAll('#tabela-corpo tr');
             const botoes = document.querySelectorAll('.filtro-btn');
