@@ -23,6 +23,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 console.log('✅ FFmpeg configurado:', ffmpegPath);
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
+const { adminAuth, logger } = require('./middlewares/auth');
 const projectRoot = path.resolve(__dirname, '..');
 require('dotenv').config({ path: path.join(projectRoot, '.env') });
 
@@ -50,6 +51,8 @@ app.use(session({
     saveUninitialized: true,
     cookie: { maxAge: 30 * 60 * 1000 }
 }));
+
+app.use(logger);
 
 // ========== FIREBASE ADMIN ==========
 let db = null;
@@ -261,14 +264,6 @@ const upload = multer({
 
 // ========== FUNÇÕES AUXILIARES ==========
 
-function logger(req, res, next) {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.url}`);
-    next();
-}
-
-app.use(logger);
-
 function dataExpirada(dataStr) {
     if (!dataStr) return true;
     const hoje = new Date();
@@ -385,14 +380,6 @@ async function listarTotens() {
     }
     
     return totens.sort((a, b) => a.id.localeCompare(b.id));
-}
-
-function adminAuth(req, res, next) {
-    if (req.session && req.session.adminAutenticado) {
-        next();
-    } else {
-        res.redirect('/admin/login');
-    }
 }
 
 app.locals.db = db;
