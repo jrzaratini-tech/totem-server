@@ -205,23 +205,37 @@ void AudioManager::play() {
     Serial.printf("[Audio] >>> Heap after connecttoFS: %d bytes\n", ESP.getFreeHeap());
     
     if (connectDuration > 10000) {
-        Serial.printf("[Audio] ⚠ WARNING: connecttoFS took %lu ms (>10s)\n", connectDuration);
+        Serial.printf("[Audio] WARNING: connecttoFS took %lu ms (>10s)\n", connectDuration);
     }
     
     if (success) {
         playing = true;
         Serial.println("[Audio] Playback started successfully");
         Serial.println("[Audio] ========================================");
+        Serial.println("[Audio] AUDIO SHOULD BE PLAYING NOW!");
+        Serial.println("[Audio] If you don't hear sound, check:");
+        Serial.println("[Audio]   1. MAX98357A power (VIN = 5V, GND connected)");
+        Serial.println("[Audio]   2. I2S connections (BCLK=GPIO6, LRC=GPIO7, DIN=GPIO5)");
+        Serial.println("[Audio]   3. Speaker connected (4-8Ω between OUT+ and OUT-)");
+        Serial.println("[Audio]   4. GAIN pin (GND=9dB, Float=12dB, 3.3V=15dB)");
+        Serial.printf("[Audio]   5. Volume level: %d/21 (library scale)\n", audio.getVolume());
+        Serial.println("[Audio] ========================================");
     } else {
-        Serial.println("[Audio] ✗ Failed to start playback");
+        Serial.println("[Audio] FAILED to start playback");
+        Serial.println("[Audio] ========================================");
+        Serial.println("[Audio] CRITICAL ERROR - audio.connecttoFS() returned false");
         Serial.println("[Audio] Possible causes:");
-        Serial.println("[Audio]   - Corrupted MP3 file");
-        Serial.println("[Audio]   - Unsupported codec");
-        Serial.println("[Audio]   - Insufficient memory");
-        Serial.println("[Audio]   - I2S hardware issue");
-        Serial.printf("[Audio] Heap: %d bytes\n", ESP.getFreeHeap());
-        Serial.println("[Audio] Deleting potentially corrupted file...");
+        Serial.println("[Audio]   - Corrupted MP3 file (invalid header/codec)");
+        Serial.println("[Audio]   - Unsupported codec (library only supports MP3)");
+        Serial.println("[Audio]   - Insufficient memory (need ~100KB free heap)");
+        Serial.println("[Audio]   - I2S hardware not responding");
+        Serial.println("[Audio]   - SPIFFS file system corrupted");
+        Serial.printf("[Audio] Current heap: %d bytes\n", ESP.getFreeHeap());
+        Serial.printf("[Audio] Min heap: %d bytes\n", ESP.getMinFreeHeap());
+        Serial.println("[Audio] ========================================");
+        Serial.println("[Audio] RECOVERY: Deleting potentially corrupted file...");
         SPIFFS.remove(AUDIO_FILENAME);
+        Serial.println("[Audio] File deleted. Next trigger will re-download from server.");
         Serial.println("[Audio] ========================================");
     }
 }

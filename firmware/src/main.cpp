@@ -413,11 +413,22 @@ void setup() {
     Serial.println("[BOOT] OTA manager initialized");
 
     heartbeatLED.begin(1, 2);
-    Serial.println("[BOOT] Standalone heartbeat LED initialized on GPIO1 and GPIO2 (ESP32-S3)");
+    Serial.println("[BOOT] Standalone heartbeat LED initialized");
 
     stateMachine.setState(IDLE);
     lastStatusMs = 0;
     lastHeapCheck = millis();
+    
+    idleConfig.mode = BREATH;
+    idleConfig.color = 0xFF3366;
+    idleConfig.speed = 50;
+    idleConfig.maxBrightness = 120;
+    idleConfig.duration = 0;
+    
+    ledEngine.setBrightness(idleConfig.maxBrightness);
+    ledEngine.setColor(idleConfig.color);
+    ledEngine.startEffect(idleConfig);
+    Serial.println("[BOOT] Default IDLE effect started (BREATH, pink)");
     
     Serial.println("[BOOT] ========================================");
     Serial.println("[BOOT] Setup complete - entering IDLE state");

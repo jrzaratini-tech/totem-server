@@ -38,75 +38,61 @@
 // Failsafe
 #define FAILSAFE_BRIGHTNESS     30
 
-// ========== HARDWARE - LEDS (v4.2.1 - PINAGEM DEFINITIVA) ==========
-#define NUM_LEDS_MAIN           200     // Fita principal WS2812B (GPIO 8)
-#define NUM_LEDS_HEART          9       // Batimento cardíaco (9 LEDs - GPIO 9)
+#define NUM_LEDS_MAIN           200
+#define NUM_LEDS_HEART          9
 #define LED_TYPE                WS2812B
 #define COLOR_ORDER             GRB
-#define LED_MAIN_PIN            8       // GPIO 8 - Fita principal (200 LEDs)
-#define LED_HEART_PIN           9       // GPIO 9 - LEDs do coração (9 LEDs, efeito fixo)
+#define LED_MAIN_PIN            8
+#define LED_HEART_PIN           9
 #define MAX_BRIGHTNESS          180
 #define DEFAULT_BRIGHTNESS      120
 
-// ========== HARDWARE - BOTÕES ==========
-#define PIN_BTN_TRIGGER         10      // TTP223 capacitive trigger button (ESP32-S3)
-#define PIN_BTN_RESET_WIFI      11      // Mechanical WiFi reset button (ESP32-S3)
-#define PIN_BTN_HEARTBEAT       3       // TTP223 capacitive button for heartbeat effect (ESP32-S3)
+#define PIN_BTN_TRIGGER         10
+#define PIN_BTN_RESET_WIFI      11
+#define PIN_BTN_HEARTBEAT       3
 #define DEBOUNCE_DELAY          50
 #define LONG_PRESS_TIME         5000
 #define MIN_CLICK_INTERVAL      150
 
-// Legacy button pins (mantidos para compatibilidade com ButtonManager)
 #define PIN_BTN_COR             10
 #define PIN_BTN_MAIS            12
 #define PIN_BTN_MENOS           13
-#define PIN_BTN_CORACAO         10      // Mesmo que trigger
+#define PIN_BTN_CORACAO         10
 #define PIN_BTN_CORACAO_ALIAS   PIN_BTN_TRIGGER
 
-// ========== HARDWARE - ÁUDIO I2S (v4.2.1 - OTIMIZADO) ==========
-// MAX98357A DAC Configuration
-#define I2S_BCLK                6       // GPIO 6 - Bit Clock
-#define I2S_LRC                 7       // GPIO 7 - Left/Right Clock
-#define I2S_DOUT                5       // GPIO 5 - Data Out para MAX98357A
-// GAIN: GND=9dB, Flutuante=12dB, 3.3V=15dB (RECOMENDADO: conectar ao GND = 9dB fixo)
+#define I2S_BCLK                6
+#define I2S_LRC                 7
+#define I2S_DOUT                5
 
 #define AUDIO_SAMPLE_RATE       44100
 #define AUDIO_BITS_PER_SAMPLE   16
 #define AUDIO_CHANNELS          2
 
-// ⚡ BUFFERS OTIMIZADOS (evita travamentos)
-#define I2S_DMA_BUFFER_COUNT    16      // Aumentado para double buffering
+#define I2S_DMA_BUFFER_COUNT    16
 #define I2S_DMA_BUFFER_SIZE     1024
-#define AUDIO_PREALLOC_SIZE     4096    // Pré-alocação de buffer
+#define AUDIO_PREALLOC_SIZE     4096
 
-#define DEFAULT_VOLUME          10      // Volume máximo por padrão
+#define DEFAULT_VOLUME          10
 #define MIN_VOLUME              0
 #define MAX_VOLUME              10
+#define MAX98357A_GAIN_DB       15
+#define AUDIO_DIAGNOSTICS       1
+#define AUDIO_TEST_TONE_FREQ    1000
+#define AUDIO_TEST_TONE_DUR     5
 
-// MAX98357A Gain (hardware fixo)
-#define MAX98357A_GAIN_DB       15      // GAIN conectado ao 3.3V = 15dB (máximo)
-
-// Diagnóstico de áudio
-#define AUDIO_DIAGNOSTICS       1       // Habilitar logs detalhados de áudio
-#define AUDIO_TEST_TONE_FREQ    1000    // Frequência do tom de teste (Hz)
-#define AUDIO_TEST_TONE_DUR     5       // Duração do tom de teste (segundos)
-
-// ========== HARDWARE - SD CARD (opcional) ==========
-#define SD_CS                   14      // ESP32-S3 SPI CS
-#define SD_MOSI                 15      // ESP32-S3 SPI MOSI
-#define SD_MISO                 16      // ESP32-S3 SPI MISO
-#define SD_SCK                  17      // ESP32-S3 SPI SCK
+#define SD_CS                   14
+#define SD_MOSI                 15
+#define SD_MISO                 16
+#define SD_SCK                  17
 
 // ========== COMPORTAMENTO ==========
 #define EFEITO_TEMPO_PADRAO     30
 #define STATUS_INTERVAL         60000
 #define DOWNLOAD_TIMEOUT        300000
 #define OTA_TIMEOUT             300000
-#define MAX_AUDIO_SIZE          (5 * 1024 * 1024)  // 5MB máximo (validado em múltiplas camadas)
-#define DOWNLOAD_BUFFER_SIZE    2048                // Buffer de download
+#define MAX_AUDIO_SIZE          (5 * 1024 * 1024)
+#define DOWNLOAD_BUFFER_SIZE    2048
 
-// ========== TOPICS MQTT ==========
-// Os tópicos são montados em runtime com o TOTEM_ID provisionado.
 
 // ========== ARQUIVOS ==========
 #define AUDIO_FILENAME          "/audio.mp3"

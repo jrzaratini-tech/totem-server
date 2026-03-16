@@ -110,7 +110,7 @@ Bibliotecas típicas necessárias no Arduino IDE:
   - `GPIO 6` → BCLK (Bit Clock)
   - `GPIO 7` → LRC (Word Select)
   - `GPIO 5` → DIN (Data In)
-  - `GPIO 4` → GAIN (Controle de ganho)
+  - GAIN → GND (9dB fixo)
 
 ### Biblioteca
 Este projeto usa a biblioteca **ESP32-audioI2S** (schreibfaul1).
@@ -159,7 +159,7 @@ Se encontrar erros relacionados a `std::span` ou `i2s_chan_config_t`:
 
 ### Problemas com áudio
 - Verifique as conexões do MAX98357A
-- Confirme que GPIO 4 (GAIN) está em HIGH
+- Confirme que GAIN está conectado ao GND (9dB)
 - Verifique logs serial: `[Audio]` tags
 
 ### WiFi não conecta

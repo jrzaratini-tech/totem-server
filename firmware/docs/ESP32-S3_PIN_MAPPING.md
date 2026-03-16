@@ -19,7 +19,7 @@ Este documento descreve o mapeamento de pinos adaptado do ESP32 original para o 
 #### LEDs (WS2812B)
 | Função | ESP32 Original | ESP32-S3 | Notas |
 |--------|---------------|----------|-------|
-| LED Principal | GPIO19 | **GPIO1** | Fita LED principal (199 LEDs) |
+| LED Principal | GPIO19 | **GPIO8** | Fita LED principal (200 LEDs) |
 | LED Coração | GPIO18 | **GPIO9** | Fita LED coração (9 LEDs) |
 | Heartbeat LED 1 | GPIO15 | **GPIO1** | LED de status |
 | Heartbeat LED 2 | GPIO18 | **GPIO2** | LED de status |
@@ -39,7 +39,7 @@ Este documento descreve o mapeamento de pinos adaptado do ESP32 original para o 
 | BCLK (Bit Clock) | GPIO27 | **GPIO6** | Clock de bit I2S |
 | LRC (Word Select) | GPIO25 | **GPIO7** | Word select / LRCLK |
 | DOUT (Data Out) | GPIO26 | **GPIO5** | Saída de dados |
-| GAIN (Controle) | GPIO33 | **GPIO4** | Controle de ganho do amplificador |
+| GAIN | - | **GND** | Conectar ao GND (9dB fixo) |
 
 #### SD Card (Opcional)
 | Função | ESP32 Original | ESP32-S3 | Notas |
@@ -93,9 +93,9 @@ Este documento descreve o mapeamento de pinos adaptado do ESP32 original para o 
 ### Checklist
 - [ ] Compilação sem erros
 - [ ] Upload via USB funcional
-- [ ] LEDs WS2812B funcionando (GPIO1 e GPIO9)
+- [ ] LEDs WS2812B funcionando (GPIO8 e GPIO9)
 - [ ] Botão trigger respondendo (GPIO10)
-- [ ] Áudio I2S funcionando (GPIO4-7)
+- [ ] Áudio I2S funcionando (GPIO5-7)
 - [ ] WiFi conectando
 - [ ] MQTT funcionando
 - [ ] OTA updates funcionando
@@ -119,7 +119,7 @@ pio device monitor -b 115200
 
 2. **PSRAM**: Habilitado por padrão. Útil para buffers de áudio maiores.
 
-3. **Pinos I2S**: Os pinos I2S no ESP32-S3 são mais flexíveis. Qualquer GPIO pode ser usado, mas escolhemos GPIO4-7 por serem seguros e próximos.
+3. **Pinos I2S**: Os pinos I2S no ESP32-S3 são mais flexíveis. Qualquer GPIO pode ser usado, mas escolhemos GPIO5-7 por serem seguros e próximos.
 
 4. **FastLED**: Compatível com ESP32-S3. Nenhuma mudança necessária no código.
 
@@ -134,10 +134,10 @@ pio device monitor -b 115200
 - **Solução**: Use `pio run -t erase` e tente novamente
 
 ### Problema: LEDs não acendem
-- **Solução**: Verifique conexões nos GPIO1 e GPIO9
+- **Solução**: Verifique conexões nos GPIO8 e GPIO9
 
 ### Problema: Áudio não funciona
-- **Solução**: Verifique conexões I2S nos GPIO4-7 e o pino GAIN
+- **Solução**: Verifique conexões I2S nos GPIO5-7 e GAIN conectado ao GND
 
 ## Referências
 
