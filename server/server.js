@@ -28,8 +28,7 @@ require('dotenv').config({ path: path.join(projectRoot, '.env') });
 
 // ========== CONFIGURAÇÕES ==========
 const PORT = process.env.PORT || 3000;
-const SENHA_ADMIN_FALLBACK = '159268';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'totem-secret-key-v4';
+const SESSION_SECRET = process.env.SESSION_SECRET;
 const MQTT_BROKER = 'broker.hivemq.com';
 const MQTT_PORT = 1883;
 const SERVER_URL = process.env.SERVER_URL || 'https://totem-server.onrender.com';
@@ -315,6 +314,7 @@ async function buscarSenhaAdmin() {
     console.log('Firebase inicializado:', firebaseInicializado);
     console.log('DB disponível:', !!db);
     
+    // Prioridade 1: Senha do Firebase
     if (firebaseInicializado && db) {
         try {
             const doc = await db.collection('config').doc('admin').get();
@@ -322,17 +322,17 @@ async function buscarSenhaAdmin() {
             
             if (doc.exists) {
                 const data = doc.data();
-                console.log('Dados do documento admin:', JSON.stringify(data));
+                console.log('Dados do documento admin encontrados');
                 
                 if (data && data.senha) {
-                    console.log('✅ Senha encontrada no Firebase:', data.senha);
+                    console.log('✅ Senha encontrada no Firebase');
                     return data.senha;
                 } else {
                     console.log('⚠️ Documento existe mas não tem campo "senha"');
                 }
             } else {
                 console.log('⚠️ Documento config/admin NÃO EXISTE no Firestore');
-                console.log('💡 Crie o documento: Firestore > config > admin > senha: "sua_senha"');
+                console.log('💡 Crie o documento: Firestore > config > admin > senha: "sua_senha_segura"');
             }
         } catch (error) {
             console.error('❌ Erro ao buscar senha admin do Firebase:', error.message);
@@ -341,8 +341,16 @@ async function buscarSenhaAdmin() {
         console.log('⚠️ Firebase não está inicializado');
     }
     
-    console.log('⚠️ Usando senha fallback:', SENHA_ADMIN_FALLBACK);
-    return SENHA_ADMIN_FALLBACK;
+    // Prioridade 2: Variável de ambiente
+    if (process.env.ADMIN_PASSWORD) {
+        console.log('✅ Usando senha da variável de ambiente ADMIN_PASSWORD');
+        return process.env.ADMIN_PASSWORD;
+    }
+    
+    // Sem senha configurada - retorna null para bloquear acesso
+    console.error('❌ NENHUMA SENHA CONFIGURADA!');
+    console.error('💡 Configure a senha no Firebase (config/admin/senha) ou na variável de ambiente ADMIN_PASSWORD');
+    return null;
 }
 
 async function listarTotens() {
@@ -1062,13 +1070,19 @@ app.get('/admin/dashboard', adminAuth, async (req, res) => {
         let audioCell = '';
         if (totem.audio && totem.audio.url) {
             const audioUrl = totem.audio.url;
+            const audioNome = (totem.audio.nome || 'audio.mp3').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             
-            // Escapar URL para uso seguro em atributo HTML
-            const audioUrlEscaped = audioUrl.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            // Escapar URL corretamente para JavaScript string dentro de HTML onclick
+            const audioUrlEscaped = audioUrl
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r');
             
             audioCell = `
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="color: #ccc; font-size: 13px;">${totem.audio.nome || 'audio.mp3'}</span>
+                <div class="audio-info">
+                    <span class="audio-nome" title="${audioNome}">${audioNome}</span>
                     <button class="btn-play" onclick="playAudio('${audioUrlEscaped}')">▶️ Play</button>
                 </div>
             `;

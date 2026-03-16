@@ -1467,7 +1467,7 @@
                 idle: {
                     mode: idleMode.value,
                     color: idleColor.value,
-                    speed: 101 - Number(idleSpeed.value),
+                    speed: Number(idleSpeed.value),
                     maxBrightness: Number(idleBrightness.value)
                 },
                 trigger: {
@@ -1674,8 +1674,8 @@
                     idleBrightness.value = data.idle.maxBrightness || 120;
                     idleBrightnessVal.textContent = data.idle.maxBrightness || 120;
                     const idleSpeedFromServer = data.idle.speed || 50;
-                    idleSpeed.value = 101 - idleSpeedFromServer;
-                    idleSpeedVal.textContent = 101 - idleSpeedFromServer;
+                    idleSpeed.value = idleSpeedFromServer;
+                    idleSpeedVal.textContent = idleSpeedFromServer;
                 }
                 
                 if (data.trigger) {

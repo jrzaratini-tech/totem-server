@@ -1,13 +1,16 @@
-# Como Alterar a Senha do Painel Admin
+# Como Configurar a Senha do Painel Admin
 
 ## 📋 Visão Geral
 
-A senha do painel administrativo agora é armazenada no **Firebase Firestore** e só pode ser alterada diretamente no banco de dados. Isso garante maior segurança, pois não há interface web para alteração de senha.
+A senha do painel administrativo é armazenada no **Firebase Firestore** ou em **variável de ambiente**. Isso garante maior segurança, pois não há interface web para alteração de senha.
 
-## 🔐 Senha Atual (Padrão)
+## 🔐 Configuração de Senha
 
-- **Senha padrão:** `159268`
-- Esta senha será usada caso não exista configuração no Firebase
+O sistema busca a senha na seguinte ordem de prioridade:
+
+1. **Firebase Firestore** (recomendado)
+2. **Variável de ambiente** `ADMIN_PASSWORD`
+3. **Sem senha configurada** = acesso bloqueado
 
 ## 🔧 Como Alterar a Senha no Firebase
 
@@ -61,9 +64,15 @@ Firestore Database
 - **Sem recuperação automática:** Não há sistema de recuperação de senha. Se esquecer, precisará alterar novamente no Firebase
 - **Efeito imediato:** A alteração é aplicada instantaneamente, sem necessidade de reiniciar o servidor
 
-## 🔄 Senha de Fallback
+## 🔄 Configuração Alternativa (Variável de Ambiente)
 
-Se o Firebase estiver indisponível ou o documento não existir, o sistema usará a senha padrão `159268` como fallback. Para desativar isso, você pode remover a constante `SENHA_ADMIN_FALLBACK` do código.
+Se o Firebase estiver indisponível ou você preferir não usar o Firestore, configure a senha via variável de ambiente:
+
+1. Edite o arquivo `.env` na raiz do projeto
+2. Adicione a linha: `ADMIN_PASSWORD=sua_senha_segura_aqui`
+3. Reinicie o servidor
+
+**Importante:** A senha do Firebase tem prioridade sobre a variável de ambiente.
 
 ## 💡 Dicas de Segurança
 
@@ -86,7 +95,8 @@ Se o Firebase estiver indisponível ou o documento não existir, o sistema usar�
 
 - Verifique os logs do servidor
 - Confirme que as credenciais do Firebase estão corretas
-- O sistema usará a senha padrão `159268` como fallback
+- Configure a senha via variável de ambiente `ADMIN_PASSWORD` no arquivo `.env`
+- Sem configuração, o acesso admin será bloqueado por segurança
 
 ### Esqueci a senha
 
