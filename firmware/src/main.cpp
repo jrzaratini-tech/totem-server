@@ -143,18 +143,9 @@ static void setupMQTTCallbacks() {
                 Serial.printf("[MAIN] Trigger config updated - Mode: %d, Color: 0x%06X, Duration: %d\n",
                              triggerConfig.mode, triggerConfig.color, triggerConfig.duration);
                 
-                // AUTO-PLAY: Disparar efeito automaticamente quando configuração de trigger é atualizada
-                if (stateMachine.canPlay() && SPIFFS.exists(AUDIO_FILENAME)) {
-                    if (gWdtStarted) esp_task_wdt_reset();
-                    Serial.println("[MAIN] *** AUTO-PLAY: Trigger config updated, playing automatically ***");
-                    if (stateMachine.setState(PLAYING)) {
-                        ledEngine.startEffect(triggerConfig);
-                        if (gWdtStarted) esp_task_wdt_reset();
-                        audioManager.play();
-                        if (gWdtStarted) esp_task_wdt_reset();
-                        playEndMs = millis() + (unsigned long)triggerConfig.duration * 1000UL;
-                    }
-                }
+                // Configuração salva - NÃO dispara automaticamente
+                // O efeito só será disparado via comando /trigger ou /config (teste)
+                Serial.println("[MAIN] Trigger config saved - waiting for explicit trigger command");
             }
             return;
         }

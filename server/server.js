@@ -184,6 +184,10 @@ function conectarMQTT() {
 
 conectarMQTT();
 
+// ========== ROTAS OTA ==========
+const initOTARoutes = require('./routes/ota');
+app.use('/admin/ota', initOTARoutes(mqttClient));
+
 // Função para publicar no MQTT
 function publicarPlay(totemId) {
     if (mqttClient && mqttClient.connected) {
@@ -1269,6 +1273,10 @@ app.get('/admin/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'login.html'));
 });
 
+app.get('/admin/ota', adminAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'views', 'admin-ota.html'));
+});
+
 app.post('/admin/login', async (req, res) => {
     const { senha } = req.body;
     
@@ -1467,15 +1475,25 @@ app.post('/admin/disparar/:id', adminAuth, async (req, res) => {
     }
 });
 
+app.get('/admin/totens', adminAuth, async (req, res) => {
+    try {
+        const totens = await listarTotens();
+        res.json({ success: true, totens });
+    } catch (error) {
+        res.status(500).json({ success: false, erro: error.message });
+    }
+});
+
 // ========== INICIAR SERVIDOR ==========
 
 const server = app.listen(PORT, () => {
     console.log('\n' + '='.repeat(50));
-    console.log('🚀 TOTEM SERVER v4.2.1 - SISTEMA ROBUSTO');
+    console.log('🚀 TOTEM SERVER v4.3.0 - SISTEMA ROBUSTO + OTA');
     console.log('='.repeat(50));
     console.log(`📡 Porta: ${PORT}`);
     console.log(`🌐 URL: ${SERVER_URL}`);
     console.log(`📊 Admin: ${SERVER_URL}/admin/login`);
+    console.log(`🚀 OTA: ${SERVER_URL}/admin/ota`);
     console.log(`👤 Cliente: ${SERVER_URL}/cliente/login`);
     console.log(`📡 MQTT: ${MQTT_BROKER}:${MQTT_PORT}`);
     console.log(`🔥 Firebase: ${firebaseInicializado ? '✅ Conectado' : '❌ Não disponível'}`);

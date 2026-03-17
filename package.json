@@ -1,12 +1,13 @@
 {
   "name": "totem-server",
-  "version": "4.2.1",
-  "description": "Servidor de Totens Interativos IoT com validação robusta de áudio em múltiplas camadas",
+  "version": "4.3.0",
+  "description": "Servidor de Totens Interativos IoT com validação robusta de áudio em múltiplas camadas e OTA",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "migrate": "node migrate_to_v4.js"
+    "migrate": "node migrate_to_v4.js",
+    "test": "jest --coverage"
   },
   "dependencies": {
     "axios": "^1.6.2",
@@ -27,7 +28,8 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "jest": "^29.7.0"
   },
   "engines": {
     "node": ">=18.0.0"
