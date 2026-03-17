@@ -41,6 +41,17 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cors());
+
+// Middleware para adicionar headers no-cache em arquivos estáticos administrativos
+app.use('/js', (req, res, next) => {
+    res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    next();
+});
+
 app.use(express.static(path.join(projectRoot, 'public')));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -1330,10 +1341,20 @@ app.delete('/api/audio/:id', async (req, res) => {
 // ========== ROTAS ADMIN ==========
 
 app.get('/admin/login', (req, res) => {
+    res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
     res.sendFile(path.join(__dirname, 'views', 'login.html'));
 });
 
 app.get('/admin/ota', adminAuth, (req, res) => {
+    res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
     res.sendFile(path.join(__dirname, 'views', 'admin-ota.html'));
 });
 
