@@ -130,6 +130,23 @@ function conectarMQTT() {
             mqttReconnectAttempts = 0;
             console.log('✅ MQTT conectado ao broker HiveMQ');
             
+            // Subscrever aos tópicos de status de todos os totens
+            mqttClient.subscribe('totem/+/status', { qos: 1 }, (err) => {
+                if (err) {
+                    console.error('❌ Erro ao subscrever tópicos de status:', err.message);
+                } else {
+                    console.log('✅ Subscrito aos tópicos: totem/+/status');
+                }
+            });
+            
+            mqttClient.subscribe('totem/+/heartbeat', { qos: 1 }, (err) => {
+                if (err) {
+                    console.error('❌ Erro ao subscrever tópicos de heartbeat:', err.message);
+                } else {
+                    console.log('✅ Subscrito aos tópicos: totem/+/heartbeat');
+                }
+            });
+            
             // Verificar se deve publicar atualização de firmware
             setTimeout(() => {
                 try {
@@ -176,6 +193,49 @@ function conectarMQTT() {
         
         mqttClient.on('error', (err) => {
             console.error('❌ Erro MQTT:', err.message);
+        });
+        
+        // Handler para processar mensagens recebidas
+        mqttClient.on('message', async (topic, message) => {
+            try {
+                const topicParts = topic.split('/');
+                if (topicParts.length < 3) return;
+                
+                const totemId = topicParts[1];
+                const messageType = topicParts[2];
+                
+                // Processar status ou heartbeat
+                if (messageType === 'status' || messageType === 'heartbeat') {
+                    const payload = JSON.parse(message.toString());
+                    
+                    console.log(`📥 MQTT recebido de ${totemId}:`, messageType, payload);
+                    
+                    // Atualizar status no Firebase
+                    if (firebaseInicializado && db) {
+                        const updateData = {
+                            'firmware.status': payload.online ? 'online' : 'offline',
+                            'firmware.ultimaAtualizacao': admin.firestore.FieldValue.serverTimestamp()
+                        };
+                        
+                        if (payload.fw) {
+                            updateData['firmware.atual'] = payload.fw;
+                        }
+                        
+                        if (payload.rssi) {
+                            updateData['rssi'] = payload.rssi;
+                        }
+                        
+                        if (payload.ip) {
+                            updateData['ip'] = payload.ip;
+                        }
+                        
+                        await db.collection('totens').doc(totemId).set(updateData, { merge: true });
+                        console.log(`✅ Status atualizado no Firebase para ${totemId}: ${payload.online ? 'ONLINE' : 'OFFLINE'}`);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Erro ao processar mensagem MQTT:', error.message);
+            }
         });
     } catch (error) {
         console.error('❌ Falha ao conectar MQTT:', error.message);
