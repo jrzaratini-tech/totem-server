@@ -119,7 +119,13 @@ function renderizarTotens(totens) {
     tbody.innerHTML = totens.map(totem => {
         const firmware = totem.firmware || {};
         const versaoAtual = firmware.atual || 'Desconhecida';
-        const status = firmware.status || 'offline';
+        let status = firmware.status || 'offline';
+        
+        // Normalizar status: se não for 'updating' ou 'offline', considerar como 'online'
+        if (status !== 'updating' && status !== 'offline' && status !== 'failed') {
+            status = 'online';
+        }
+        
         const ultimaAtualizacao = firmware.ultimaAtualizacao 
             ? new Date(firmware.ultimaAtualizacao).toLocaleString('pt-BR')
             : 'Nunca';
