@@ -36,7 +36,7 @@ const uploadFirmware = multer({
 });
 
 const rateLimitMap = new Map();
-const RATE_LIMIT_UPLOADS = 5;
+const RATE_LIMIT_UPLOADS = 50;
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000;
 
 function checkRateLimit(req, res, next) {
