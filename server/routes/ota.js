@@ -89,14 +89,12 @@ function initOTARoutes(mqttClient) {
                 });
             }
 
-            const versao = validacao.versao || req.body.versao;
+            let versao = validacao.versao || req.body.versao;
             
             if (!versao) {
-                fs.unlinkSync(filePath);
-                return res.status(400).json({
-                    success: false,
-                    erro: 'Versão não encontrada no nome do arquivo. Use formato: firmware_vX.X.X.bin'
-                });
+                // Se não encontrou versão, usa o nome do arquivo sem extensão
+                const fileName = path.basename(filePath, '.bin');
+                versao = fileName.replace(/^firmware_/, '') || 'custom';
             }
 
             await firebaseOTA.registrarAuditoria('upload_firmware', req.session.adminAutenticado || 'admin', {

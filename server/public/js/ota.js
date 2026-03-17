@@ -48,6 +48,11 @@ async function handleFileUpload(file) {
 
     const formData = new FormData();
     formData.append('firmware', file);
+    
+    const manualVersion = document.getElementById('manualVersion')?.value;
+    if (manualVersion) {
+        formData.append('versao', manualVersion);
+    }
 
     try {
         mostrarAlerta('Validando firmware...', 'info');
@@ -77,6 +82,14 @@ function mostrarInfoFirmware(firmware) {
     document.getElementById('fileVersion').textContent = firmware.versao || 'Não detectada';
     document.getElementById('fileSize').textContent = `${firmware.tamanhoMB} MB`;
     document.getElementById('fileChecksum').textContent = firmware.checksum;
+    
+    // Mostrar campo de versão manual se a versão for 'custom' ou não detectada
+    const versionContainer = document.getElementById('versionInputContainer');
+    if (!firmware.versao || firmware.versao === 'custom' || firmware.versao.includes('firmware_')) {
+        versionContainer.style.display = 'block';
+    } else {
+        versionContainer.style.display = 'none';
+    }
 }
 
 async function carregarTotens() {
