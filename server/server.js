@@ -85,7 +85,7 @@ try {
     
     admin.initializeApp({
         credential: admin.credential.cert(credentials),
-        storageBucket: `${credentials.project_id}.appspot.com`
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${credentials.project_id}.appspot.com`
     });
     
     db = admin.firestore();
