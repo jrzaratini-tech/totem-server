@@ -92,7 +92,7 @@ class JobManager {
 
                     await this.firebaseOTA.atualizarStatusOTA(
                         progresso.totemId,
-                        status === 'success' ? 'updating' : 'failed',
+                        status === 'success' ? 'online' : 'failed',
                         versao
                     );
                 }
