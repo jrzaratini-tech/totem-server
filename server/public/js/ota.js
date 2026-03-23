@@ -1,10 +1,12 @@
 let firmwareAtual = null;
 let totensData = [];
+let monitoramentoIndividual = new Map();
 
 document.addEventListener('DOMContentLoaded', () => {
     inicializarUpload();
     carregarTotens();
     inicializarMonitoramentoJobs();
+    inicializarAutoRefreshTotens();
 });
 
 function inicializarUpload() {
@@ -200,12 +202,70 @@ async function executarOTAIndividual(totemId) {
         if (resultado.success) {
             mostrarAlerta(`OTA iniciado com sucesso para ${totemId}`, 'success');
             carregarTotens();
+            monitorarStatusTotem(totemId);
         } else {
             mostrarAlerta(`Erro: ${resultado.erro}`, 'error');
         }
     } catch (error) {
         mostrarAlerta(`Erro: ${error.message}`, 'error');
     }
+}
+
+function monitorarStatusTotem(totemId) {
+    if (monitoramentoIndividual.has(totemId)) {
+        clearInterval(monitoramentoIndividual.get(totemId));
+    }
+
+    let tentativas = 0;
+    const maxTentativas = 40;
+
+    const interval = setInterval(async () => {
+        tentativas++;
+
+        try {
+            const response = await fetch(`/admin/ota/status/${totemId}`);
+            const resultado = await response.json();
+
+            if (!resultado.success) {
+                if (tentativas >= maxTentativas) {
+                    clearInterval(interval);
+                    monitoramentoIndividual.delete(totemId);
+                }
+                return;
+            }
+
+            const status = (resultado.firmware?.status || '').toLowerCase();
+            await carregarTotens();
+
+            if (status === 'online') {
+                clearInterval(interval);
+                monitoramentoIndividual.delete(totemId);
+                mostrarAlerta(`Totem ${totemId} voltou para ONLINE`, 'success');
+                return;
+            }
+
+            if (status === 'failed') {
+                clearInterval(interval);
+                monitoramentoIndividual.delete(totemId);
+                mostrarAlerta(`OTA falhou para ${totemId}`, 'error');
+                return;
+            }
+
+            if (tentativas >= maxTentativas) {
+                clearInterval(interval);
+                monitoramentoIndividual.delete(totemId);
+                mostrarAlerta(`Totem ${totemId} ainda está em atualização. Verifique os logs do dispositivo.`, 'info');
+            }
+        } catch (error) {
+            console.error(`Erro ao monitorar status do totem ${totemId}:`, error);
+            if (tentativas >= maxTentativas) {
+                clearInterval(interval);
+                monitoramentoIndividual.delete(totemId);
+            }
+        }
+    }, 5000);
+
+    monitoramentoIndividual.set(totemId, interval);
 }
 
 function abrirModalMassa() {
@@ -434,6 +494,12 @@ function inicializarMonitoramentoJobs() {
             console.error('Erro ao verificar jobs ativos:', error);
         }
     }, 10000);
+}
+
+function inicializarAutoRefreshTotens() {
+    setInterval(() => {
+        carregarTotens();
+    }, 15000);
 }
 
 function fecharModal(modalId) {

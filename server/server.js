@@ -199,9 +199,15 @@ function conectarMQTT() {
                     // Atualizar status no Firebase
                     if (firebaseInicializado && db) {
                         const updateData = {
-                            'firmware.status': payload.online ? 'online' : 'offline',
                             'firmware.ultimaAtualizacao': admin.firestore.FieldValue.serverTimestamp()
                         };
+
+                        if (messageType === 'status') {
+                            updateData['firmware.status'] = payload.online ? 'online' : 'offline';
+                        } else {
+                            updateData['firmware.lastHeartbeat'] = admin.firestore.FieldValue.serverTimestamp();
+                            updateData['firmware.status'] = 'online';
+                        }
                         
                         if (payload.fw) {
                             updateData['firmware.atual'] = payload.fw;
