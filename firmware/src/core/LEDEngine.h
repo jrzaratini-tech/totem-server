@@ -24,6 +24,7 @@ private:
 
     CRGB* getMainLeds() { return allLeds; }
     CRGB* getHeartLeds() { return allLeds + mainCount; }
+    void restoreEffectAfterHeartbeat();
 
 public:
     LEDEngine();

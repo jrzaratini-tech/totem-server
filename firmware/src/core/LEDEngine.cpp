@@ -87,6 +87,18 @@ void LEDEngine::setColor(uint32_t rgb) {
     cfg.color = rgb;
 }
 
+void LEDEngine::restoreEffectAfterHeartbeat() {
+    FastLED.setBrightness(cfg.maxBrightness);
+
+    if (allLeds && totalCount > 0) {
+        fill_solid(allLeds, totalCount, CRGB::Black);
+    }
+
+    if (active) {
+        startMs = millis();
+    }
+}
+
 void LEDEngine::loop() {
     unsigned long now = millis();
 
@@ -98,6 +110,7 @@ void LEDEngine::loop() {
             // Efeito terminou, desativar
             heartbeatEffectActive = false;
             Serial.println("[LEDEngine] Heartbeat effect finished");
+            restoreEffectAfterHeartbeat();
         } else {
             // Renderizar efeito de batimento cardíaco na fita principal
             CRGB* mainLeds = getMainLeds();

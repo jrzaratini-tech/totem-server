@@ -21,6 +21,25 @@ AudioManager::AudioManager() {
     gAudioManagerInstance = this;
 }
 
+uint8_t AudioManager::mapUserVolumeToLibrary(int vol) const {
+    int clampedVol = constrain(vol, MIN_VOLUME, MAX_VOLUME);
+    return static_cast<uint8_t>(map(clampedVol, MIN_VOLUME, MAX_VOLUME, 0, AUDIO_SAFE_SOFT_LIMIT));
+}
+
+void AudioManager::applyOutputProfile() {
+    audio.setBalance(AUDIO_BALANCE);
+    audio.setTone(AUDIO_TONE_LOW, AUDIO_TONE_MID, AUDIO_TONE_HIGH);
+    audio.setVolume(mapUserVolumeToLibrary(DEFAULT_VOLUME), AUDIO_VOLUME_CURVE);
+
+    Serial.println("[Audio] ===== OUTPUT PROFILE =====");
+    Serial.println("[Audio] Hardware GAIN pin:    GND (12dB fixed gain)");
+    Serial.printf("[Audio] Soft volume cap:     %d/%d\n", AUDIO_SAFE_SOFT_LIMIT, AUDIO_LIBRARY_MAX_VOLUME);
+    Serial.printf("[Audio] Default user volume: %d/%d\n", DEFAULT_VOLUME, MAX_VOLUME);
+    Serial.printf("[Audio] Tone profile (L/M/H): %d / %d / %d dB\n", AUDIO_TONE_LOW, AUDIO_TONE_MID, AUDIO_TONE_HIGH);
+    Serial.printf("[Audio] Volume curve:        %d\n", AUDIO_VOLUME_CURVE);
+    Serial.println("[Audio] ==========================");
+}
+
 void AudioManager::setMQTTManager(MQTTManager* mqtt) {
     mqttManager = mqtt;
 }
@@ -59,15 +78,14 @@ void AudioManager::begin(const String &totemId, const String &deviceToken) {
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
     Serial.println("[Audio] I2S pins configured");
     
-    audio.setVolume(21);
-    Serial.println("[Audio] Volume set to 21/21 (max)");
+    applyOutputProfile();
     
     Serial.println("[Audio] ===== I2S CONFIGURATION =====");
     Serial.println("[Audio] DAC: MAX98357A");
     Serial.printf("[Audio] BCLK (Bit Clock):   GPIO%d → MAX98357A BCLK\n", I2S_BCLK);
     Serial.printf("[Audio] LRC (Word Select):  GPIO%d → MAX98357A LRC\n", I2S_LRC);
     Serial.printf("[Audio] DOUT (Data Out):    GPIO%d → MAX98357A DIN\n", I2S_DOUT);
-    Serial.println("[Audio] GAIN:               Floating (12dB)");
+    Serial.println("[Audio] GAIN:               GND (12dB)");
     Serial.printf("[Audio] Sample Rate:        %d Hz\n", AUDIO_SAMPLE_RATE);
     Serial.printf("[Audio] Bit Depth:          %d-bit\n", AUDIO_BITS_PER_SAMPLE);
     Serial.printf("[Audio] Channels:           %d (Stereo)\n", AUDIO_CHANNELS);
@@ -202,8 +220,8 @@ void AudioManager::playFromURL(const String &url) {
         Serial.println("[Audio]   1. MAX98357A power (VIN = 5V, GND connected)");
         Serial.println("[Audio]   2. I2S connections (BCLK=GPIO6, LRC=GPIO7, DIN=GPIO5)");
         Serial.println("[Audio]   3. Speaker connected (4-8Ω between OUT+ and OUT-)");
-        Serial.println("[Audio]   4. GAIN pin: Floating (12dB gain)");
-        Serial.printf("[Audio]   5. Volume level: %d/21 (library scale)\n", audio.getVolume());
+        Serial.println("[Audio]   4. GAIN pin: GND (12dB fixed gain)");
+        Serial.printf("[Audio]   5. Volume level: %d/%d (library scale)\n", audio.getVolume(), AUDIO_LIBRARY_MAX_VOLUME);
         Serial.println("[Audio]   6. Internet connection stable");
         Serial.println("[Audio] ========================================");
     } else {
@@ -230,9 +248,10 @@ void AudioManager::stop() {
 
 void AudioManager::setVolume(int vol) {
     int clampedVol = constrain(vol, MIN_VOLUME, MAX_VOLUME);
-    int mappedVol = map(clampedVol, MIN_VOLUME, MAX_VOLUME, 0, 21);
-    audio.setVolume(mappedVol);
-    Serial.printf("[Audio] Volume set: %d/10 (mapped to %d/21)\n", clampedVol, mappedVol);
+    uint8_t mappedVol = mapUserVolumeToLibrary(clampedVol);
+    audio.setVolume(mappedVol, AUDIO_VOLUME_CURVE);
+    Serial.printf("[Audio] Volume set: %d/%d (mapped to %d/%d, curve=%d)\n",
+                 clampedVol, MAX_VOLUME, mappedVol, AUDIO_LIBRARY_MAX_VOLUME, AUDIO_VOLUME_CURVE);
 }
 
 bool AudioManager::isPlaying() const { return playing; }

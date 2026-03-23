@@ -37,6 +37,11 @@ static unsigned long playEndMs = 0;
 static unsigned long lastHeapCheck = 0;
 static unsigned long triggerStartMs = 0;
 
+// Variáveis globais para configurações duais
+static ConfigData idleConfig;
+static ConfigData triggerConfig;
+static int currentVolume = DEFAULT_VOLUME;
+
 static void publishStatus() {
     StaticJsonDocument<384> doc;
     doc["online"] = true;
@@ -63,44 +68,12 @@ static void safeEnterError(const String &err) {
 }
 
 static void setupButtonCallbacks() {
-    buttonManager.onButtonCor([](bool longPress) {
-        configManager.cycleColor();
-        ledEngine.setColor(configManager.getColor());
-    });
-
-    buttonManager.onButtonMais([](bool longPress) {
-        int cur = configManager.getBrightness();
-        int step = longPress ? 25 : 10;
-        int next = min(cur + step, (int)MAX_BRIGHTNESS);
-        configManager.setBrightness(next);
-        ledEngine.setBrightness(next);
-    });
-
-    buttonManager.onButtonMenos([](bool longPress) {
-        int cur = configManager.getBrightness();
-        int step = longPress ? 25 : 10;
-        int next = max(cur - step, 0);
-        configManager.setBrightness(next);
-        ledEngine.setBrightness(next);
-    });
-
-    buttonManager.onButtonCoracao([](bool longPress) {
+    buttonManager.onButtonTrigger([](bool longPress) {
         (void)longPress;
-        Serial.println("[MAIN] Heartbeat button pressed - triggering 5-second heartbeat effect on main strip");
-        ledEngine.triggerHeartbeatEffect(5000);
-    });
-
-    buttonManager.onButtonHeartbeat([](bool longPress) {
-        (void)longPress;
-        Serial.println("[MAIN] Heartbeat button pressed - triggering 5-second heartbeat effect on main strip");
+        Serial.println("[MAIN] GPIO10 button pressed - triggering heartbeat effect for 5000 ms");
         ledEngine.triggerHeartbeatEffect(5000);
     });
 }
-
-// Variáveis globais para configurações duais
-static ConfigData idleConfig;
-static ConfigData triggerConfig;
-static int currentVolume = 10; // Volume máximo por padrão
 
 static void setupMQTTCallbacks() {
     mqttManager.onMessage([](const String &topic, const String &payload) {
@@ -373,8 +346,8 @@ void setup() {
 
     Serial.println("[BOOT] Starting audio manager...");
     audioManager.begin(gTotemId, gDeviceToken);
-    audioManager.setVolume(10);  // Volume máximo
-    Serial.println("[BOOT] Audio manager initialized with max volume");
+    audioManager.setVolume(DEFAULT_VOLUME);
+    Serial.printf("[BOOT] Audio manager initialized with default volume %d/%d\n", DEFAULT_VOLUME, MAX_VOLUME);
 
     Serial.println("[BOOT] Starting WiFi manager...");
     wifiManager.begin(gTotemId);

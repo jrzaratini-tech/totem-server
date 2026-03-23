@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // ========== IDENTIFICAÇÃO DO TOTEM ==========
-#define TOTEM_ID                "printpixel"
+#define TOTEM_ID                "catiatexeira"
 #define DEFAULT_TOTEM_ID        TOTEM_ID
 #define FORCE_TOTEM_ID          TOTEM_ID
 #define FIRMWARE_VERSION        "4.2.1"
@@ -49,16 +49,9 @@
 
 #define PIN_BTN_TRIGGER         10
 #define PIN_BTN_RESET_WIFI      11
-#define PIN_BTN_HEARTBEAT       3
 #define DEBOUNCE_DELAY          50
 #define LONG_PRESS_TIME         5000
 #define MIN_CLICK_INTERVAL      150
-
-#define PIN_BTN_COR             10
-#define PIN_BTN_MAIS            12
-#define PIN_BTN_MENOS           13
-#define PIN_BTN_CORACAO         10
-#define PIN_BTN_CORACAO_ALIAS   PIN_BTN_TRIGGER
 
 #define I2S_BCLK                6
 #define I2S_LRC                 7
@@ -72,9 +65,16 @@
 #define I2S_DMA_BUFFER_SIZE     1024
 #define AUDIO_PREALLOC_SIZE     4096
 
-#define DEFAULT_VOLUME          10
+#define DEFAULT_VOLUME          8
 #define MIN_VOLUME              0
 #define MAX_VOLUME              10
+#define AUDIO_LIBRARY_MAX_VOLUME 21
+#define AUDIO_SAFE_SOFT_LIMIT   19
+#define AUDIO_VOLUME_CURVE      1
+#define AUDIO_TONE_LOW          1
+#define AUDIO_TONE_MID          0
+#define AUDIO_TONE_HIGH         2
+#define AUDIO_BALANCE           0
 #define AUDIO_DIAGNOSTICS       1
 #define AUDIO_TEST_TONE_FREQ    1000
 #define AUDIO_TEST_TONE_DUR     5

@@ -46,6 +46,10 @@ public:
     void setVersion(int v);
     bool checkAndDownloadFromServer(String *outError = nullptr);
     String currentAudioUrl;
+
+private:
+    uint8_t mapUserVolumeToLibrary(int vol) const;
+    void applyOutputProfile();
 };
 
 #endif

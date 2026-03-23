@@ -80,7 +80,7 @@ class JobManager {
                 checksum,
                 tamanho,
                 async (progresso) => {
-                    const status = progresso.resultado.success ? 'success' : 'failed';
+                    const status = progresso.resultado.success ? 'updating' : 'failed';
                     const mensagem = progresso.resultado.erro || 'OTA enviado com sucesso';
                     
                     await this.firebaseOTA.atualizarProgressoJob(
@@ -92,7 +92,7 @@ class JobManager {
 
                     await this.firebaseOTA.atualizarStatusOTA(
                         progresso.totemId,
-                        status === 'success' ? 'online' : 'failed',
+                        status,
                         versao
                     );
                 }

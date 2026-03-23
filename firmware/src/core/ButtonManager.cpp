@@ -2,40 +2,26 @@
 #include "Config.h"
 
 ButtonManager::ButtonManager() {
-    btns[0] = {PIN_BTN_COR, true, true, 0, 0, 0, false};
-    btns[1] = {PIN_BTN_MAIS, true, true, 0, 0, 0, false};
-    btns[2] = {PIN_BTN_MENOS, true, true, 0, 0, 0, false};
-    btns[3] = {PIN_BTN_CORACAO, true, true, 0, 0, 0, false};
-    btns[4] = {PIN_BTN_HEARTBEAT, true, true, 0, 0, 0, false};
+    btns[0] = {PIN_BTN_TRIGGER, true, true, 0, 0, 0, false};
 }
 
 void ButtonManager::begin() {
-    pinMode(PIN_BTN_COR, INPUT_PULLUP);
-    pinMode(PIN_BTN_MAIS, INPUT_PULLUP);
-    pinMode(PIN_BTN_MENOS, INPUT_PULLUP);
     // TTP223 capacitive touch - lógica positiva (HIGH quando tocado)
-    pinMode(PIN_BTN_CORACAO, INPUT);
-    pinMode(PIN_BTN_HEARTBEAT, INPUT);
+    pinMode(PIN_BTN_TRIGGER, INPUT);
 }
 
-void ButtonManager::onButtonCor(std::function<void(bool)> cb) { onCor = cb; }
-void ButtonManager::onButtonMais(std::function<void(bool)> cb) { onMais = cb; }
-void ButtonManager::onButtonMenos(std::function<void(bool)> cb) { onMenos = cb; }
-void ButtonManager::onButtonCoracao(std::function<void(bool)> cb) { onCoracao = cb; }
-void ButtonManager::onButtonHeartbeat(std::function<void(bool)> cb) { onHeartbeat = cb; }
+void ButtonManager::onButtonTrigger(std::function<void(bool)> cb) { onTrigger = cb; }
 
 void ButtonManager::loop() {
-    for (int i = 0; i < 5; i++) updateBtn(i);
+    updateBtn(0);
 }
 
 void ButtonManager::updateBtn(int idx) {
     Btn &b = btns[idx];
     bool rawReading = digitalRead(b.pin) == HIGH;
     
-    // TTP223 nos índices 3 e 4 (botões coração/trigger e heartbeat) tem lógica invertida
     // TTP223: HIGH quando tocado, LOW quando não tocado
-    // Botões mecânicos: LOW quando pressionado, HIGH quando não pressionado
-    bool reading = (idx == 3 || idx == 4) ? rawReading : !rawReading;
+    bool reading = rawReading;
     
     unsigned long now = millis();
 
@@ -79,12 +65,7 @@ void ButtonManager::updateBtn(int idx) {
 }
 
 void ButtonManager::fire(int idx, bool longPress) {
-    switch (idx) {
-        case 0: if (onCor) onCor(longPress); break;
-        case 1: if (onMais) onMais(longPress); break;
-        case 2: if (onMenos) onMenos(longPress); break;
-        case 3: if (onCoracao) onCoracao(longPress); break;
-        case 4: if (onHeartbeat) onHeartbeat(longPress); break;
-        default: break;
+    if (idx == 0 && onTrigger) {
+        onTrigger(longPress);
     }
 }
