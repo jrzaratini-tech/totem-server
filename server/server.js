@@ -530,6 +530,67 @@ app.get('/expirado', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'expirado.html'));
 });
 
+app.get('/manifest/:id.json', (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!id) {
+        return res.status(400).json({ error: 'ID do totem nao fornecido' });
+    }
+
+    const safeId = encodeURIComponent(id);
+    res.type('application/manifest+json');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.json({
+        name: `Totem ${id}`,
+        short_name: 'Totem',
+        description: 'Painel de controle do Totem Interativo',
+        start_url: `/app/${safeId}`,
+        display: 'standalone',
+        background_color: '#0b0f18',
+        theme_color: '#4f83f5',
+        orientation: 'portrait',
+        scope: '/app/',
+        icons: [
+            { src: '/icons/icon-72x72.png', sizes: '72x72', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icons/icon-96x96.png', sizes: '96x96', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icons/icon-128x128.png', sizes: '128x128', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icons/icon-144x144.png', sizes: '144x144', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icons/icon-384x384.png', sizes: '384x384', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
+    });
+});
+app.get('/cliente/login', (req, res) => {
+    res.type('html');
+    res.send(`<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abrindo Totem</title>
+    <style>
+        body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0b0f18; color: #f0f4ff; font-family: Arial, sans-serif; text-align: center; padding: 24px; }
+        .box { max-width: 360px; }
+        a { color: #7da5ff; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>Abrindo painel...</h1>
+        <p id="msg">Verificando ID salvo neste aparelho.</p>
+    </div>
+    <script>
+        const id = localStorage.getItem('totemId');
+        if (id) {
+            location.replace('/app/' + encodeURIComponent(id));
+        } else {
+            document.getElementById('msg').innerHTML = 'Nenhum ID salvo neste aparelho. Abra o link do painel do cliente novamente para instalar o app.';
+        }
+    </script>
+</body>
+</html>`);
+});
 // ========== ROTAS DE CLIENTE ==========
 
 app.get('/app/:id', verificarAcessoCliente, async (req, res) => {
@@ -1540,7 +1601,7 @@ const server = app.listen(PORT, () => {
     console.log(`🌐 URL: ${SERVER_URL}`);
     console.log(`📊 Admin: ${SERVER_URL}/admin/login`);
     console.log(`🚀 OTA: ${SERVER_URL}/admin/ota`);
-    console.log(`👤 Cliente: ${SERVER_URL}/cliente/login`);
+    console.log(`Cliente/App: ${SERVER_URL}/app/ID_DO_TOTEM`);
     console.log(`📡 MQTT: ${MQTT_BROKER}:${MQTT_PORT}`);
     console.log(`🔥 Firebase: ${firebaseInicializado ? '✅ Conectado' : '❌ Não disponível'}`);
     console.log('='.repeat(50) + '\n');

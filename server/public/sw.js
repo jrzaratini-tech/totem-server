@@ -1,6 +1,5 @@
-const CACHE_NAME = 'totem-dashboard-v1';
+const CACHE_NAME = 'totem-dashboard-v2';
 const urlsToCache = [
-  '/cliente/login',
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css'
@@ -63,7 +62,10 @@ self.addEventListener('fetch', (event) => {
 
           return response;
         }).catch(() => {
-          return caches.match('/cliente/login');
+          if (event.request.mode === 'navigate') {
+            return caches.match(event.request).then(cached => cached || Response.error());
+          }
+          return Response.error();
         });
       })
   );
