@@ -1,4 +1,4 @@
-const CACHE_NAME = 'totem-dashboard-v3';
+const CACHE_NAME = 'totem-dashboard-v4';
 const urlsToCache = [
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap',
@@ -42,6 +42,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .catch(() => caches.match(event.request).then(cached => cached || Response.error()))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -61,12 +69,7 @@ self.addEventListener('fetch', (event) => {
             });
 
           return response;
-        }).catch(() => {
-          if (event.request.mode === 'navigate') {
-            return caches.match(event.request).then(cached => cached || Response.error());
-          }
-          return Response.error();
-        });
+        }).catch(() => Response.error());
       })
   );
 });
