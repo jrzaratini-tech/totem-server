@@ -1,4 +1,4 @@
-const CACHE_NAME = 'totem-dashboard-v2';
+const CACHE_NAME = 'totem-dashboard-v3';
 const urlsToCache = [
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap',

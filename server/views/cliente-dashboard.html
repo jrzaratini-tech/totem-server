@@ -34,6 +34,7 @@
             width: 100%;
             max-width: 100%;
             overflow-x: hidden;
+            overflow-y: auto;
         }
 
         :root {
@@ -61,8 +62,8 @@
             flex-direction: column;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            touch-action: pan-y;
-            overscroll-behavior-y: contain;
+            touch-action: auto;
+            overscroll-behavior-y: auto;
             padding-left: env(safe-area-inset-left);
             padding-right: env(safe-area-inset-right);
         }
@@ -813,6 +814,7 @@
                 width: 100%;
                 max-width: 100%;
                 overflow-x: hidden;
+                overflow-y: auto;
             }
             body {
                 padding-bottom: env(safe-area-inset-bottom);
